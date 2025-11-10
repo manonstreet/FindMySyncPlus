@@ -1,0 +1,78 @@
+# ============================================
+# Xcode and macOS build artifacts
+# ============================================
+build/
+DerivedData/
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# ============================================
+# User-specific Xcode state (safe to ignore)
+# ============================================
+*.xcuserstate
+*.xcscmblueprint
+xcuserdata/
+*.xcuserdatad/
+*.xccheckout
+*.xcdebugger
+*.xcconfig~*
+project.xcworkspace/xcuserdata/
+
+# ============================================
+# SwiftPM & dependency cache
+# ============================================
+.swiftpm/
+.build/
+Package.resolved
+Packages/
+
+# ============================================
+# macOS metadata
+# ============================================
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# ============================================
+# Signing and provisioning
+# ============================================
+*.mobileprovision
+*.provisionprofile
+*.cer
+*.p12
+*.key
+*.pem
+
+# ============================================
+# Logs & temp files
+# ============================================
+*.log
+*.tmp
+*.swp
+*.swo
+
+# ============================================
+# Fastlane / automation artifacts
+# ============================================
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots
+fastlane/test_output
+fastlane/readme.md
+
+# ============================================
+# Archives / exports
+# ============================================
+*.xcarchive
+*.app.zip
+*.dmg
+*.pkg
+
+# ============================================
+# Optional: local environment or token files
+# ============================================
+.env
+*.secrets.json
+config.local.json
+local_settings.plist
