@@ -1,6 +1,7 @@
 # ============================================
 # Xcode and macOS build artifacts
 # ============================================
+Archive/
 build/
 DerivedData/
 *.ipa

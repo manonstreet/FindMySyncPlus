@@ -18,3 +18,13 @@
 ### Notice
 
 I am not a Swift programmer. I forked findmy-cache-decryptor and recreated FindMySync in python and then used AI to help me code this over a 6 week period. I am sure there are better ways to implement this code. That said, I have been running it for a while now and it works well.  Please let me know if you find any bugs or if there is a better way to do this.
+
+### Screenshots
+
+![Home View](screenshots/home_view.png)
+
+![General Settings](screenshots/general_settings.png)
+
+![Access Settings](screenshots/access_settings.png)
+
+![About](screenshots/about_view.png)
