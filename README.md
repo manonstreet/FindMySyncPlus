@@ -9,7 +9,7 @@
 ### Features
 
 - Dock and menu bar functionality
-- Device manager to abstract aliases from physical devices allowing for changing UUIDs, tracking on specifical devices, naming of devices in Home Assistant
+- Device manager to abstract aliases from physical devices allowing for changing UUIDs, tracking of specific devices, naming of entities in Home Assistant
 - Support for both Devices and Items types
 - Configurable automatic launching of FindMy to refresh cache data (no need for AppleScript)
 - Secure storage of encryption keys and other sensitive data in keychain                         
