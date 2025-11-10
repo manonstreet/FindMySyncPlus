@@ -23,8 +23,12 @@ I am not a Swift programmer. I forked findmy-cache-decryptor and recreated FindM
 
 ![Home View](screenshots/home_view.png)
 
+![Status View](screenshots/status_view.png)
+
 ![General Settings](screenshots/general_settings.png)
 
 ![Access Settings](screenshots/access_settings.png)
 
 ![About](screenshots/about_view.png)
+
+![Device Manager](screenshots/device_manager.png)
