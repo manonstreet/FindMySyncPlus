@@ -2,7 +2,7 @@
 
 ### Overview
 
-**FindMySyncPlus** is designed to publish FindMy data to Home Assistant.  It's based on [FindMySync](https://github.com/MartinPham/FindMySync), but it works on new MacOS versions.  Starting from macOS 14.4, Apple has encrypted the FindMy data files, mostly breaking that project. [Pnut-GGG](https://github.com/Pnut-GGG) has reverse engineered the crypto and published his python project here: [findmy-cache-decryptor](https://github.com/Pnut-GGG/findmy-cache-decryptor). I've incorporated their ideas into this Swift project.  FindMySync+ requires Pnut-GGG's [FMIPDataManager-extractor]( https://github.com/Pnut-GGG/FMIPDataManager-extractor) to export the protected encryption keys in keychain.
+**FindMySyncPlus** is designed to publish FindMy data to Home Assistant.  It's based on [FindMySync](https://github.com/MartinPham/FindMySync), but it works on new MacOS versions.  In recent version of macOS, Apple has encrypted the FindMy data files, mostly breaking that project. [Pnut-GGG](https://github.com/Pnut-GGG) has reverse engineered the crypto and published his python project here: [findmy-cache-decryptor](https://github.com/Pnut-GGG/findmy-cache-decryptor). I've incorporated their ideas into this Swift project.  FindMySync+ requires Pnut-GGG's [FMIPDataManager-extractor]( https://github.com/Pnut-GGG/FMIPDataManager-extractor) to export the protected encryption keys in keychain.
                                                                                             
 ### Features
 
@@ -13,10 +13,15 @@
 - Secure storage of encryption keys and other sensitive data in keychain                         
 - So much more... (I need better documentation!)
                                                                                               
+### Requirements
+
+- macOS version 15 (Sequoia) or higher
+- FMIPDataManager encryption keys extracted from keychain
+
 ### Getting Started - High Level
 
 1. Use [FMIPDataManager-extractor]( https://github.com/Pnut-GGG/FMIPDataManager-extractor) to extract your FMIPDataManager encryption keys
-    1. *Note:* This is a mandatory pre-requisite and I cannot provide technical support for this step.
+    1. *Note:* This is a mandatory prerequisite and I cannot provide technical support for this step.
 2. Either clone this repository and compile the program using Xcode, or download the binary from the Releases section.
 3. Place the binary in your Applications folder (optional) and run it.
 4. Upon launch, you will see the Home screen with Not Set errors in the Configuration Summary section. Click on one to be taken to the Access pane.
