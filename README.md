@@ -24,14 +24,14 @@
     1. Enter your Home Assistant device_tracker.see endpoint
     2. Enter your authorization header including the Bearer prefix
     3. Click Test Auth to verify
-    4. Click Import Key and chose the FMIPDataManager plist (or binary plist) file exported from step 1. Make sure you do not chose FMFDataManager, which is also exported by the extractor tool
+    4. Click Import Key and select the FMIPDataManager plist (or binary plist) file exported from step 1. Make sure you do not select FMFDataManager (find my friends), which is also exported by the extractor tool. Decryption will fail.
     5. Click Open Preferences to grant Full Disk Access
-    6. Chose Quit & Reopen
+    6. Click Quit & Reopen
     7. Relaunch FindMySync+
 6. If prompted by Keychain, enter your credentials and click Always Allow
-    1. If you compile the application yourself, in Xcode under Signing & Capabilities, chose Automatically manage signing and set your Team to your personal developer certificate. This will remove Keychain prompts.
+    1. If you compile the application yourself, in Xcode under Signing & Capabilities, check Automatically manage signing and set your Team to your personal developer certificate. This will remove Keychain prompts.
     2. If you downloaded a pre-complied Release, you may need to permit the application to access the two keys it writes to keychain (decryption key & HA bearer token). You will only need to do this once per released version.
-7. Under the General pane, chose your desired options. I would recommend:
+7. Under the General pane, enable your desired options. I would recommend:
     1. Enable Open at Login
     2. Disable Open Main Window on Startup so the app runs in the menu bar
     3. Enable Auto-start Scheduler
