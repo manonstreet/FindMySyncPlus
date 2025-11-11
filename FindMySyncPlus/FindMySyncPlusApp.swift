@@ -392,6 +392,10 @@ struct FindMySyncPlusApp: App {
     @State private var policyController: PolicyController!
 
     init() {
+        // Ensure first-run defaults are registered before any reads
+        UserDefaults.standard.register(defaults: [
+            "openMainOnLaunch": true
+        ])
         let openMainOnLaunch = UserDefaults.standard.bool(forKey: "openMainOnLaunch")
         // Effective menu bar mode: when not opening a window at launch, begin accessory (no Dock)
         let menuBarMode = !openMainOnLaunch

@@ -86,7 +86,7 @@ final class SettingsStore: ObservableObject {
     @Published var endpointAuthStatus: EndpointAuthStatus = .unverified
     @AppStorage("autoLaunchKillFindMy") var autoLaunchKillFindMy: Bool = true
     @AppStorage("autoStartSchedulerOnLaunch") var autoStartSchedulerOnLaunch: Bool = false
-    @AppStorage("openMainOnLaunch") var openMainOnLaunch: Bool = false
+    @AppStorage("openMainOnLaunch") var openMainOnLaunch: Bool = true
     @AppStorage("findMyWaitSeconds") var findMyWaitSeconds: Double = 10
     @AppStorage("enableDevices") var enableDevices: Bool = true
     @AppStorage("enableItems") var enableItems: Bool = true
