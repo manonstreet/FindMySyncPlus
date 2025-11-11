@@ -1,7 +1,5 @@
 # FindMySyncPlus
 
----
-
 ### Overview
 
 **FindMySyncPlus** is designed to publish FindMy data to Home Assistant.  It's based on [FindMySync](https://github.com/MartinPham/FindMySync), but it works on new MacOS versions.  Starting from macOS 14.4, Apple has encrypted the FindMy data files, mostly breaking that project. [Pnut-GGG](https://github.com/Pnut-GGG) has reverse engineered the crypto and published his python project here: [findmy-cache-decryptor](https://github.com/Pnut-GGG/findmy-cache-decryptor). I've incorporated their ideas into this Swift project.  FindMySync+ requires Pnut-GGG's [FMIPDataManager-extractor]( https://github.com/Pnut-GGG/FMIPDataManager-extractor) to export the protected encryption keys in keychain.
@@ -23,7 +21,7 @@
 3. Place the binary in your Applications folder (optional) and run it.
 4. Upon launch, you will see the Home screen with Not Set errors in the Configuration Summary section. Click on one to be taken to the Access pane.
 5. Configure all access parameters on this page:
-    1. Enter your Home Assistant device_see endpoint
+    1. Enter your Home Assistant device_tracker.see endpoint
     2. Enter your authorization header including the Bearer prefix
     3. Click Test Auth to verify
     4. Click Import Key and chose the FMIPDataManager plist (or binary plist) file exported from step 1. Make sure you do not chose FMFDataManager, which is also exported by the extractor tool
