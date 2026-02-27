@@ -16,22 +16,24 @@ automatically, and stores all sensitive credentials securely in the macOS Keycha
 Based on [FindMySync](https://github.com/MartinPham/FindMySync) and the decryption research by
 [Pnut-GGG](https://github.com/Pnut-GGG/findmy-cache-decryptor).
 
+> If you're coming from FindMySync — this is the version that ***works on macOS 15+***.
+
 ---
 
 ## Why FindMySyncPlus?
 
 |  | FindMySyncPlus | FindMySync (original) | iCloud3 |
 |--|:-:|:-:|:-:|
-| macOS 15+ (Sequoia) support | ✅ | ❌ | N/A |
+| macOS 15+ (Sequoia) support | ✅ | ❌ | ➖ |
 | AirTag / Items support | ✅ | ✅ | ❌ |
-| Auto-refresh Find My (no AppleScript) | ✅ | ❌ | N/A |
-| Auto-learn rotating UUIDs | ✅ | ❌ | N/A |
+| Auto-refresh Find My (no AppleScript) | ✅ | ❌ | ➖ |
+| Auto-learn rotating UUIDs | ✅ | ❌ | ➖ |
 | Apple ID credentials required | ❌ | ❌ | ✅ |
-| HA Mobile App on tracked devices | Not required | Not required | Recommended |
-| Connects to Apple iCloud API | ❌ Never | ❌ Never | ✅ |
+| HA Mobile App on tracked devices | Not required | Not required | ⚠️ Recommended |
+| Connects to Apple iCloud API | ❌ | ❌ | ✅ |
 | Runs inside Home Assistant | ❌ Requires a Mac | ❌ Requires a Mac | ✅ |
-| Initial setup complexity | Moderate (key extraction) | Low | High |
-| Ongoing configuration | Low | Low | High |
+| Initial setup complexity | 🟡 Moderate (key extraction) | 🟢 Low | 🔴 High |
+| Ongoing configuration | 🟢 Low | 🟢 Low | 🔴 High |
 | Update frequency | Configurable (≥1 min) | External AppleScript | Near real-time |
 
 ---
