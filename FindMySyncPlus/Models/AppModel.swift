@@ -427,15 +427,16 @@ final class AppModel: NSObject, ObservableObject {
         var aliasByUUID: [String: String] = [:]
         var unassignedCount = 0
         var notTrackedCount = 0
+        var lastSeenNameUpdates: [(aliasKey: String, name: String)] = []
 
         for d in allDevices {
             let uuid = d.id.normalized()
             let srcLabel = label(for: sourceMap[uuid])
 
             if let rec = aliasByUUIDLocal[uuid] {
-                // Refresh lastSeenName when we see this device
+                // Collect lastSeenName update for batch write after loop
                 if !d.name.isEmpty {
-                    settings.updateAlias(rec.alias, addUUID: nil, removeUUID: nil, lastSeenName: d.name)
+                    lastSeenNameUpdates.append((aliasKey: rec.alias, name: d.name))
                 }
 
                 logDevice(d, source: srcLabel, alias: rec.alias, tracked: rec.tracked, logger: logger)
@@ -483,6 +484,9 @@ final class AppModel: NSObject, ObservableObject {
                 }
             }
         }
+
+        // Flush all lastSeenName updates in a single storage write
+        settings.batchUpdateLastSeenNames(lastSeenNameUpdates)
 
         let metrics = RunMetrics(
             discoveredDevices: discoveredDevices,

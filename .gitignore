@@ -77,3 +77,8 @@ fastlane/readme.md
 *.secrets.json
 config.local.json
 local_settings.plist
+
+# ============================================
+# Private developer notes
+# ============================================
+ARCHITECTURE-NOTES.md

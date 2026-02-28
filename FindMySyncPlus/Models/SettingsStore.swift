@@ -190,6 +190,17 @@ final class SettingsStore: ObservableObject {
         return key
     }
 
+    /// Apply multiple lastSeenName updates in a single storage write.
+    func batchUpdateLastSeenNames(_ updates: [(aliasKey: String, name: String)]) {
+        guard !updates.isEmpty else { return }
+        var copy = aliases
+        for u in updates {
+            guard let idx = copy.firstIndex(where: { $0.alias == u.aliasKey }) else { continue }
+            copy[idx].lastSeenName = u.name
+        }
+        aliases = copy
+    }
+
     /// Add (or remove) a UUID to an existing alias.
     func updateAlias(_ aliasKey: String, addUUID uuid: String? = nil, removeUUID: String? = nil, lastSeenName: String? = nil) {
         guard let idx = aliases.firstIndex(where: { $0.alias == aliasKey }) else { return }
