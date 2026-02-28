@@ -99,3 +99,86 @@ final class DecryptorTests: XCTestCase {
         XCTAssertNil(result)
     }
 }
+
+// MARK: - readEncryptedPayload (activated after actor conversion in Task 6)
+
+#if false // TODO: activate in Task 6 — requires actor Decryptor (async methods)
+
+func testReadEncryptedPayload_missingFile() async {
+    let decryptor = Decryptor()
+    let logStore = LogStore()
+    let result = await decryptor.readEncryptedPayload(from: .devices, logger: logStore)
+    switch result {
+    case .success:
+        break // Found a real cache on this machine — valid
+    case .failure(.fdaRequired):
+        break // No Full Disk Access in CI — valid
+    case .failure(.fileReadError):
+        break // File missing in CI — valid
+    case .failure(let e):
+        XCTFail("Unexpected error type: \(e)")
+    }
+}
+
+// MARK: - decryptPayload (activated after actor conversion in Task 6)
+
+func testDecryptPayload_roundTrip() async throws {
+    let key = SymmetricKey(size: .bits256)
+    let fakeDevices: [[String: Any]] = [[
+        "baUUID": "synthetic-uuid",
+        "name": "Test Device",
+        "location": ["latitude": 51.5, "longitude": -0.1, "horizontalAccuracy": 10.0]
+    ]]
+    let plaintext = try PropertyListSerialization.data(
+        fromPropertyList: fakeDevices, format: .binary, options: 0)
+    let sealed = try ChaChaPoly.seal(plaintext, using: key)
+    var payload = Data()
+    payload.append(contentsOf: sealed.nonce)
+    payload.append(sealed.ciphertext)
+    payload.append(sealed.tag)
+
+    let decryptor = Decryptor()
+    let logStore = LogStore()
+    await decryptor.loadKeyForTesting(key)
+    let result = await decryptor.decryptPayload(payload, logger: logStore)
+
+    switch result {
+    case .success(let arr):
+        XCTAssertEqual(arr.count, 1)
+        XCTAssertEqual(arr[0]["baUUID"] as? String, "synthetic-uuid")
+        XCTAssertEqual(arr[0]["name"] as? String, "Test Device")
+    case .failure(let e):
+        XCTFail("Decryption failed: \(e)")
+    }
+}
+
+func testDecryptPayload_wrongKey() async throws {
+    let encryptKey = SymmetricKey(size: .bits256)
+    let wrongKey = SymmetricKey(size: .bits256)
+    let plaintext = Data("hello".utf8)
+    let sealed = try ChaChaPoly.seal(plaintext, using: encryptKey)
+    var payload = Data()
+    payload.append(contentsOf: sealed.nonce)
+    payload.append(sealed.ciphertext)
+    payload.append(sealed.tag)
+
+    let decryptor = Decryptor()
+    let logStore = LogStore()
+    await decryptor.loadKeyForTesting(wrongKey)
+    let result = await decryptor.decryptPayload(payload, logger: logStore)
+
+    if case .failure(.incorrectKey) = result { } else {
+        XCTFail("Expected .incorrectKey, got \(result)")
+    }
+}
+
+func testDecryptPayload_noKeyLoaded() async {
+    let decryptor = Decryptor()
+    let logStore = LogStore()
+    let result = await decryptor.decryptPayload(Data(), logger: logStore)
+    if case .failure(.keyNotLoaded) = result { } else {
+        XCTFail("Expected .keyNotLoaded, got \(result)")
+    }
+}
+
+#endif // TODO: activate in Task 6
