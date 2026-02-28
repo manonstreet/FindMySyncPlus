@@ -306,7 +306,7 @@ final class AppModel: NSObject, ObservableObject {
         var hadSuccessfulDecrypt = false
 
         for file in candidates {
-            switch decryptor.readEncryptedPayload(from: file, logger: logger) {
+            switch await decryptor.readEncryptedPayload(from: file, logger: logger) {
             case .success(let data):
                 switch await decryptor.decryptPayload(data, logger: logger) {
                 case .success(let plaintext):
@@ -505,7 +505,7 @@ final class AppModel: NSObject, ObservableObject {
         // 1) Try enabled caches in order to ensure at least one is readable
         var preflightEncrypted: Data? = nil
         preflightLoop: for file in candidates {
-            switch decryptor.readEncryptedPayload(from: file, logger: logger) {
+            switch await decryptor.readEncryptedPayload(from: file, logger: logger) {
             case .success(let data):
                 preflightEncrypted = data
                 logger.debug("Pre-flight check passed: \(file.displayName) cache is readable.")
