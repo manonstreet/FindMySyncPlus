@@ -254,6 +254,12 @@ final class Decryptor {
         return results
     }
     
+    #if DEBUG
+    func loadKeyForTesting(_ key: SymmetricKey) {
+        fmipKey = key
+    }
+    #endif
+
     @MainActor
     func testEndpointAuthentication(settings: SettingsStore) async throws {
         guard
