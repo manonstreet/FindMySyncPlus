@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		5DAE2C4B2E73A82E00EF354B /* Ink in Frameworks */ = {isa = PBXBuildFile; productRef = 5DAE2C4A2E73A82E00EF354B /* Ink */; };
+		AABB0002AABB0002AABB0002 /* DecryptorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB0001AABB0001AABB0001 /* DecryptorTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -28,6 +29,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		AABB0001AABB0001AABB0001 /* DecryptorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DecryptorTests.swift; sourceTree = "<group>"; };
 		5DA3BFED2E5B3B8800B73B01 /* FindMySyncPlus.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FindMySyncPlus.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		5DA3BFFB2E5B3B8900B73B01 /* FindMySyncPlusTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FindMySyncPlusTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		5DA3C0052E5B3B8900B73B01 /* FindMySyncPlusUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FindMySyncPlusUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -84,8 +86,17 @@
 			isa = PBXGroup;
 			children = (
 				5DA3BFEF2E5B3B8800B73B01 /* FindMySyncPlus */,
+				AABB0003AABB0003AABB0003 /* FindMySyncPlusTests */,
 				5DA3BFEE2E5B3B8800B73B01 /* Products */,
 			);
+			sourceTree = "<group>";
+		};
+		AABB0003AABB0003AABB0003 /* FindMySyncPlusTests */ = {
+			isa = PBXGroup;
+			children = (
+				AABB0001AABB0001AABB0001 /* DecryptorTests.swift */,
+			);
+			path = FindMySyncPlusTests;
 			sourceTree = "<group>";
 		};
 		5DA3BFEE2E5B3B8800B73B01 /* Products */ = {
@@ -247,6 +258,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AABB0002AABB0002AABB0002 /* DecryptorTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -327,7 +339,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				INFOPLIST_FILE = "FindMySyncPlus/Info.plist)";
+				INFOPLIST_FILE = "FindMySyncPlus/Info.plist";
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MACOSX_DEPLOYMENT_TARGET = 15.5;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
@@ -389,7 +401,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				INFOPLIST_FILE = "FindMySyncPlus/Info.plist)";
+				INFOPLIST_FILE = "FindMySyncPlus/Info.plist";
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MACOSX_DEPLOYMENT_TARGET = 15.5;
 				MTL_ENABLE_DEBUG_INFO = NO;
@@ -409,13 +421,11 @@
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
 				CODE_SIGN_ENTITLEMENTS = FindMySyncPlus/FindMySyncPlus.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
-				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
-				CODE_SIGN_STYLE = Manual;
+				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = "";
-				"DEVELOPMENT_TEAM[sdk=macosx*]" = "";
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -433,7 +443,6 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.manonstreet.FindMySyncPlus;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
-				"PROVISIONING_PROFILE_SPECIFIER[sdk=macosx*]" = "";
 				REGISTER_APP_GROUPS = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_STRICT_CONCURRENCY = complete;
@@ -449,8 +458,7 @@
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
 				CODE_SIGN_ENTITLEMENTS = FindMySyncPlus/FindMySyncPlus.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
-				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
-				CODE_SIGN_STYLE = Manual;
+				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
@@ -488,6 +496,7 @@
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "";
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.manonstreet.FindMySequoiaTests;
@@ -508,6 +517,7 @@
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "";
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.manonstreet.FindMySequoiaTests;
@@ -527,6 +537,7 @@
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "";
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.manonstreet.FindMySequoiaUITests;
@@ -546,6 +557,7 @@
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "";
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.manonstreet.FindMySequoiaUITests;
