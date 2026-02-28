@@ -69,4 +69,33 @@ final class DecryptorTests: XCTestCase {
         XCTAssertEqual(result.count, 1)
         XCTAssertEqual(result[0].battery ?? 0, 0.25, accuracy: 0.001)
     }
+
+    // MARK: - extractSymmetricKey
+
+    func testExtractSymmetricKey_validBase64String() throws {
+        let rawKey = Data((0..<32).map { _ in UInt8.random(in: 0...255) })
+        let base64 = rawKey.base64EncodedString()
+        let result = try Decryptor.extractSymmetricKey(from: base64)
+        XCTAssertEqual(result, rawKey)
+    }
+
+    func testExtractSymmetricKey_rawData32Bytes() throws {
+        let rawKey = Data((0..<32).map { _ in UInt8.random(in: 0...255) })
+        let result = try Decryptor.extractSymmetricKey(from: rawKey)
+        XCTAssertEqual(result, rawKey)
+    }
+
+    func testExtractSymmetricKey_nestedDict() throws {
+        let rawKey = Data((0..<32).map { _ in UInt8.random(in: 0...255) })
+        let base64 = rawKey.base64EncodedString()
+        let dict: [String: Any] = ["symmetricKey": base64]
+        let result = try Decryptor.extractSymmetricKey(from: dict)
+        XCTAssertEqual(result, rawKey)
+    }
+
+    func testExtractSymmetricKey_wrongLength() throws {
+        let shortKey = Data([0x01, 0x02, 0x03])
+        let result = try Decryptor.extractSymmetricKey(from: shortKey)
+        XCTAssertNil(result)
+    }
 }
