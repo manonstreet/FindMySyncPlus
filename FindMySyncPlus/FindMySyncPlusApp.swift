@@ -381,6 +381,13 @@ private struct InstallCoordinator: View {
 @main
 @MainActor
 struct FindMySyncPlusApp: App {
+    private static let menuTimeFormatter: DateFormatter = {
+        let f = DateFormatter(); f.timeStyle = .short; return f
+    }()
+    private static let tooltipDateFormatter: DateFormatter = {
+        let f = DateFormatter(); f.dateStyle = .medium; f.timeStyle = .medium; return f
+    }()
+
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
     // Core models
@@ -458,17 +465,12 @@ struct FindMySyncPlusApp: App {
     
     private var nextRunMenuText: String {
         guard let nextRun = app.nextRun else { return "Next: —" }
-        let formatter = DateFormatter()
-        formatter.timeStyle = .short
-        return "Next: \(formatter.string(from: nextRun))"
+        return "Next: \(FindMySyncPlusApp.menuTimeFormatter.string(from: nextRun))"
     }
-    
+
     private var nextRunTooltipText: String {
         guard let nextRun = app.nextRun else { return "No next run scheduled" }
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .medium
-        return "Next scheduled run: \(formatter.string(from: nextRun))"
+        return "Next scheduled run: \(FindMySyncPlusApp.tooltipDateFormatter.string(from: nextRun))"
     }
     
     var body: some Scene {
