@@ -103,8 +103,14 @@ Launch the app and open the **Access** pane (the Home screen will show "Not Set"
 
 If prompted by Keychain, click **Always Allow**.
 
-> **Building from source?** In Xcode under Signing & Capabilities, enable Automatically manage signing
-> and set your Team to your personal developer certificate — this eliminates Keychain prompts entirely.
+> **Building from source?** You do not need a paid Apple Developer account. A free Apple ID is enough —
+> Xcode calls this a **Personal Team** and it signs macOS apps indefinitely for local use.
+>
+> 1. In Xcode, go to **Xcode → Settings → Accounts** and add your Apple ID — Xcode automatically creates a Personal Team and generates a signing certificate for you
+> 2. Select the project in the navigator, open **Signing & Capabilities**, enable **Automatically manage signing**, and choose your Personal Team from the Team dropdown
+> 3. Build and run — if Keychain prompts appear, click **Always Allow** once
+>
+> See [Choosing a Membership](https://developer.apple.com/support/compare-memberships/) for a full comparison of free vs paid Apple Developer accounts.
 
 Under the **General** pane, recommended settings:
 - Enable **Open at Login**
