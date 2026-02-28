@@ -143,7 +143,7 @@ final class AppModel: NSObject, ObservableObject {
     
     func invalidateDecryptorKey() {
         logger?.info("A new key was loaded; invalidating the in-memory key.")
-        decryptor.invalidateKey()
+        Task { await decryptor.invalidateKey() }
     }
     
     private func handleFatalError() {
@@ -300,7 +300,7 @@ final class AppModel: NSObject, ObservableObject {
         candidates: [FMIPCacheFile],
         settings: SettingsStore,
         logger: LogStore
-    ) throws -> IOPhase {
+    ) async throws -> IOPhase {
         var rawBySource: [FMIPCacheFile: [[String: Any]]] = [:]
         var devicesBySource: [FMIPCacheFile: [DevicePoint]] = [:]
         var hadSuccessfulDecrypt = false
@@ -308,12 +308,17 @@ final class AppModel: NSObject, ObservableObject {
         for file in candidates {
             switch decryptor.readEncryptedPayload(from: file, logger: logger) {
             case .success(let data):
-                switch decryptor.decryptPayload(data, logger: logger) {
-                case .success(let arr):
-                    rawBySource[file, default: []].append(contentsOf: arr)
-                    let points = decryptor.parseDeviceArray(arr)
-                    devicesBySource[file, default: []].append(contentsOf: points)
-                    hadSuccessfulDecrypt = true
+                switch await decryptor.decryptPayload(data, logger: logger) {
+                case .success(let plaintext):
+                    switch decryptor.parsePlistData(plaintext) {
+                    case .success(let arr):
+                        rawBySource[file, default: []].append(contentsOf: arr)
+                        let points = decryptor.parseDeviceArray(arr)
+                        devicesBySource[file, default: []].append(contentsOf: points)
+                        hadSuccessfulDecrypt = true
+                    case .failure(let e):
+                        logger.warn("\(file.displayName) plist parse failed: \(e.localizedDescription)")
+                    }
                 case .failure(.incorrectKey):
                     settings.fmipKeyStatus = .invalid
                     throw DecryptorError.incorrectKey
@@ -520,7 +525,7 @@ final class AppModel: NSObject, ObservableObject {
         }
 
         // 2) Key validity
-        switch decryptor.decryptPayload(preflightData, logger: logger) {
+        switch await decryptor.decryptPayload(preflightData, logger: logger) {
         case .success:
             logger.debug("Pre-flight check passed: Decryption key is valid.")
         case .failure(.incorrectKey):
@@ -580,7 +585,7 @@ final class AppModel: NSObject, ObservableObject {
         }
 
         guard let settings, let logger else { return }
-        decryptor.ensureFMIPKey(logger: logger)
+        await decryptor.ensureFMIPKey(logger: logger)
 
         if dryRun { logger.info("[DRY] Beginning run") }
 
@@ -613,7 +618,7 @@ final class AppModel: NSObject, ObservableObject {
         // --- Read/decrypt/parse (post-refresh) ---
         let io: IOPhase
         do {
-            io = try readAndParseCaches(
+            io = try await readAndParseCaches(
                 candidates: candidates,
                 settings: settings,
                 logger: logger

@@ -119,11 +119,11 @@ enum FMIPCacheFile {
     }
 }
 
-final class Decryptor {
+actor Decryptor {
     private var fmipKey: SymmetricKey?
-    
+
     func invalidateKey() { fmipKey = nil }
-    
+
     func ensureFMIPKey(logger: LogStore) {
         guard fmipKey == nil else { return }
         if let raw = Keychain.getData(for: .fmipSymmetricKey) {
@@ -140,7 +140,7 @@ final class Decryptor {
         }
     }
     
-    static func extractSymmetricKey(from any: Any) throws -> Data? {
+    nonisolated static func extractSymmetricKey(from any: Any) throws -> Data? {
         if let s = any as? String, let raw = Data(base64Encoded: s) { return raw }
         if let d = any as? Data {
             if d.count == 32 { return d }
@@ -157,14 +157,14 @@ final class Decryptor {
         return nil
     }
     
-    func readEncryptedPayload(from file: FMIPCacheFile, logger: LogStore) -> Result<Data, DecryptorError> {
+    nonisolated func readEncryptedPayload(from file: FMIPCacheFile, logger: LogStore) -> Result<Data, DecryptorError> {
         let home = FileManager.default.homeDirectoryForCurrentUser
         let fileURL = home.appendingPathComponent(file.relativePath)
         
         let outerData: Data
         do {
             outerData = try Data(contentsOf: fileURL)
-            DispatchQueue.main.async { logger.needsFullDiskAccess = false }
+            Task { @MainActor in logger.needsFullDiskAccess = false }
         } catch {
             let ns = error as NSError
             let permissionDenied = (ns.domain == NSCocoaErrorDomain && ns.code == 257)
@@ -172,7 +172,7 @@ final class Decryptor {
             || error.localizedDescription.localizedCaseInsensitiveContains("permission")
             
             if permissionDenied {
-                DispatchQueue.main.async { logger.needsFullDiskAccess = true }
+                Task { @MainActor in logger.needsFullDiskAccess = true }
                 return .failure(.fdaRequired)
             } else {
                 return .failure(.fileReadError(error))
@@ -192,11 +192,11 @@ final class Decryptor {
         }
     }
     
-    func decryptPayload(_ encryptedPayload: Data, logger: LogStore) -> Result<[[String: Any]], DecryptorError> {
+    func decryptPayload(_ encryptedPayload: Data, logger: LogStore) -> Result<Data, DecryptorError> {
         guard let key = fmipKey else {
             return .failure(.keyNotLoaded)
         }
-        
+
         do {
             let nonce = encryptedPayload.prefix(12)
             let ciphertextWithTag = encryptedPayload.suffix(from: 12)
@@ -204,21 +204,29 @@ final class Decryptor {
             let tag = ciphertextWithTag.suffix(16)
             let sealed = try ChaChaPoly.SealedBox(nonce: .init(data: nonce), ciphertext: ciphertext, tag: tag)
             let plaintext = try ChaChaPoly.open(sealed, using: key)
-            let innerPL = try PropertyListSerialization.propertyList(from: plaintext, options: [], format: nil)
-            
-            guard let arr = innerPL as? [[String: Any]] else {
-                return .failure(.invalidPayloadFormat("Decrypted data was not an array of devices."))
-            }
-            return .success(arr)
+            return .success(plaintext)
         } catch let error as CryptoKit.CryptoKitError where error == .authenticationFailure {
             return .failure(.incorrectKey)
         } catch {
             return .failure(.decryptionFailed(error))
         }
     }
+
+    // Parses decrypted plist Data into an array of device dictionaries.
+    nonisolated func parsePlistData(_ plaintext: Data) -> Result<[[String: Any]], DecryptorError> {
+        do {
+            let innerPL = try PropertyListSerialization.propertyList(from: plaintext, options: [], format: nil)
+            guard let arr = innerPL as? [[String: Any]] else {
+                return .failure(.invalidPayloadFormat("Decrypted data was not an array of devices."))
+            }
+            return .success(arr)
+        } catch {
+            return .failure(.invalidPayloadFormat("Decrypted plist could not be deserialized."))
+        }
+    }
         
     // Returns only devices that have a valid location.
-    func parseDeviceArray(_ decryptedArray: [[String: Any]]) -> [DevicePoint] {
+    nonisolated func parseDeviceArray(_ decryptedArray: [[String: Any]]) -> [DevicePoint] {
         var results: [DevicePoint] = []
         results.reserveCapacity(decryptedArray.count)
 
@@ -260,8 +268,7 @@ final class Decryptor {
     }
     #endif
 
-    @MainActor
-    func testEndpointAuthentication(settings: SettingsStore) async throws {
+    @MainActor func testEndpointAuthentication(settings: SettingsStore) async throws {
         guard
             let fullURL = URL(string: settings.endpointURL),
             let scheme = fullURL.scheme, scheme.hasPrefix("http"),
@@ -315,8 +322,7 @@ final class Decryptor {
         }
     }
     
-    @MainActor
-    func post(_ devices: [DevicePoint],
+    @MainActor func post(_ devices: [DevicePoint],
               aliasByUUID: [String: String],
               settings: SettingsStore,
               logger: LogStore,
