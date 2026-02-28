@@ -157,7 +157,7 @@ actor Decryptor {
         return nil
     }
     
-    nonisolated func readEncryptedPayload(from file: FMIPCacheFile, logger: LogStore) -> Result<Data, DecryptorError> {
+    func readEncryptedPayload(from file: FMIPCacheFile, logger: LogStore) -> Result<Data, DecryptorError> {
         let home = FileManager.default.homeDirectoryForCurrentUser
         let fileURL = home.appendingPathComponent(file.relativePath)
         
