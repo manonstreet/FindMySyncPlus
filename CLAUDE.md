@@ -47,7 +47,7 @@ Requires Full Disk Access to read the Find My cache. `FindMyRefresher.swift` can
 | `Models/SettingsStore.swift` | All persisted config; Keychain wrappers for auth token and decryption key |
 | `Models/DeviceAlias.swift` | Alias↔UUID mapping model |
 | `Models/LogStore.swift` | Logging with levels; consumed by StatusView |
-| `Decryptor.swift` | Parses and decrypts Find My binary plist cache files |
+| `Decryptor.swift` | `actor` — parses and decrypts Find My binary plist cache files; runs off main thread |
 | `Views/DeviceManagerView.swift` | Assign aliases to discovered UUIDs |
 | `Views/AccessSettingsView.swift` | HA endpoint, auth token, key import |
 | `Helpers/Keychain.swift` | Generic SecItem wrapper for secure storage |
@@ -55,8 +55,14 @@ Requires Full Disk Access to read the Find My cache. `FindMyRefresher.swift` can
 ### Device Identity
 `dev_id` is `findmy_<alias>` (lowercased slug). UUIDs for AirTags and iPhone/Apple Watch rotate; `auto-learn UUIDs` in `AppModel` updates `DeviceAlias` when a known device is seen under a new UUID. Dry-run mode reads and decrypts but never POSTs to HA.
 
+## Testing
+
+13 unit tests in `FindMySyncPlusTests/DecryptorTests.swift` covering `parseDeviceArray`, `extractSymmetricKey`, and async `decryptPayload`/`readEncryptedPayload`. Tests use synthetic ChaChaPoly data — no real Find My files required. Run via Xcode (Cmd+U) or xcodebuild test.
+
 ## Conventions
-- All model classes are `@MainActor final class` using `@Published` + Combine for reactivity.
+- `AppModel`, `SettingsStore`, `LogStore` are `@MainActor final class` using `@Published` + Combine for reactivity.
+- `Decryptor` is an `actor` — disk I/O and ChaChaPoly decryption run on the actor's cooperative thread pool executor, not the main thread. `fmipKey` isolation is compiler-enforced. `parseDeviceArray` and `extractSymmetricKey` are `nonisolated` (pure functions). `post` and `testEndpointAuthentication` are `@MainActor` (access SettingsStore).
 - Keychain reads/writes are synchronous wrappers around `Security.framework`.
 - Transient network errors do not mutate `endpointAuthStatus`; only explicit 401/403 marks it invalid.
 - `LSUIElement = YES` in Info.plist hides the Dock icon by default; `PolicyController` shows it when a window is open.
+- `SettingsStore.batchUpdateLastSeenNames` batches all alias name updates into a single UserDefaults write per run cycle.
