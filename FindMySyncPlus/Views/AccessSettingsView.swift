@@ -60,6 +60,59 @@ struct AccessSettingsView: View {
         }
     }
 
+    // MARK: - Full-Width Segmented Control
+    private struct SegmentedKeyPicker: NSViewRepresentable {
+        @Binding var selection: KeyTab
+
+        func makeNSView(context: Context) -> NSSegmentedControl {
+            let labels = KeyTab.allCases.map { tab -> String in
+                switch tab {
+                case .all: "All"
+                case .fmip: "Find My"
+                case .fmf: "FMF"
+                case .localStorage: "LocalStorage"
+                }
+            }
+            let control = NSSegmentedControl(
+                labels: labels,
+                trackingMode: .selectOne,
+                target: context.coordinator,
+                action: #selector(Coordinator.selectionChanged(_:))
+            )
+            control.segmentDistribution = .fillEqually
+            control.selectedSegment = KeyTab.allCases.firstIndex(of: selection) ?? 0
+            return control
+        }
+
+        func updateNSView(_ control: NSSegmentedControl, context: Context) {
+            let idx = KeyTab.allCases.firstIndex(of: selection) ?? 0
+            if control.selectedSegment != idx {
+                control.selectedSegment = idx
+            }
+        }
+
+        func sizeThatFits(_ proposal: ProposedViewSize, nsView: NSSegmentedControl, context: Context) -> CGSize? {
+            guard let width = proposal.width else { return nil }
+            return CGSize(width: width, height: nsView.intrinsicContentSize.height)
+        }
+
+        func makeCoordinator() -> Coordinator {
+            Coordinator(selection: $selection)
+        }
+
+        final class Coordinator: NSObject {
+            let selection: Binding<KeyTab>
+            init(selection: Binding<KeyTab>) { self.selection = selection }
+
+            @objc func selectionChanged(_ sender: NSSegmentedControl) {
+                let cases = Array(KeyTab.allCases)
+                let idx = sender.selectedSegment
+                guard idx >= 0, idx < cases.count else { return }
+                selection.wrappedValue = cases[idx]
+            }
+        }
+    }
+
     // MARK: - Endpoint
     private var endpointCard: some View {
         Card {
@@ -226,14 +279,7 @@ struct AccessSettingsView: View {
                     Spacer()
                 }
 
-                Picker("", selection: $selectedKeyTab) {
-                    Text("All").tag(KeyTab.all)
-                    Text("Find My").tag(KeyTab.fmip)
-                    Text("FMF").tag(KeyTab.fmf)
-                    Text("LocalStorage").tag(KeyTab.localStorage)
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
+                SegmentedKeyPicker(selection: $selectedKeyTab)
 
                 Group {
                     switch selectedKeyTab {
