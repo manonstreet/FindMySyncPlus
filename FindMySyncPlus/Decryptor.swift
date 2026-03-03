@@ -45,6 +45,17 @@ struct DevicePoint: Sendable {
     let longitude: Double
     let accuracy: Double
     let battery: Double?
+    let prsId: String?     // person ID (base64 DSID); "owner" for self, DSID for family devices
+
+    init(id: String, name: String, latitude: Double, longitude: Double, accuracy: Double, battery: Double?, prsId: String? = nil) {
+        self.id = id
+        self.name = name
+        self.latitude = latitude
+        self.longitude = longitude
+        self.accuracy = accuracy
+        self.battery = battery
+        self.prsId = prsId
+    }
 }
 
 enum DecryptorError: LocalizedError {
@@ -108,6 +119,7 @@ struct PostSummary: Sendable {
 enum FMIPCacheFile {
     case devices
     case items
+    case friendCache
 
     var relativePath: String {
         switch self {
@@ -115,14 +127,18 @@ enum FMIPCacheFile {
             return "Library/Caches/com.apple.findmy.fmipcore/Devices.data"
         case .items:
             return "Library/Caches/com.apple.findmy.fmipcore/Items.data"
+        case .friendCache:
+            return "Library/Caches/com.apple.findmy.fmfcore/FriendCacheData.data"
         }
     }
 }
 
 actor Decryptor {
     private var fmipKey: SymmetricKey?
+    private var fmfKey: SymmetricKey?
 
     func invalidateKey() { fmipKey = nil }
+    func invalidateFMFKey() { fmfKey = nil }
 
     func ensureFMIPKey(logger: LogStore) {
         guard fmipKey == nil else { return }
@@ -140,6 +156,84 @@ actor Decryptor {
         }
     }
     
+    func ensureFMFKey(logger: LogStore) {
+        guard fmfKey == nil else { return }
+        if let raw = Keychain.getData(for: .fmfKey) {
+            let count = raw.count
+            guard count == 32 else {
+                logger.error("FMF key has unexpected length: \(count) bytes; expected 32. Please re-import the key.")
+                return
+            }
+            fmfKey = SymmetricKey(data: raw)
+            logger.info("FMF key loaded from Keychain (\(count) bytes)")
+        } else {
+            logger.debug("FMF key not found in Keychain; friend name lookup unavailable.")
+        }
+    }
+
+    /// Decrypt FriendCacheData.data and extract contact display names.
+    /// Returns a mapping of DSID → displayName, or nil if decryption failed/unavailable.
+    func readFMFContactNames(logger: LogStore) -> [String: String]? {
+        guard let key = fmfKey else { return nil }
+
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        let fileURL = home.appendingPathComponent(FMIPCacheFile.friendCache.relativePath)
+
+        let outerData: Data
+        do {
+            outerData = try Data(contentsOf: fileURL)
+        } catch {
+            logger.debug("FMF cache not found or unreadable: \(error.localizedDescription)")
+            return nil
+        }
+
+        // Parse outer plist to get encryptedData
+        guard let outerPL = try? PropertyListSerialization.propertyList(from: outerData, options: [], format: nil),
+              let outer = outerPL as? [String: Any],
+              let encrypted = outer["encryptedData"] as? Data,
+              encrypted.count >= (12 + 16) else {
+            logger.debug("FMF cache: no encryptedData found or too short")
+            return nil
+        }
+
+        // Decrypt with ChaChaPoly (same scheme as FMIP)
+        let plaintext: Data
+        do {
+            let nonce = encrypted.prefix(12)
+            let ciphertextWithTag = encrypted.suffix(from: 12)
+            let ciphertext = ciphertextWithTag.prefix(ciphertextWithTag.count - 16)
+            let tag = ciphertextWithTag.suffix(16)
+            let sealed = try ChaChaPoly.SealedBox(nonce: .init(data: nonce), ciphertext: ciphertext, tag: tag)
+            plaintext = try ChaChaPoly.open(sealed, using: key)
+        } catch {
+            logger.debug("FMF cache decrypt failed: \(error.localizedDescription)")
+            return nil
+        }
+
+        // Parse decrypted plist — expected structure: dict with "contacts" key
+        guard let innerPL = try? PropertyListSerialization.propertyList(from: plaintext, options: [], format: nil),
+              let root = innerPL as? [String: Any],
+              let contacts = root["contacts"] as? [String: Any] else {
+            logger.debug("FMF cache: decrypted data has no contacts dict")
+            return [:]
+        }
+
+        var names: [String: String] = [:]
+        for (dsid, value) in contacts {
+            guard let info = value as? [String: Any] else { continue }
+            if let displayName = info["displayName"] as? String, !displayName.isEmpty {
+                names[dsid] = displayName
+            } else if let shortName = info["shortName"] as? String, !shortName.isEmpty {
+                names[dsid] = shortName
+            }
+        }
+
+        if !names.isEmpty {
+            logger.debug("FMF contacts: loaded \(names.count) display name(s)")
+        }
+        return names
+    }
+
     nonisolated static func extractSymmetricKey(from any: Any) throws -> Data? {
         if let s = any as? String, let raw = Data(base64Encoded: s) { return raw }
         if let d = any as? Data {
@@ -249,14 +343,16 @@ actor Decryptor {
                 continue // skip no-location here (we'll log it in AppModel)
             }
 
-            let battery = (device["batteryLevel"] as? Double) ?? batteryFromStatus(device["batteryStatus"]) 
+            let battery = (device["batteryLevel"] as? Double) ?? batteryFromStatus(device["batteryStatus"])
+            let prsId = (device["prsId"] as? String).nonNullish
 
             results.append(DevicePoint(id: id,
                                        name: name,
                                        latitude: lat,
                                        longitude: lon,
                                        accuracy: acc,
-                                       battery: battery))
+                                       battery: battery,
+                                       prsId: prsId))
         }
 
         return results

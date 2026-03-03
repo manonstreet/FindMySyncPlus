@@ -63,7 +63,19 @@ final class SettingsStore: ObservableObject {
         } else {
             self.fmipKeyStatus = .notPresent
         }
-        
+
+        if Keychain.getData(for: .fmfKey) != nil {
+            self.fmfKeyStatus = .present
+        } else {
+            self.fmfKeyStatus = .notPresent
+        }
+
+        if Keychain.getData(for: .localStorageKey) != nil {
+            self.localStorageKeyStatus = .present
+        } else {
+            self.localStorageKeyStatus = .notPresent
+        }
+
         self.loadAliasesFromStorage()
     }
     
@@ -83,6 +95,8 @@ final class SettingsStore: ObservableObject {
     // Interval (seconds on disk, minutes in UI)
     @AppStorage("updateIntervalSec") var updateIntervalSec: Double = 300
     @Published var fmipKeyStatus: KeyStatus = .notPresent
+    @Published var fmfKeyStatus: KeyStatus = .notPresent
+    @Published var localStorageKeyStatus: KeyStatus = .notPresent
     @Published var endpointAuthStatus: EndpointAuthStatus = .unverified
     @AppStorage("autoLaunchKillFindMy") var autoLaunchKillFindMy: Bool = true
     @AppStorage("autoStartSchedulerOnLaunch") var autoStartSchedulerOnLaunch: Bool = false
@@ -90,6 +104,7 @@ final class SettingsStore: ObservableObject {
     @AppStorage("findMyWaitSeconds") var findMyWaitSeconds: Double = 10
     @AppStorage("enableDevices") var enableDevices: Bool = true
     @AppStorage("enableItems") var enableItems: Bool = true
+    @AppStorage("enableFriends") var enableFriends: Bool = false
     @AppStorage("maxUUIDsPerAlias") var maxUUIDsPerAlias: Int = 2
     @AppStorage("autoLearnUUIDs") var autoLearnUUIDs: Bool = false
     
@@ -129,6 +144,32 @@ final class SettingsStore: ObservableObject {
             throw NSError(domain: "Keychain", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to store key in Keychain"])
         }
         fmipKeyStatus = .present
+    }
+
+    func importFMFKey(from url: URL) throws {
+        let data = try Data(contentsOf: url)
+        let plist = try PropertyListSerialization.propertyList(from: data, options: [], format: nil)
+        guard let dict = plist as? [String: Any] else {
+            throw NSError(domain: "plist", code: 1, userInfo: [NSLocalizedDescriptionKey: "Top-level is not a dictionary"])
+        }
+        guard let raw = try Decryptor.extractSymmetricKey(from: dict) else {
+            throw NSError(domain: "symmetricKey", code: 2, userInfo: [NSLocalizedDescriptionKey: "symmetricKey not found or invalid"])
+        }
+        guard Keychain.set(raw, for: .fmfKey) else {
+            throw NSError(domain: "Keychain", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to store FMF key in Keychain"])
+        }
+        fmfKeyStatus = .present
+    }
+
+    func importLocalStorageKey(from url: URL) throws {
+        let raw = try Data(contentsOf: url)
+        guard raw.count == 32 else {
+            throw NSError(domain: "localStorageKey", code: 1, userInfo: [NSLocalizedDescriptionKey: "Expected 32-byte raw key, got \(raw.count) bytes"])
+        }
+        guard Keychain.set(raw, for: .localStorageKey) else {
+            throw NSError(domain: "Keychain", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to store LocalStorage key in Keychain"])
+        }
+        localStorageKeyStatus = .present
     }
        
     private func loadAliasesFromStorage() {

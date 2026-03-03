@@ -15,6 +15,10 @@ struct AccessSettingsView: View {
         case idle, running, success, rejected, failed, invalidURL(String)
     }
     @State private var authStatus: AuthStatus = .idle
+    @State private var bulkImportResult: String? = nil
+
+    private enum KeyTab: String, CaseIterable { case all, fmip, fmf, localStorage }
+    @State private var selectedKeyTab: KeyTab = .all
 
     var body: some View {
         ScrollView {
@@ -26,7 +30,7 @@ struct AccessSettingsView: View {
 
                 SectionHeader(title: "LOCAL", tip: "Local key and macOS permissions required for decryption.")
                     .padding(.top, 8)
-                fmipKeyCard
+                keysCard
                 permissionStatusCard
             }
             .padding(.horizontal, 18)
@@ -211,54 +215,140 @@ struct AccessSettingsView: View {
         }
     }
 
-    // MARK: - FMIP Key
-    private var fmipKeyCard: some View {
+    // MARK: - Decryption Keys (segmented)
+    private var keysCard: some View {
         Card {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text("Find My Key")
+                    Text("Decryption Keys")
                         .font(.title3).fontWeight(.semibold)
-                    InfoTip(message: "Import the FMIPDataManager key file (plist or bplist) exported by the helper tool.\nThe symmetric key will be stored securely in your Keychain.")
+                    InfoTip(message: "Import key files exported by the key extractor.\nKeys are stored securely in your Keychain.")
                     Spacer()
                 }
-                HStack(spacing: 8) {
-                    switch settings.fmipKeyStatus {
-                    case .notPresent:
-                        Label("Not set", systemImage: "xmark.seal.fill")
-                            .foregroundStyle(.secondary)
-                    case .present:
-                        Label("Loaded (unverified, Keychain)", systemImage: "seal")
-                            .foregroundStyle(.secondary)
-                    case .valid:
-                        Image(systemName: "checkmark.seal.fill")
-                            .foregroundStyle(.green)
-                        Text("Valid Key")
-                            .foregroundStyle(.primary)
-                    case .invalid:
-                        Image(systemName: "xmark.seal.fill")
-                            .foregroundStyle(.red)
-                        Text("Invalid Key")
-                            .foregroundStyle(.primary)
-                    }
-                    Spacer()
-                    Button {
-                        Task {
-                            if let url = await openFilePanel(allowed: [.propertyList]) {
-                                do {
-                                    try settings.importFMIPKey(from: url)
-                                    app.invalidateDecryptorKey()
-                                } catch {
-                                    // Ignore error in UI; logger will capture it elsewhere if needed
-                                }
+
+                Picker("", selection: $selectedKeyTab) {
+                    Text("All").tag(KeyTab.all)
+                    Text("Find My").tag(KeyTab.fmip)
+                    Text("FMF").tag(KeyTab.fmf)
+                    Text("LocalStorage").tag(KeyTab.localStorage)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+
+                Group {
+                    switch selectedKeyTab {
+                    case .all:
+                        VStack(alignment: .leading, spacing: 6) {
+                            keyStatusRow("Find My", status: settings.fmipKeyStatus)
+                            keyStatusRow("FMF", status: settings.fmfKeyStatus)
+                            keyStatusRow("LocalStorage", status: settings.localStorageKeyStatus)
+                        }
+                        HStack {
+                            if let result = bulkImportResult {
+                                Text(result)
+                                    .font(.callout)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Button {
+                                Task { await bulkImportKeys() }
+                            } label: {
+                                Label("Import All from Folder", systemImage: "folder.badge.plus")
                             }
                         }
-                    } label: {
-                        Label("Import Key", systemImage: "square.and.arrow.down")
+                    case .fmip:
+                        keyStatusRow("Find My", status: settings.fmipKeyStatus)
+                        HStack {
+                            Spacer()
+                            Button {
+                                Task {
+                                    if let url = await openFilePanel(allowed: [.propertyList]) {
+                                        do {
+                                            try settings.importFMIPKey(from: url)
+                                            app.invalidateDecryptorKey()
+                                        } catch {}
+                                    }
+                                }
+                            } label: {
+                                Label("Import Key", systemImage: "square.and.arrow.down")
+                            }
+                        }
+                    case .fmf:
+                        keyStatusRow("FMF", status: settings.fmfKeyStatus)
+                        HStack {
+                            Spacer()
+                            Button {
+                                Task {
+                                    if let url = await openFilePanel(allowed: [.propertyList]) {
+                                        do {
+                                            try settings.importFMFKey(from: url)
+                                            app.invalidateFMFKey()
+                                        } catch {
+                                            logger.error("FMF key import failed: \(error.localizedDescription)")
+                                        }
+                                    }
+                                }
+                            } label: {
+                                Label("Import Key", systemImage: "square.and.arrow.down")
+                            }
+                        }
+                    case .localStorage:
+                        keyStatusRow("LocalStorage", status: settings.localStorageKeyStatus)
+                        HStack {
+                            Spacer()
+                            Button {
+                                Task {
+                                    if let url = await openFilePanel(allowed: [.data]) {
+                                        do {
+                                            try settings.importLocalStorageKey(from: url)
+                                            app.invalidateFriendDecryptorKey()
+                                        } catch {
+                                            logger.error("LocalStorage key import failed: \(error.localizedDescription)")
+                                        }
+                                    }
+                                }
+                            } label: {
+                                Label("Import Key", systemImage: "square.and.arrow.down")
+                            }
+                        }
                     }
                 }
+                .padding(.top, 4)
             }
         }
     }
+
+    @ViewBuilder
+    private func keyStatusRow(_ name: String, status: KeyStatus) -> some View {
+        HStack(spacing: 6) {
+            switch status {
+            case .notPresent:
+                Image(systemName: "xmark.seal.fill").foregroundStyle(.secondary)
+            case .present:
+                Image(systemName: "seal").foregroundStyle(.secondary)
+            case .valid:
+                Image(systemName: "checkmark.seal.fill").foregroundStyle(.green)
+            case .invalid:
+                Image(systemName: "xmark.seal.fill").foregroundStyle(.red)
+            }
+            Text(name)
+                .foregroundStyle(status == .notPresent || status == .present ? .secondary : .primary)
+            Spacer()
+            Text(keyStatusLabel(status))
+                .font(.callout)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private func keyStatusLabel(_ status: KeyStatus) -> String {
+        switch status {
+        case .notPresent: return "Not set"
+        case .present: return "Loaded"
+        case .valid: return "Valid"
+        case .invalid: return "Invalid"
+        }
+    }
+
 
     // MARK: - Permissions
     private var permissionStatusCard: some View {
@@ -306,10 +396,82 @@ struct AccessSettingsView: View {
         if let bplist = UTType(filenameExtension: "bplist") {
             types.append(bplist)
         }
+        if let keyType = UTType(filenameExtension: "key") {
+            types.append(keyType)
+        }
         panel.allowedContentTypes = Array(Set(types))
         let result = panel.runModal()
         if result == .OK { return panel.url }
         return nil
+    }
+
+    @MainActor
+    private func openFolderPanel() async -> URL? {
+        let panel = NSOpenPanel()
+        panel.prompt = "Select"
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        let result = panel.runModal()
+        if result == .OK { return panel.url }
+        return nil
+    }
+
+    @MainActor
+    private func bulkImportKeys() async {
+        guard let folder = await openFolderPanel() else { return }
+
+        let fmipFile = folder.appendingPathComponent("FMIPDataManager.bplist")
+        let fmfFile = folder.appendingPathComponent("FMFDataManager.bplist")
+        let lsFile = folder.appendingPathComponent("LocalStorage.key")
+
+        var imported = 0
+        var missing: [String] = []
+        let total = 3
+
+        if FileManager.default.fileExists(atPath: fmipFile.path) {
+            do {
+                try settings.importFMIPKey(from: fmipFile)
+                app.invalidateDecryptorKey()
+                imported += 1
+            } catch {
+                logger.error("Bulk import: FMIP key failed: \(error.localizedDescription)")
+            }
+        } else {
+            missing.append("FMIPDataManager.bplist")
+        }
+
+        if FileManager.default.fileExists(atPath: fmfFile.path) {
+            do {
+                try settings.importFMFKey(from: fmfFile)
+                app.invalidateFMFKey()
+                imported += 1
+            } catch {
+                logger.error("Bulk import: FMF key failed: \(error.localizedDescription)")
+            }
+        } else {
+            missing.append("FMFDataManager.bplist")
+        }
+
+        if FileManager.default.fileExists(atPath: lsFile.path) {
+            do {
+                try settings.importLocalStorageKey(from: lsFile)
+                app.invalidateFriendDecryptorKey()
+                imported += 1
+            } catch {
+                logger.error("Bulk import: LocalStorage key failed: \(error.localizedDescription)")
+            }
+        } else {
+            missing.append("LocalStorage.key")
+        }
+
+        if imported == total {
+            bulkImportResult = "Imported \(imported) of \(total) keys"
+        } else if imported > 0 {
+            bulkImportResult = "Imported \(imported) of \(total) keys — \(missing.joined(separator: ", ")) not found"
+        } else {
+            bulkImportResult = "No keys found in selected folder"
+        }
     }
 
     private func openFullDiskAccessPreferences() {

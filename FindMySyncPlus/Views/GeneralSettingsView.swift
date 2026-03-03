@@ -193,6 +193,14 @@ struct GeneralSettingsView: View {
                             .controlSize(.small)
                             .labelsHidden()
                     }
+                    HStack {
+                        Text("Friends")
+                        Spacer()
+                        Toggle("", isOn: $settings.enableFriends)
+                            .toggleStyle(.switch)
+                            .controlSize(.small)
+                            .labelsHidden()
+                    }
                 }
                 .font(.body)
                 .padding(.top, 2)

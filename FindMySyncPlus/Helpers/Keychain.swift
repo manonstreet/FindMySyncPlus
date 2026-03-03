@@ -4,6 +4,8 @@ import Security
 enum KeychainKey: String {
     case endpointAuth = "endpointAuth"         // String
     case fmipSymmetricKey = "fmipSymmetricKey" // raw bytes
+    case fmfKey = "fmfKey"                    // raw bytes (FMF symmetric key)
+    case localStorageKey = "localStorageKey"   // raw 32 bytes (AES-256)
 }
 
 enum Keychain {

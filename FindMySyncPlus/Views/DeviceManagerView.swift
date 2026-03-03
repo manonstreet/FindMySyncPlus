@@ -120,13 +120,14 @@ struct DeviceManagerView: View {
 
     // Unified source filter for both Unassigned and Aliases sections
     private enum SourceFilter: String, CaseIterable, Identifiable {
-        case all, devices, items
+        case all, devices, items, friends
         var id: String { rawValue }
         var title: String {
             switch self {
             case .all: return "All"
             case .devices: return "Devices"
             case .items: return "Items"
+            case .friends: return "Friends"
             }
         }
     }
@@ -150,6 +151,7 @@ struct DeviceManagerView: View {
         case .all:     return baseUnassigned
         case .devices: return baseUnassigned.filter { $0.source == .device }
         case .items:   return baseUnassigned.filter { $0.source == .item }
+        case .friends: return baseUnassigned.filter { $0.source == .friend }
         }
     }
 
@@ -169,6 +171,10 @@ struct DeviceManagerView: View {
         rowsSorted.contains { singleSource(forKnownUUIDs: $0.knownUUIDs, using: sourceMap) == .item }
     }
 
+    private var hasFriendAliases: Bool {
+        rowsSorted.contains { singleSource(forKnownUUIDs: $0.knownUUIDs, using: sourceMap) == .friend }
+    }
+
     private var filteredAliases: [DeviceAlias] {
         rowsSorted.filter { rec in
             let single = singleSource(forKnownUUIDs: rec.knownUUIDs, using: sourceMap)
@@ -176,6 +182,7 @@ struct DeviceManagerView: View {
             case .all:     return true
             case .devices: return single == .device
             case .items:   return single == .item
+            case .friends: return single == .friend
             }
         }
     }
@@ -188,20 +195,23 @@ struct DeviceManagerView: View {
 
     // Unified empty-state resolver
     private enum EmptyStateMode {
-        case aliases(hasDeviceAliases: Bool, hasItemAliases: Bool)
+        case aliases(hasDeviceAliases: Bool, hasItemAliases: Bool, hasFriendAliases: Bool)
         case unassigned(entriesAllEmpty: Bool,
                         hasAnyDevices: Bool,
                         hasAnyItems: Bool,
+                        hasAnyFriends: Bool,
                         hasUnassignedDevices: Bool,
-                        hasUnassignedItems: Bool)
+                        hasUnassignedItems: Bool,
+                        hasUnassignedFriends: Bool)
     }
 
     private func emptyStateInfo(mode: EmptyStateMode,
                                 filter: SourceFilter,
                                 devicesEnabled: Bool,
-                                itemsEnabled: Bool) -> (String, String)? {
+                                itemsEnabled: Bool,
+                                friendsEnabled: Bool) -> (String, String)? {
         switch mode {
-        case let .aliases(hasDeviceAliases, hasItemAliases):
+        case let .aliases(hasDeviceAliases, hasItemAliases, hasFriendAliases):
             switch filter {
             case .all:
                 return ("rectangle.stack.person.crop", "No aliases to display.")
@@ -213,9 +223,13 @@ struct DeviceManagerView: View {
                 if itemsEnabled == false { return ("tag.slash", "Item aliases are hidden because Items are disabled in Settings.") }
                 if hasItemAliases == false { return ("tag", "No item aliases yet.") }
                 return ("tag", "No item aliases match the current filter.")
+            case .friends:
+                if friendsEnabled == false { return ("person.2.slash", "Friend aliases are hidden because Friends are disabled in Settings.") }
+                if hasFriendAliases == false { return ("person.2", "No friend aliases yet.") }
+                return ("person.2", "No friend aliases match the current filter.")
             }
 
-        case let .unassigned(entriesAllEmpty, hasAnyDevices, hasAnyItems, hasUnassignedDevices, hasUnassignedItems):
+        case let .unassigned(entriesAllEmpty, hasAnyDevices, hasAnyItems, hasAnyFriends, hasUnassignedDevices, hasUnassignedItems, hasUnassignedFriends):
             switch filter {
             case .all:
                 if entriesAllEmpty { return ("tray", "No entities available yet. Run once to discover entities.") }
@@ -230,6 +244,11 @@ struct DeviceManagerView: View {
                 if hasAnyItems == false { return ("tag", "No items discovered.") }
                 if hasUnassignedItems == false { return ("tag", "All items are assigned.") }
                 return ("tag", "No unassigned items.")
+            case .friends:
+                if friendsEnabled == false { return ("person.2.slash", "Friend entries are hidden because Friends are disabled in Settings.") }
+                if hasAnyFriends == false { return ("person.2", "No friends discovered.") }
+                if hasUnassignedFriends == false { return ("person.2", "All friends are assigned.") }
+                return ("person.2", "No unassigned friends.")
             }
         }
     }
@@ -381,10 +400,12 @@ Renaming an alias creates a new HA Entity ID (dev_id/host_name).
         // Source presence (overall)
         let hasAnyDevices = entriesAll.contains { $0.source == .device }
         let hasAnyItems   = entriesAll.contains { $0.source == .item }
+        let hasAnyFriends = entriesAll.contains { $0.source == .friend }
 
         // Unassigned presence per type (overall)
         let hasUnassignedDevices = baseUnassigned.contains { $0.source == .device }
         let hasUnassignedItems   = baseUnassigned.contains { $0.source == .item }
+        let hasUnassignedFriends = baseUnassigned.contains { $0.source == .friend }
 
         if filteredUnassigned.isEmpty {
             if let (img, msg) = emptyStateInfo(
@@ -392,12 +413,15 @@ Renaming an alias creates a new HA Entity ID (dev_id/host_name).
                     entriesAllEmpty: entriesAll.isEmpty,
                     hasAnyDevices: hasAnyDevices,
                     hasAnyItems: hasAnyItems,
+                    hasAnyFriends: hasAnyFriends,
                     hasUnassignedDevices: hasUnassignedDevices,
-                    hasUnassignedItems: hasUnassignedItems
+                    hasUnassignedItems: hasUnassignedItems,
+                    hasUnassignedFriends: hasUnassignedFriends
                 ),
                 filter: unassignedFilter,
                 devicesEnabled: settings.enableDevices,
-                itemsEnabled: settings.enableItems
+                itemsEnabled: settings.enableItems,
+                friendsEnabled: settings.enableFriends
             ) {
                 emptyState(img, msg)
             }
@@ -453,11 +477,13 @@ Renaming an alias creates a new HA Entity ID (dev_id/host_name).
                 if let (img, msg) = emptyStateInfo(
                     mode: .aliases(
                         hasDeviceAliases: hasDeviceAliases,
-                        hasItemAliases: hasItemAliases
+                        hasItemAliases: hasItemAliases,
+                        hasFriendAliases: hasFriendAliases
                     ),
                     filter: aliasesFilter,
                     devicesEnabled: settings.enableDevices,
-                    itemsEnabled: settings.enableItems
+                    itemsEnabled: settings.enableItems,
+                    friendsEnabled: settings.enableFriends
                 ) {
                     emptyState(img, msg)
                 }

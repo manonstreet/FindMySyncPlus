@@ -4,14 +4,15 @@
 ![License: MIT](https://img.shields.io/badge/License-MIT-green)
 ![Swift](https://img.shields.io/badge/Swift-native-orange)
 
-> Publish Apple Find My locations to Home Assistant — privately, locally, no third-party services.
+> Publish Apple Find My locations to Home Assistant — devices, items, and friends — privately, locally, no third-party services.
 
 FindMySyncPlus reads your encrypted Find My cache files, decrypts them, and posts location updates
 directly to your Home Assistant instance on a configurable schedule. No cloud relay. No tracking
 service. Your Find My data goes straight to your home network and nowhere else.
 
-It supports both Devices (iPhones, Apple Watch) and Items (AirTags), handles rotating UUIDs
-automatically, and stores all sensitive credentials securely in the macOS Keychain.
+It tracks Devices (iPhones, Apple Watch), Items (AirTags), and Friends — including live friend
+coordinates by decrypting `LocalStorage.db`, something no other tool supports. Rotating UUIDs are
+handled automatically, and all sensitive credentials are stored securely in the macOS Keychain.
 
 Based on [FindMySync](https://github.com/MartinPham/FindMySync) and the decryption research by
 [Pnut-GGG](https://github.com/Pnut-GGG/findmy-cache-decryptor).
@@ -26,6 +27,7 @@ Based on [FindMySync](https://github.com/MartinPham/FindMySync) and the decrypti
 |--|:-:|:-:|:-:|
 | macOS 15+ (Sequoia) support | ✅ | ❌ | ➖ |
 | AirTag / Items support | ✅ | ✅ | ❌ |
+| [Friend location tracking](https://github.com/Pnut-GGG/findmy-cache-decryptor/issues/4) | ✅ | ❌ | ❌ |
 | Auto-refresh Find My (no AppleScript) | ✅ | ❌ | ➖ |
 | Auto-learn rotating UUIDs | ✅ | ❌ | ➖ |
 | Apple ID credentials required | ❌ | ❌ | ✅ |
@@ -40,8 +42,9 @@ Based on [FindMySync](https://github.com/MartinPham/FindMySync) and the decrypti
 
 ## Features
 
-- Tracks both **Devices** (iPhone, Apple Watch) and **Items** (AirTags)
-- **Device Manager** — assign friendly aliases to devices; aliases become stable HA entity IDs even as UUIDs rotate
+- Tracks **Devices** (iPhone, Apple Watch), **Items** (AirTags), and **Friends**
+- **Friend location tracking** — decrypts `LocalStorage.db` for live friend coordinates; family members already tracked via Devices are automatically deduplicated using Apple's universal person identifier (DSID)
+- **Device Manager** — assign friendly aliases to devices, items, and friends; aliases become stable HA entity IDs even as UUIDs rotate
 - **Auto-learn UUIDs** — automatically re-maps devices when Apple rotates their identifier
 - Configurable scheduler with selectable refresh interval and manual **Run Now** and **Dry Run** modes
 - **Four log levels** (Error / Warn / Info / Debug) with per-run statistics — posted updates, warnings, learned UUIDs
@@ -49,6 +52,26 @@ Based on [FindMySync](https://github.com/MartinPham/FindMySync) and the decrypti
 - All credentials (encryption key, HA token) stored in the macOS **Keychain**
 - Menu bar agent — runs silently in the background with open-at-login support
 - Full Disk Access gating with clear in-app guidance when permission is missing
+
+---
+
+## Friend Location Tracking
+
+FindMySyncPlus is the only tool that tracks friend locations from Apple Find My. Apple discontinued
+the Find My Friends (FMF) API, and live friend coordinates are not available in the `.data` cache
+files that other tools read. The only remaining source is `LocalStorage.db` — an encrypted SQLite
+database owned by `findmylocateagent`.
+
+FMS+ decrypts this database using the same AES-256 keystream XOR cipher that Apple's `libsqlite3`
+codec uses internally, discovered by reverse-engineering the `sqliteCodecCCCrypto` function.
+
+**Family member dedup** — Family members appear in both `Devices.data` (as shared devices) and
+`LocalStorage.db` (as friends). FMS+ automatically detects this overlap using Apple's universal
+person identifier (DSID) and skips duplicates, so each family member is only tracked once.
+
+**Setup:**
+1. Enable **Friends** in the General Settings sources card
+2. Import `LocalStorage.key` in the Access Settings tab (extracted alongside the other keys in Phase 1)
 
 ---
 
@@ -71,18 +94,28 @@ Based on [FindMySync](https://github.com/MartinPham/FindMySync) and the decrypti
 
 - macOS 15 (Sequoia) or higher
 - A running Home Assistant instance with the `device_tracker.see` API enabled
-- FMIPDataManager encryption keys extracted from Keychain (see Phase 1 below)
+- Find My encryption keys extracted from Keychain (see Phase 1 below)
 
 ---
 
 ## Getting Started
 
-### Phase 1 — Prerequisites
+### Phase 1 — Extract Keys
 
-Extract your FMIPDataManager encryption keys using
-[FMIPDataManager-extractor](https://github.com/Pnut-GGG/FMIPDataManager-extractor).
-This is a one-time step and a hard requirement — FindMySyncPlus cannot decrypt Find My data without it.
-Technical support for the extraction tool is outside the scope of this project.
+Extract your Find My encryption keys using
+[findmy-key-extractor](https://github.com/manonstreet/findmy-key-extractor).
+This is a one-time step — keys are stable across reboots. Requires temporarily disabling SIP + AMFI;
+see the extractor README for the full procedure.
+
+The extractor saves all three keys to a `keys/` folder:
+
+| Key file | Enables |
+|----------|---------|
+| `keys/FMIPDataManager.bplist` | **Required** — device and item tracking (core feature) |
+| `keys/FMFDataManager.bplist` | Friend metadata |
+| `keys/LocalStorage.key` | Friend location tracking |
+
+Import all three in the **Access** settings tab (Phase 3) — select the **All** tab under Decryption Keys and click **Import All from Folder**, then point it at the `keys/` directory.
 
 ### Phase 2 — Install
 
@@ -96,8 +129,7 @@ Launch the app and open the **Access** pane (the Home screen will show "Not Set"
 1. Enter your Home Assistant `device_tracker.see` endpoint URL
 2. Enter your Authorization header (include the `Bearer` prefix)
 3. Click **Test Auth** to verify the connection
-4. Click **Import Key** and select the `FMIPDataManager` plist exported in Phase 1
-   — do not select `FMFDataManager` (Find My Friends), which is also exported by the tool
+4. Under **Decryption Keys**, select the **All** tab and click **Import All from Folder** — point it at the `keys/` directory from Phase 1
 5. Click **Open Preferences** and grant Full Disk Access
 6. Quit and relaunch the app
 
@@ -121,9 +153,9 @@ Under the **General** pane, recommended settings:
 ### Phase 4 — First Run & Device Manager
 
 1. Open the **Status** pane and set log level to **Debug**
-2. Click **Run Now** (▶) in the toolbar and review the logs — all discovered devices and items appear here
-3. Open **Device Manager** and click **Assign** for each device you want to track
-4. Give each device an alias — the Home Assistant entity will be `findmy_<alias>`
+2. Click **Run Now** (▶) in the toolbar and review the logs — all discovered devices, items, and friends appear here
+3. Open **Device Manager** and click **Assign** for each entry you want to track — friends appear with a purple **Friend** badge
+4. Give each entry an alias — the Home Assistant entity will be `findmy_<alias>`
 5. Return to the **Home** pane and enable the **Scheduler**
 
 **Optional:** In Home Assistant, edit `known_devices.yaml` to add friendly names:
@@ -139,13 +171,16 @@ findmy_alias1:
 
 This project was my first experience building software collaboratively with AI — using ChatGPT,
 Gemini, and Claude as thinking partners throughout the process. It started as a learning exercise
-and grew into a working tool I run daily. The code reflects that journey.
+and grew into a working tool I run daily. Later versions — including friend location tracking and
+the `LocalStorage.db` cipher reverse-engineering — were built exclusively with Claude. The code
+reflects that journey.
 
 ---
 
 ## Acknowledgements
 
 - [FindMySync](https://github.com/MartinPham/FindMySync) by Martin Pham — the original project this is based on
-- [findmy-cache-decryptor](https://github.com/Pnut-GGG/findmy-cache-decryptor) by Pnut-GGG — reverse-engineered the Find My encryption
-- [FMIPDataManager-extractor](https://github.com/Pnut-GGG/FMIPDataManager-extractor) by Pnut-GGG — key extraction tool required for setup
+- [findmy-cache-decryptor](https://github.com/Pnut-GGG/findmy-cache-decryptor) by Pnut-GGG — reverse-engineered the Find My `.data` file encryption
+- `LocalStorage.db` cipher — reverse-engineered from Apple's `sqliteCodecCCCrypto` in `libsqlite3.dylib` via `lldb` disassembly, with [Claude](https://claude.ai)
+- [findmy-key-extractor](https://github.com/manonstreet/findmy-key-extractor) — extracts all 3 Find My encryption keys required for setup
 - [Ink](https://github.com/JohnSundell/Ink) — MIT-licensed Markdown parser used in-app
