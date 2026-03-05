@@ -275,7 +275,7 @@ struct AccessSettingsView: View {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     Text("Decryption Keys")
                         .font(.title3).fontWeight(.semibold)
-                    InfoTip(message: "Import key files exported by the key extractor.\nKeys are stored securely in your Keychain.")
+                    InfoTip(message: "Import key files exported by the key extractor.\nKeys are stored securely in your Keychain.\nRight-click a key to clear it.")
                     Spacer()
                 }
 
@@ -285,9 +285,9 @@ struct AccessSettingsView: View {
                     switch selectedKeyTab {
                     case .all:
                         VStack(alignment: .leading, spacing: 6) {
-                            keyStatusRow("Find My", status: settings.fmipKeyStatus)
-                            keyStatusRow("FMF", status: settings.fmfKeyStatus)
-                            keyStatusRow("LocalStorage", status: settings.localStorageKeyStatus)
+                            keyStatusRow("Find My", status: settings.fmipKeyStatus, kind: .fmip)
+                            keyStatusRow("FMF", status: settings.fmfKeyStatus, kind: .fmf)
+                            keyStatusRow("LocalStorage", status: settings.localStorageKeyStatus, kind: .localStorage)
                         }
                         HStack {
                             if let result = bulkImportResult {
@@ -303,7 +303,7 @@ struct AccessSettingsView: View {
                             }
                         }
                     case .fmip:
-                        keyStatusRow("Find My", status: settings.fmipKeyStatus)
+                        keyStatusRow("Find My", status: settings.fmipKeyStatus, kind: .fmip)
                         HStack {
                             Spacer()
                             Button {
@@ -320,7 +320,7 @@ struct AccessSettingsView: View {
                             }
                         }
                     case .fmf:
-                        keyStatusRow("FMF", status: settings.fmfKeyStatus)
+                        keyStatusRow("FMF", status: settings.fmfKeyStatus, kind: .fmf)
                         HStack {
                             Spacer()
                             Button {
@@ -339,7 +339,7 @@ struct AccessSettingsView: View {
                             }
                         }
                     case .localStorage:
-                        keyStatusRow("LocalStorage", status: settings.localStorageKeyStatus)
+                        keyStatusRow("LocalStorage", status: settings.localStorageKeyStatus, kind: .localStorage)
                         HStack {
                             Spacer()
                             Button {
@@ -364,8 +364,10 @@ struct AccessSettingsView: View {
         }
     }
 
+    private enum KeyKind { case fmip, fmf, localStorage }
+
     @ViewBuilder
-    private func keyStatusRow(_ name: String, status: KeyStatus) -> some View {
+    private func keyStatusRow(_ name: String, status: KeyStatus, kind: KeyKind? = nil) -> some View {
         HStack(spacing: 6) {
             switch status {
             case .notPresent:
@@ -383,6 +385,35 @@ struct AccessSettingsView: View {
             Text(keyStatusLabel(status))
                 .font(.callout)
                 .foregroundStyle(.secondary)
+        }
+        .contextMenu {
+            if let kind, status != .notPresent {
+                Button(role: .destructive) {
+                    clearKey(kind)
+                } label: {
+                    Label("Clear Key", systemImage: "trash")
+                }
+            }
+        }
+    }
+
+    private func clearKey(_ kind: KeyKind) {
+        switch kind {
+        case .fmip:
+            Keychain.delete(.fmipSymmetricKey)
+            settings.fmipKeyStatus = .notPresent
+            settings.enableDevices = false
+            settings.enableItems = false
+            app.invalidateDecryptorKey()
+        case .fmf:
+            Keychain.delete(.fmfKey)
+            settings.fmfKeyStatus = .notPresent
+            app.invalidateFMFKey()
+        case .localStorage:
+            Keychain.delete(.localStorageKey)
+            settings.localStorageKeyStatus = .notPresent
+            settings.enableFriends = false
+            app.invalidateFriendDecryptorKey()
         }
     }
 

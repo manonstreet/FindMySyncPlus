@@ -184,6 +184,7 @@ struct GeneralSettingsView: View {
                             .toggleStyle(.switch)
                             .controlSize(.small)
                             .labelsHidden()
+                            .disabled(settings.fmipKeyStatus == .notPresent)
                     }
                     HStack {
                         Text("Items")
@@ -192,6 +193,7 @@ struct GeneralSettingsView: View {
                             .toggleStyle(.switch)
                             .controlSize(.small)
                             .labelsHidden()
+                            .disabled(settings.fmipKeyStatus == .notPresent)
                     }
                     HStack {
                         Text("Friends")
@@ -200,10 +202,17 @@ struct GeneralSettingsView: View {
                             .toggleStyle(.switch)
                             .controlSize(.small)
                             .labelsHidden()
+                            .disabled(settings.localStorageKeyStatus == .notPresent)
                     }
                 }
                 .font(.body)
                 .padding(.top, 2)
+
+                if settings.fmipKeyStatus == .notPresent || settings.localStorageKeyStatus == .notPresent {
+                    Text("Import keys in Access settings to enable sources")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
             }
         }
     }

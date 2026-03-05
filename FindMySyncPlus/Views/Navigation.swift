@@ -109,8 +109,8 @@ struct Sidebar: View {
                 .fontWeight(.semibold)
                 .foregroundStyle(.secondary)
 
-            SidebarRow(destination: .extras, title: "General", systemImage: "gearshape.2")
             SidebarRow(destination: .access, title: "Access", systemImage: "key")
+            SidebarRow(destination: .extras, title: "General", systemImage: "gearshape.2")
 
             Divider()
                 .padding(.vertical, 4)

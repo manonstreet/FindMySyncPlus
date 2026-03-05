@@ -69,9 +69,7 @@ codec uses internally, discovered by reverse-engineering the `sqliteCodecCCCrypt
 `LocalStorage.db` (as friends). FMS+ automatically detects this overlap using Apple's universal
 person identifier (DSID) and skips duplicates, so each family member is only tracked once.
 
-**Setup:**
-1. Enable **Friends** in the General Settings sources card
-2. Import `LocalStorage.key` in the Access Settings tab (extracted alongside the other keys in Phase 1)
+**Setup:** Import `LocalStorage.key` in the Access Settings tab (extracted alongside the other keys in Phase 1) — the Friends source auto-enables when the key is imported.
 
 ---
 

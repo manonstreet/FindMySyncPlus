@@ -675,6 +675,12 @@ final class AppModel: NSObject, ObservableObject {
             await decryptor.ensureFMFKey(logger: logger)
         }
 
+        // --- Source summary ---
+        let srcDevices = settings.enableDevices ? "Devices \u{2713}" : "Devices (off)"
+        let srcItems = settings.enableItems ? "Items \u{2713}" : "Items (off)"
+        let srcFriends = settings.enableFriends ? "Friends \u{2713}" : "Friends (off)"
+        logger.debug("Sources: \(srcDevices), \(srcItems), \(srcFriends)")
+
         if dryRun { logger.info("[DRY] Beginning run") }
 
         // --- Pre-flight ---
@@ -746,7 +752,7 @@ final class AppModel: NSObject, ObservableObject {
                 settings.localStorageKeyStatus = .valid
                 logger.info("Friends: found \(friends.count) friend location(s)")
             case .failure(.keyNotLoaded):
-                logger.warn("Friends: LocalStorage key not loaded; skipping friend locations.")
+                logger.error("Unexpected: LocalStorage key not loaded despite Friends being enabled")
             case .failure(.incorrectKey):
                 settings.localStorageKeyStatus = .invalid
                 logger.error("Friends: LocalStorage key is incorrect.")

@@ -144,6 +144,8 @@ final class SettingsStore: ObservableObject {
             throw NSError(domain: "Keychain", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to store key in Keychain"])
         }
         fmipKeyStatus = .present
+        enableDevices = true
+        enableItems = true
     }
 
     func importFMFKey(from url: URL) throws {
@@ -170,6 +172,7 @@ final class SettingsStore: ObservableObject {
             throw NSError(domain: "Keychain", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to store LocalStorage key in Keychain"])
         }
         localStorageKeyStatus = .present
+        enableFriends = true
     }
        
     private func loadAliasesFromStorage() {
