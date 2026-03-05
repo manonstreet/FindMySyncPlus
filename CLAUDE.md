@@ -13,7 +13,11 @@ Open and build in Xcode:
 open FindMySyncPlus.xcodeproj
 ```
 
-There is no CLI build, test runner, or lint script. All development happens through Xcode. For signing, enable "Automatically manage signing" and set a personal Team under Signing & Capabilities.
+There is no CLI build or test runner script. All development happens through Xcode. For signing, enable "Automatically manage signing" and set a personal Team under Signing & Capabilities.
+
+## Linting
+
+SwiftLint is configured via `.swiftlint.yml`. Run locally with `swiftlint lint` or `swiftlint lint --fix` for auto-corrections. A GitHub Action runs lint on PRs and pushes to `main`/`v1.1-beta`.
 
 ## Architecture
 
@@ -74,7 +78,7 @@ Requires Full Disk Access to read the Find My cache. `FindMyRefresher.swift` can
 
 ## Testing
 
-13 unit tests in `FindMySyncPlusTests/DecryptorTests.swift` covering `parseDeviceArray`, `extractSymmetricKey`, and async `decryptPayload`/`readEncryptedPayload`. Tests use synthetic ChaChaPoly data — no real Find My files required. Run via Xcode (Cmd+U) or xcodebuild test.
+47 unit tests across three test files: `DecryptorTests` (ChaChaPoly round-trips), `TextSanitizationTests` (slugify, normalizeID), `FriendDecryptorTests` (AES-CBC page decryption). Tests use synthetic data — no real Find My files required. Run via Xcode (Cmd+U) or xcodebuild test.
 
 ## Conventions
 - `AppModel`, `SettingsStore`, `LogStore` are `@MainActor final class` using `@Published` + Combine for reactivity.
