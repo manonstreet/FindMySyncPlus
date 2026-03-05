@@ -199,12 +199,7 @@ actor Decryptor {
         // Decrypt with ChaChaPoly (same scheme as FMIP)
         let plaintext: Data
         do {
-            let nonce = encrypted.prefix(12)
-            let ciphertextWithTag = encrypted.suffix(from: 12)
-            let ciphertext = ciphertextWithTag.prefix(ciphertextWithTag.count - 16)
-            let tag = ciphertextWithTag.suffix(16)
-            let sealed = try ChaChaPoly.SealedBox(nonce: .init(data: nonce), ciphertext: ciphertext, tag: tag)
-            plaintext = try ChaChaPoly.open(sealed, using: key)
+            plaintext = try Self.chaChaPolyOpen(encrypted, using: key)
         } catch {
             logger.debug("FMF cache decrypt failed: \(error.localizedDescription)")
             return nil
@@ -232,6 +227,16 @@ actor Decryptor {
             logger.debug("FMF contacts: loaded \(names.count) display name(s)")
         }
         return names
+    }
+
+    /// Shared ChaChaPoly decryption: nonce (12 bytes) || ciphertext || tag (16 bytes).
+    nonisolated static func chaChaPolyOpen(_ encrypted: Data, using key: SymmetricKey) throws -> Data {
+        let nonce = encrypted.prefix(12)
+        let ciphertextWithTag = encrypted.suffix(from: 12)
+        let ciphertext = ciphertextWithTag.prefix(ciphertextWithTag.count - 16)
+        let tag = ciphertextWithTag.suffix(16)
+        let sealed = try ChaChaPoly.SealedBox(nonce: .init(data: nonce), ciphertext: ciphertext, tag: tag)
+        return try ChaChaPoly.open(sealed, using: key)
     }
 
     nonisolated static func extractSymmetricKey(from any: Any) throws -> Data? {
@@ -287,12 +292,7 @@ actor Decryptor {
         }
 
         do {
-            let nonce = encryptedPayload.prefix(12)
-            let ciphertextWithTag = encryptedPayload.suffix(from: 12)
-            let ciphertext = ciphertextWithTag.prefix(ciphertextWithTag.count - 16)
-            let tag = ciphertextWithTag.suffix(16)
-            let sealed = try ChaChaPoly.SealedBox(nonce: .init(data: nonce), ciphertext: ciphertext, tag: tag)
-            let plaintext = try ChaChaPoly.open(sealed, using: key)
+            let plaintext = try Self.chaChaPolyOpen(encryptedPayload, using: key)
             return .success(plaintext)
         } catch let error as CryptoKit.CryptoKitError where error == .authenticationFailure {
             return .failure(.incorrectKey)
