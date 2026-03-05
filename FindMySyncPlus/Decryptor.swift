@@ -199,12 +199,7 @@ actor Decryptor {
         // Decrypt with ChaChaPoly (same scheme as FMIP)
         let plaintext: Data
         do {
-            let nonce = encrypted.prefix(12)
-            let ciphertextWithTag = encrypted.suffix(from: 12)
-            let ciphertext = ciphertextWithTag.prefix(ciphertextWithTag.count - 16)
-            let tag = ciphertextWithTag.suffix(16)
-            let sealed = try ChaChaPoly.SealedBox(nonce: .init(data: nonce), ciphertext: ciphertext, tag: tag)
-            plaintext = try ChaChaPoly.open(sealed, using: key)
+            plaintext = try Self.chaChaPolyOpen(encrypted, using: key)
         } catch {
             logger.debug("FMF cache decrypt failed: \(error.localizedDescription)")
             return nil
@@ -234,6 +229,16 @@ actor Decryptor {
         return names
     }
 
+    /// Shared ChaChaPoly decryption: nonce (12 bytes) || ciphertext || tag (16 bytes).
+    nonisolated static func chaChaPolyOpen(_ encrypted: Data, using key: SymmetricKey) throws -> Data {
+        let nonce = encrypted.prefix(12)
+        let ciphertextWithTag = encrypted.suffix(from: 12)
+        let ciphertext = ciphertextWithTag.prefix(ciphertextWithTag.count - 16)
+        let tag = ciphertextWithTag.suffix(16)
+        let sealed = try ChaChaPoly.SealedBox(nonce: .init(data: nonce), ciphertext: ciphertext, tag: tag)
+        return try ChaChaPoly.open(sealed, using: key)
+    }
+
     nonisolated static func extractSymmetricKey(from any: Any) throws -> Data? {
         if let s = any as? String, let raw = Data(base64Encoded: s) { return raw }
         if let d = any as? Data {
@@ -260,12 +265,7 @@ actor Decryptor {
             outerData = try Data(contentsOf: fileURL)
             Task { @MainActor in logger.needsFullDiskAccess = false }
         } catch {
-            let ns = error as NSError
-            let permissionDenied = (ns.domain == NSCocoaErrorDomain && ns.code == 257)
-            || error.localizedDescription.localizedCaseInsensitiveContains("operation not permitted")
-            || error.localizedDescription.localizedCaseInsensitiveContains("permission")
-            
-            if permissionDenied {
+            if error.isPermissionDenied {
                 Task { @MainActor in logger.needsFullDiskAccess = true }
                 return .failure(.fdaRequired)
             } else {
@@ -292,12 +292,7 @@ actor Decryptor {
         }
 
         do {
-            let nonce = encryptedPayload.prefix(12)
-            let ciphertextWithTag = encryptedPayload.suffix(from: 12)
-            let ciphertext = ciphertextWithTag.prefix(ciphertextWithTag.count - 16)
-            let tag = ciphertextWithTag.suffix(16)
-            let sealed = try ChaChaPoly.SealedBox(nonce: .init(data: nonce), ciphertext: ciphertext, tag: tag)
-            let plaintext = try ChaChaPoly.open(sealed, using: key)
+            let plaintext = try Self.chaChaPolyOpen(encryptedPayload, using: key)
             return .success(plaintext)
         } catch let error as CryptoKit.CryptoKitError where error == .authenticationFailure {
             return .failure(.incorrectKey)
@@ -428,7 +423,7 @@ actor Decryptor {
             for d in devices {
                 let uuid = d.id.normalized()
                 if let alias = aliasByUUID[uuid] {
-                    let dev = "findmy_\(alias)"
+                    let dev = DeviceAlias.entityID(for: alias)
                     let mac = macFromAlias(alias)
                     logger.info("[DRY] Would post dev_id=\(dev), host_name=\(dev), mac=\(mac)")
                 } else {
@@ -466,7 +461,7 @@ actor Decryptor {
                         return result
                     }
 
-                    let dev = "findmy_\(alias)"  // dev_id and host_name must match for HA
+                    let dev = DeviceAlias.entityID(for: alias)
                     let mac = macFromAlias(alias)
 
                     // Build payload per HA behavior using Codable

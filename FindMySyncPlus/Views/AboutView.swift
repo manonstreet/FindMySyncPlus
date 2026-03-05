@@ -48,8 +48,13 @@ struct AboutView: View {
 
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 4) {
-                        Link(title, destination: URL(string: url)!)
-                            .font(.headline)
+                        if let destination = URL(string: url) {
+                            Link(title, destination: destination)
+                                .font(.headline)
+                        } else {
+                            Text(title)
+                                .font(.headline)
+                        }
                         Text("by \(author)")
                             .font(.headline)
                             .foregroundStyle(.primary)
@@ -141,7 +146,7 @@ struct AboutView: View {
                             title: "FMIPDataManager-extractor",
                             author: "Pnut-GGG",
                             url: "https://github.com/Pnut-GGG/FMIPDataManager-extractor",
-                            description: "An essential companion tool for extracting the necessary FMIP decryption keys from the macOS Keychain."
+                            description: "The original method for extracting FMIP decryption keys from the macOS Keychain."
                         )
                     }
                 }

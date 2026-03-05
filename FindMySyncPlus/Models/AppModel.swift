@@ -30,18 +30,18 @@ final class AppModel: NSObject, ObservableObject {
     @Published var isRunning = false
     @Published private(set) var lastRun: Date?
     @Published private(set) var nextRun: Date?
-    @Published var lastRunHadFatalError: Bool = false
+    @Published private(set) var lastRunHadFatalError: Bool = false
     @Published private(set) var lastRunHadWarnings: Bool = false
-    @Published var runWarningsCount: Int = 0
+    @Published private(set) var runWarningsCount: Int = 0
     @Published var schedulerStartDate: Date? = nil
-    @Published var totalRunsCount: Int = 0
-    @Published var postedUpdatesCount: Int = 0
-    @Published var learnedUUIDsCount: Int = 0
+    @Published private(set) var totalRunsCount: Int = 0
+    @Published private(set) var postedUpdatesCount: Int = 0
+    @Published private(set) var learnedUUIDsCount: Int = 0
     @Published var lastLocatedDevices: [DevicePoint] = []
     @Published var lastLocatedEntries: [LocatedEntry] = []
 
-    var decryptor = Decryptor()
-    var friendDecryptor = FriendDecryptor()
+    private let decryptor = Decryptor()
+    private let friendDecryptor = FriendDecryptor()
     private var timerTask: Task<Void, Never>?
     private weak var settings: SettingsStore?
     private weak var logger: LogStore?
@@ -877,7 +877,33 @@ final class AppModel: NSObject, ObservableObject {
         }
     }
     
+    func resetCounters() {
+        totalRunsCount = 0
+        runWarningsCount = 0
+        postedUpdatesCount = 0
+        learnedUUIDsCount = 0
+    }
+
     var lastRunText: String { formatted(lastRun) }
     var nextRunText: String { formatted(nextRun) }
+
+    var statusText: String {
+        if lastRunHadFatalError { return "Error" }
+        if isPerformingRun {
+            if currentRunMode == .dry { return "Running (dry)" }
+            return "Running (\(currentRunKind.rawValue))"
+        }
+        if !isRunning { return "Stopped" }
+        if lastRunHadWarnings { return "Running (with warnings)" }
+        return "Running (Idle)"
+    }
+
+    var statusColor: Color {
+        if lastRunHadFatalError { return .red }
+        if isPerformingRun { return .green }
+        if lastRunHadWarnings { return .orange }
+        if isRunning { return .green }
+        return .secondary
+    }
 }
 

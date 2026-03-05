@@ -70,40 +70,12 @@ struct GeneralSettingsView: View {
                     Spacer()
                 }
                 
-                HStack {
-                    Text("Open at Login")
-                    Spacer()
-                    
-                    let loginBinding = Binding<Bool>(
-                        get: { loginItemManager.isEnabled },
-                        set: { newValue in
-                            loginItemManager.setLoginItem(enabled: newValue, logger: logger)
-                        }
-                    )
-
-                    Toggle("", isOn: loginBinding)
-                        .toggleStyle(.switch)
-                        .controlSize(.small)
-                        .labelsHidden()
-                }
-                
-                HStack {
-                    Text("Open Main Window on Startup")
-                    Spacer()
-                    Toggle("", isOn: $settings.openMainOnLaunch)
-                        .toggleStyle(.switch)
-                        .controlSize(.small)
-                        .labelsHidden()
-                }
-
-                HStack {
-                    Text("Auto-start Scheduler")
-                    Spacer()
-                    Toggle("", isOn: $settings.autoStartSchedulerOnLaunch)
-                        .toggleStyle(.switch)
-                        .controlSize(.small)
-                        .labelsHidden()
-                }
+                SettingsToggleRow(label: "Open at Login", isOn: Binding(
+                    get: { loginItemManager.isEnabled },
+                    set: { loginItemManager.setLoginItem(enabled: $0, logger: logger) }
+                ))
+                SettingsToggleRow(label: "Open Main Window on Startup", isOn: $settings.openMainOnLaunch)
+                SettingsToggleRow(label: "Auto-start Scheduler", isOn: $settings.autoStartSchedulerOnLaunch)
                 
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Text("Update Interval ")
@@ -135,14 +107,7 @@ struct GeneralSettingsView: View {
                     Spacer()
                 }
 
-                HStack {
-                    Text("Launch Find My before each run")
-                    Spacer()
-                    Toggle("", isOn: $settings.autoLaunchKillFindMy)
-                        .toggleStyle(.switch)
-                        .controlSize(.small)
-                        .labelsHidden()
-                }
+                SettingsToggleRow(label: "Launch Find My before each run", isOn: $settings.autoLaunchKillFindMy)
 
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     (Text("Wait ")
@@ -177,33 +142,9 @@ struct GeneralSettingsView: View {
                 }
 
                 VStack(spacing: 10) {
-                    HStack {
-                        Text("Devices")
-                        Spacer()
-                        Toggle("", isOn: $settings.enableDevices)
-                            .toggleStyle(.switch)
-                            .controlSize(.small)
-                            .labelsHidden()
-                            .disabled(settings.fmipKeyStatus == .notPresent)
-                    }
-                    HStack {
-                        Text("Items")
-                        Spacer()
-                        Toggle("", isOn: $settings.enableItems)
-                            .toggleStyle(.switch)
-                            .controlSize(.small)
-                            .labelsHidden()
-                            .disabled(settings.fmipKeyStatus == .notPresent)
-                    }
-                    HStack {
-                        Text("Friends")
-                        Spacer()
-                        Toggle("", isOn: $settings.enableFriends)
-                            .toggleStyle(.switch)
-                            .controlSize(.small)
-                            .labelsHidden()
-                            .disabled(settings.localStorageKeyStatus == .notPresent)
-                    }
+                    SettingsToggleRow(label: "Devices", isOn: $settings.enableDevices, disabled: settings.fmipKeyStatus == .notPresent)
+                    SettingsToggleRow(label: "Items", isOn: $settings.enableItems, disabled: settings.fmipKeyStatus == .notPresent)
+                    SettingsToggleRow(label: "Friends", isOn: $settings.enableFriends, disabled: settings.localStorageKeyStatus == .notPresent)
                 }
                 .font(.body)
                 .padding(.top, 2)
@@ -226,14 +167,7 @@ struct GeneralSettingsView: View {
 
                     InfoTip(message: "Apple rotates device UUIDs periodically. These settings control how many\nold UUIDs to keep per alias and whether to automatically add new UUIDs\nwhen device names match.")
                 }
-                HStack {
-                    Text("Auto-learn UUIDs")
-                    Spacer()
-                    Toggle("", isOn: $settings.autoLearnUUIDs)
-                        .toggleStyle(.switch)
-                        .controlSize(.small)
-                        .labelsHidden()
-                }
+                SettingsToggleRow(label: "Auto-learn UUIDs", isOn: $settings.autoLearnUUIDs)
 
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Text("Maximum UUIDs tracked")

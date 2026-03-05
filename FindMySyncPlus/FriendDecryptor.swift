@@ -79,10 +79,7 @@ actor FriendDecryptor {
             if ns.domain == NSCocoaErrorDomain && ns.code == NSFileReadNoSuchFileError {
                 return .failure(.dbNotFound)
             }
-            let permissionDenied = (ns.domain == NSCocoaErrorDomain && ns.code == 257)
-                || error.localizedDescription.localizedCaseInsensitiveContains("operation not permitted")
-                || error.localizedDescription.localizedCaseInsensitiveContains("permission")
-            if permissionDenied {
+            if error.isPermissionDenied {
                 return .failure(.fdaRequired)
             }
             return .failure(.dbCorrupted(error.localizedDescription))
@@ -150,7 +147,7 @@ actor FriendDecryptor {
         var keystream = Data(count: Self.pageSize + kCCBlockSizeAES128)
         var keystreamLen = 0
 
-        _ = keystream.withUnsafeMutableBytes { ksBuf in
+        let ccStatus = keystream.withUnsafeMutableBytes { ksBuf in
             iv.withUnsafeBytes { ivBuf in
                 key.withUnsafeBytes { keyBuf in
                     zeros.withUnsafeBytes { zBuf in
@@ -168,6 +165,7 @@ actor FriendDecryptor {
                 }
             }
         }
+        assert(ccStatus == kCCSuccess, "CCCrypt failed with status \(ccStatus)")
 
         // XOR encrypted content with keystream
         var plaintext = Data(count: Self.contentSize)
@@ -262,7 +260,7 @@ actor FriendDecryptor {
 
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
-            let msg = String(cString: sqlite3_errmsg(db!))
+            let msg = db.flatMap { String(cString: sqlite3_errmsg($0)) } ?? "unknown error"
             return .failure(.queryFailed("prepare failed: \(msg)"))
         }
         defer { sqlite3_finalize(stmt) }
