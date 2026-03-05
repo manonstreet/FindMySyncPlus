@@ -54,9 +54,9 @@ struct StatusView: View {
         .onReceive(NotificationCenter.default.publisher(for: .toolbarDryRunRequested)) { _ in
             let ok = app.runDryIfIdle()
             if !ok { triggerRunBusyToast() }
-        }            
+        }
     }
-   
+
     private var logList: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 0) {
@@ -64,7 +64,7 @@ struct StatusView: View {
                 let gutter: CGFloat   = 6
                 let even = Color(nsColor: NSColor.alternatingContentBackgroundColors[0])
                 let odd  = Color(nsColor: NSColor.alternatingContentBackgroundColors[1])
-                
+
                 ForEach(Array(logger.entries.enumerated()), id: \.element.id) { index, entry in
                     logRow(entry)
                         .id(entry.id)
@@ -132,7 +132,7 @@ struct StatusView: View {
             .onChange(of: settings.logLevel) { _, newLevel in
                 logger.minimumLevel = newLevel
             }
-            
+
             Button("Clear") {
                 logger.clear()
                 logger.info("Status log cleared")
@@ -202,7 +202,7 @@ struct StatusView: View {
                 .frame(minWidth: 45, alignment: .trailing)
         }
     }
-    
+
     private func triggerRunBusyToast() {
         withAnimation(.easeOut(duration: 0.15)) { showRunBusyToast = true }
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) {
@@ -210,4 +210,3 @@ struct StatusView: View {
         }
     }
 }
-

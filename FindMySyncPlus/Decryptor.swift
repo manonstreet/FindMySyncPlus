@@ -155,7 +155,7 @@ actor Decryptor {
             logger.error("FMIP key not found in Keychain. Use Extras -> Load Key to import.")
         }
     }
-    
+
     func ensureFMFKey(logger: LogStore) {
         guard fmfKey == nil else { return }
         if let raw = Keychain.getData(for: .fmfKey) {
@@ -255,11 +255,11 @@ actor Decryptor {
         }
         return nil
     }
-    
+
     func readEncryptedPayload(from file: FMIPCacheFile, logger: LogStore) -> Result<Data, DecryptorError> {
         let home = FileManager.default.homeDirectoryForCurrentUser
         let fileURL = home.appendingPathComponent(file.relativePath)
-        
+
         let outerData: Data
         do {
             outerData = try Data(contentsOf: fileURL)
@@ -272,7 +272,7 @@ actor Decryptor {
                 return .failure(.fileReadError(error))
             }
         }
-        
+
         do {
             let outerPL = try PropertyListSerialization.propertyList(from: outerData, options: [], format: nil)
             guard let outer = outerPL as? [String: Any],
@@ -285,7 +285,7 @@ actor Decryptor {
             return .failure(.invalidPayloadFormat("Outer plist could not be deserialized."))
         }
     }
-    
+
     func decryptPayload(_ encryptedPayload: Data, logger: LogStore) -> Result<Data, DecryptorError> {
         guard let key = fmipKey else {
             return .failure(.keyNotLoaded)
@@ -313,7 +313,7 @@ actor Decryptor {
             return .failure(.invalidPayloadFormat("Decrypted plist could not be deserialized."))
         }
     }
-        
+
     // Returns only devices that have a valid location.
     nonisolated func parseDeviceArray(_ decryptedArray: [[String: Any]]) -> [DevicePoint] {
         var results: [DevicePoint] = []
@@ -352,7 +352,7 @@ actor Decryptor {
 
         return results
     }
-    
+
     #if DEBUG
     func loadKeyForTesting(_ key: SymmetricKey) {
         fmipKey = key
@@ -367,21 +367,21 @@ actor Decryptor {
         else {
             throw AuthError.invalidURL("Invalid URL format")
         }
-        
+
         guard fullURL.path.range(of: #"^/api(?:/|$)"#, options: .regularExpression) != nil else {
             throw AuthError.invalidURL("URL path must start with /api")
         }
-        
+
         var components = URLComponents()
         components.scheme = scheme
         components.host = host
         components.port = fullURL.port
         components.path = "/api/"
-        
+
         guard let testURL = components.url else {
             throw AuthError.invalidURL("Could not construct base /api/ URL")
         }
-        
+
         var req = URLRequest(url: testURL)
         req.httpMethod = "GET"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -390,13 +390,13 @@ actor Decryptor {
             req.setValue(trimmed, forHTTPHeaderField: "Authorization")
         }
         req.timeoutInterval = 12
-        
+
         do {
             let (_, response) = try await URLSession.shared.data(for: req)
             guard let http = response as? HTTPURLResponse else {
                 throw AuthError.requestFailed(-1)
             }
-            
+
             let status = http.statusCode
             if (200...299).contains(status) {
                 return // Success!
@@ -412,13 +412,13 @@ actor Decryptor {
             throw AuthError.networkError(error) // Wrap any other error
         }
     }
-    
+
     @MainActor func post(_ devices: [DevicePoint],
               aliasByUUID: [String: String],
               settings: SettingsStore,
               logger: LogStore,
               dryRun: Bool = false) async -> PostSummary {
-        
+
         if dryRun {
             for d in devices {
                 let uuid = d.id.normalized()
@@ -433,20 +433,20 @@ actor Decryptor {
             }
             return PostSummary(successCount: 0, authRejectedCount: 0, transientCount: 0)
         }
-        
+
         let endpointURL = settings.endpointURL.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let url = URL(string: endpointURL), !endpointURL.isEmpty else {
             logger.error("Invalid endpoint URL")
             return PostSummary(successCount: 0, authRejectedCount: 0, transientCount: 0)
         }
         let authHeader = settings.endpointAuth.trimmingCharacters(in: .whitespacesAndNewlines)
-        
+
         var successCount = 0
         var authRejectedCount = 0
         var transientCount = 0
-        
+
         let semaphore = AsyncSemaphore(value: 8)
-        
+
         await withTaskGroup(of: PostResult.self) { group in
             for d in devices {
                 group.addTask { @Sendable in
@@ -473,13 +473,13 @@ actor Decryptor {
                         gps_accuracy: d.accuracy,
                         battery: d.battery.map { Int(($0 * 100).rounded()) }
                     )
-                    
+
                     // Encode once per task (JSONEncoder isn't guaranteed thread-safe)
                     guard let body = try? JSONEncoder().encode(payload) else {
                         result = .transient(id: d.id, reason: "Failed to encode JSON payload.")
                         return result
                     }
-                    
+
                     var req = URLRequest(url: url)
                     req.httpMethod = "POST"
                     req.httpBody = body
@@ -509,7 +509,7 @@ actor Decryptor {
                     return result
                 }
             }
-            
+
             for await result in group {
                 switch result {
                 case .success(let id, let status):
@@ -524,13 +524,12 @@ actor Decryptor {
                 }
             }
         }
-        
+
         return PostSummary(successCount: successCount,
                            authRejectedCount: authRejectedCount,
                            transientCount: transientCount)
     }
 }
-
 
 private func batteryFromStatus(_ any: Any?) -> Double? {
     // Accept a few common shapes for Items:
@@ -566,4 +565,3 @@ private func batteryFromStatus(_ any: Any?) -> Double? {
     }
     return nil
 }
-

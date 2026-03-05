@@ -428,7 +428,6 @@ struct AccessSettingsView: View {
         }
     }
 
-
     // MARK: - Permissions
     private var permissionStatusCard: some View {
         Card {
@@ -557,4 +556,3 @@ struct AccessSettingsView: View {
         NSWorkspace.shared.openFullDiskAccess()
     }
 }
-

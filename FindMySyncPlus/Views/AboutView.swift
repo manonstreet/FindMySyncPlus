@@ -4,7 +4,7 @@ import Foundation
 
 struct AboutView: View {
     @State private var showLicenses = false
-    
+
     private var appIcon: Image {
         Image(nsImage: NSApplication.shared.applicationIconImage)
     }
@@ -90,7 +90,7 @@ struct AboutView: View {
                         .font(.title3)
                         .foregroundStyle(.secondary)
                         .textSelection(.enabled)
-                    
+
                     Button("Third-Party Notices") { showLicenses = true }
                         .buttonStyle(.link)
 

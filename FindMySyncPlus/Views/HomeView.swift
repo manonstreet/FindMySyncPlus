@@ -5,18 +5,17 @@ extension Notification.Name {
     static let navigateToAccess = Notification.Name("NavigateToAccess")
 }
 
-
 struct HomeView: View {
     @EnvironmentObject var app: AppModel
     @EnvironmentObject var settings: SettingsStore
     @EnvironmentObject var logger: LogStore
-    
+
     @State private var isPulsing: Bool = false
     @State private var uptimeText: String = "—"
     @State private var now = Date()
-    
+
     private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
-    
+
     private var statusText: String { app.statusText }
     private var statusColor: Color { app.statusColor }
 
@@ -63,7 +62,7 @@ struct HomeView: View {
                         .disabled(app.isPerformingRun)
                     }
                 }
-                
+
                 // --- Statistics Card ---
                 Card {
                     VStack(alignment: .leading, spacing: 12) {
@@ -95,7 +94,7 @@ struct HomeView: View {
                         }
                     }
                 }
-                
+
                 // --- Configuration Summary Card ---
                 Card {
                     VStack(alignment: .leading, spacing: 12) {
@@ -169,7 +168,7 @@ struct HomeView: View {
                                         .foregroundStyle(.primary)
                                 }
                             }
-                            
+
                             if settings.endpointAuthStatus == .notSet || settings.endpointAuthStatus == .invalid {
                                 GridRow {
                                     Text("Auth Header").fontWeight(.semibold)
@@ -221,7 +220,7 @@ struct HomeView: View {
         .onChange(of: app.isPerformingRun) { setupAnimations() }
         .onReceive(timer) { _ in
             now = Date()
-            
+
             // Update the uptime text
             if let start = app.schedulerStartDate {
                 let seconds = max(0, Int(Date().timeIntervalSince(start)))
@@ -240,7 +239,7 @@ struct HomeView: View {
             }
         }
     }
-    
+
     private struct CardHeader: View {
         let title: String
         let systemImage: String
@@ -264,7 +263,7 @@ struct HomeView: View {
                     .frame(width: 10, height: 10)
                     .scaleEffect(isPulsing ? 1.4 : 1.0)
                     .opacity(isPulsing ? 0.5 : 1.0)
-                
+
                 if app.lastRunHadFatalError {
                     Button {
                         NotificationCenter.default.post(name: .navigateToStatus, object: nil)
@@ -292,7 +291,7 @@ struct HomeView: View {
             }
         }
     }
-    
+
     private func nextRunDisplayText() -> String {
         if app.lastRunHadFatalError { return app.nextRunText }
 
@@ -307,4 +306,3 @@ struct HomeView: View {
         return String(format: "%02d:%02d:%02d", h, m, s)
     }
 }
-

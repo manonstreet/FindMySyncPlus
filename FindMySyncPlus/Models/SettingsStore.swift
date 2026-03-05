@@ -78,10 +78,10 @@ final class SettingsStore: ObservableObject {
 
         self.loadAliasesFromStorage()
     }
-    
+
     // Endpoint
     @AppStorage("endpointURL") var endpointURL: String = ""
-    
+
     @Published var endpointAuth: String = "" {
         didSet {
             if endpointAuth.isEmpty {
@@ -107,11 +107,11 @@ final class SettingsStore: ObservableObject {
     @AppStorage("enableFriends") var enableFriends: Bool = false
     @AppStorage("maxUUIDsPerAlias") var maxUUIDsPerAlias: Int = 2
     @AppStorage("autoLearnUUIDs") var autoLearnUUIDs: Bool = false
-    
+
     // Menu Bar options
-    
+
     @AppStorage("deviceAliasesJSON") private var deviceAliasesJSON: String = "[]"
-    
+
     // Log level
     @AppStorage("logLevelRaw") var logLevelRaw: Int = LogLevel.info.rawValue {
         didSet {
@@ -130,7 +130,7 @@ final class SettingsStore: ObservableObject {
     @Published var aliases: [DeviceAlias] = [] {
         didSet { saveAliasesToStorage() }
     }
-    
+
     func importFMIPKey(from url: URL) throws {
         let data = try Data(contentsOf: url)
         let plist = try PropertyListSerialization.propertyList(from: data, options: [], format: nil)
@@ -174,7 +174,7 @@ final class SettingsStore: ObservableObject {
         localStorageKeyStatus = .present
         enableFriends = true
     }
-       
+
     private func loadAliasesFromStorage() {
         // Defensive decode; never throw. Corrupt data -> reset to empty.
         let data = Data(deviceAliasesJSON.utf8)
@@ -313,4 +313,3 @@ final class SettingsStore: ObservableObject {
         _ = Keychain.setString(newValue, for: .endpointAuth)
     }
 }
-

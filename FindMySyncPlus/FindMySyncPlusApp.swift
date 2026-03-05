@@ -32,7 +32,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
     var hasMainWindow: Bool { mainWindowController?.window != nil }
     var hasOpenUserWindows: Bool { return !controllers.isEmpty }
     var onDeviceManagerRequested: (() -> Void)?
-    
+
     init(policy: PolicyController) {
         self.policy = policy
         super.init()
@@ -101,19 +101,19 @@ final class WindowManager: NSObject, NSWindowDelegate {
 
     private func setHomeToolbarItems() {
         removeToolbarItems([.runNow, .dryRun])
-        
+
         guard let toolbar = currentToolbar() else { return }
         if !toolbar.items.contains(where: { $0.itemIdentifier == .deviceManager }) {
             toolbar.insertItem(withItemIdentifier: .deviceManager, at: 0)
         }
     }
-    
+
     private func setStatusToolbarItems() {
         guard let toolbar = currentToolbar() else { return }
-        
+
         let needed: [NSToolbarItem.Identifier] = [.runNow, .dryRun, .deviceManager]
         let current = toolbar.items.map { $0.itemIdentifier }
-        
+
         // Add missing items
         var insertIndex = 0
         for id in needed where !current.contains(id) {
@@ -121,11 +121,11 @@ final class WindowManager: NSObject, NSWindowDelegate {
             insertIndex += 1
         }
     }
-    
+
     @objc private func clearToolbarItems() {
         removeToolbarItems([.runNow, .dryRun, .deviceManager])
     }
-    
+
     private func removeToolbarItems(_ identifiers: [NSToolbarItem.Identifier]) {
         guard let toolbar = currentToolbar() else { return }
         for index in stride(from: toolbar.items.count - 1, through: 0, by: -1) {
@@ -141,13 +141,13 @@ final class WindowManager: NSObject, NSWindowDelegate {
             self?.setHomeToolbarItems()
         }
     }
-    
+
     @objc private func statusViewDidAppear() {
         DispatchQueue.main.async { [weak self] in
             self?.setStatusToolbarItems()
         }
     }
-    
+
     @objc private func didTapDeviceManager() {
         onDeviceManagerRequested?()
     }
@@ -241,7 +241,7 @@ extension WindowManager: NSToolbarDelegate {
 @MainActor
 final class WindowCoordinator {
     static var shared: WindowCoordinator?
-    
+
     private let policy: PolicyController
     private let windows: WindowManager
 
@@ -253,11 +253,11 @@ final class WindowCoordinator {
     init(policy: PolicyController, settings: SettingsStore, logger: LogStore, app: AppModel) {
         self.policy = policy
         self.windows = WindowManager(policy: policy)
-        
+
         windows.onDeviceManagerRequested = { [weak self] in
             self?.openDeviceManager()
         }
-        
+
         self.settings = settings
         self.logger = logger
         self.app = app
@@ -296,7 +296,7 @@ final class WindowCoordinator {
             DevicesWindowController.shared.show(settings: settings, app: app, logger: logger)
         }
     }
-    
+
     func registerExternalWindow(_ controller: NSWindowController) {
         windows.registerExternalWindowController(controller)
     }
@@ -331,7 +331,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         return false
     }
-    
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         let openMainOnLaunch = UserDefaults.standard.bool(forKey: "openMainOnLaunch")
         let runInMenuBarOnly = !openMainOnLaunch
@@ -418,7 +418,7 @@ struct FindMySyncPlusApp: App {
         icon.isTemplate = false
         return icon
     }
-    
+
     private func nsColor(from color: Color) -> NSColor {
         // Attempt to resolve Color to NSColor; fall back to system secondary
         let cgColor = color.resolve(in: .init()).cgColor
@@ -446,7 +446,7 @@ struct FindMySyncPlusApp: App {
 
     private var statusTextInMenu: String { app.statusText }
     private var statusColorInMenu: Color { app.statusColor }
-    
+
     private var nextRunMenuText: String {
         guard let nextRun = app.nextRun else { return "Next: —" }
         return "Next: \(FindMySyncPlusApp.menuTimeFormatter.string(from: nextRun))"
@@ -456,13 +456,13 @@ struct FindMySyncPlusApp: App {
         guard let nextRun = app.nextRun else { return "No next run scheduled" }
         return "Next scheduled run: \(FindMySyncPlusApp.tooltipDateFormatter.string(from: nextRun))"
     }
-    
+
     var body: some Scene {
         MenuBarExtra(isInserted: .constant(true)) {
             OpenMainMenuItem()
 
             Divider()
-            
+
             Button {
                 if app.lastRunHadFatalError {
                     Task { @MainActor in
@@ -549,4 +549,3 @@ struct FindMySyncPlusApp: App {
         .menuBarExtraStyle(.automatic)
     }
 }
-

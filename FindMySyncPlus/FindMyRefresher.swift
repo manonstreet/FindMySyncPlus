@@ -51,7 +51,7 @@ enum FindMyRefresher {
             }
         }
     }
-    
+
     private static func openApplicationAsync(at url: URL) async throws -> NSRunningApplication {
         let config = NSWorkspace.OpenConfiguration()
         config.hides = true

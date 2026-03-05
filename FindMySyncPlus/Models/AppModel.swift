@@ -73,7 +73,7 @@ final class AppModel: NSObject, ObservableObject {
             break
         }
     }
-    
+
     @MainActor
     func triggerManualAuthTestAsync() async -> AuthStatusOutcome {
         guard !isPerformingRun else { return .transient("Busy") }
@@ -114,7 +114,7 @@ final class AppModel: NSObject, ObservableObject {
             return .transient(error.localizedDescription)
         }
     }
-    
+
     func bind(settings: SettingsStore, logger: LogStore) {
         self.settings = settings
         self.logger = logger
@@ -139,7 +139,7 @@ final class AppModel: NSObject, ObservableObject {
             .store(in: &cancellables)
         Publishers.CombineLatest3($isRunning, $isPerformingRun, $lastRunHadFatalError)
             .receive(on: RunLoop.main) // keep this
-            .sink { running, performing, fatal in
+            .sink { running, _, fatal in
                 Task { @MainActor in
                     let state: DockStatusOverlay.State = fatal ? .error : (running ? .running : .stopped)
                     DockStatusOverlay.shared.update(for: state)
@@ -147,7 +147,7 @@ final class AppModel: NSObject, ObservableObject {
             }
             .store(in: &cancellables)
     }
-    
+
     func invalidateDecryptorKey() {
         logger?.info("A new key was loaded; invalidating the in-memory key.")
         Task { await decryptor.invalidateKey() }
@@ -162,7 +162,7 @@ final class AppModel: NSObject, ObservableObject {
         logger?.info("A new FMF key was loaded; invalidating the in-memory key.")
         Task { await decryptor.invalidateFMFKey() }
     }
-    
+
     private func handleFatalError() {
         stop()
         self.lastRunHadFatalError = true
@@ -205,7 +205,7 @@ final class AppModel: NSObject, ObservableObject {
         Task { await self._runOnceAsync(kind: .manual, dryRun: true) }
         return true
     }
-    
+
     func runOnce() {
         if isPerformingRun { return }
         Task { await self._runOnceAsync(kind: .scheduled, dryRun: false) }
@@ -215,17 +215,17 @@ final class AppModel: NSObject, ObservableObject {
         timerTask?.cancel()
         guard let settings else { return }
         let sec = max(60, settings.updateIntervalSec)
-        
+
         timerTask = Task {
             while !Task.isCancelled {
                 await MainActor.run { self.nextRun = Date().addingTimeInterval(sec) }
-                
+
                 do {
                     try await Task.sleep(for: .seconds(sec))
                 } catch {
                     break
                 }
-                
+
                 if !Task.isCancelled { await self._runOnceAsync(kind: .scheduled, dryRun: false) }
             }
         }
@@ -236,7 +236,7 @@ final class AppModel: NSObject, ObservableObject {
         guard isRunning, let settings else { return }
         let newSec = max(60, settings.updateIntervalSec)
         guard lastScheduledIntervalSec != newSec else { return }
-        
+
         logger?.info("Schedule updated to \(Int(newSec/60)) min; rescheduling.")
         scheduleTimer()
     }
@@ -437,9 +437,9 @@ final class AppModel: NSObject, ObservableObject {
             let id = normalizeID(raw["baUUID"]) ?? normalizeID(raw["deviceDiscoveryId"])
             let hasValidLocation: Bool = {
                 guard let loc = raw["location"] as? [String: Any],
-                      loc["latitude"] as? Double != nil,
-                      loc["longitude"] as? Double != nil,
-                      loc["horizontalAccuracy"] as? Double != nil
+                      loc["latitude"] is Double,
+                      loc["longitude"] is Double,
+                      loc["horizontalAccuracy"] is Double
                 else { return false }
                 return true
             }()
@@ -487,8 +487,7 @@ final class AppModel: NSObject, ObservableObject {
                 } else {
                     notTrackedCount += 1
                 }
-            }
-            else {
+            } else {
                 // Attempt auto-learn by matching device name to alias.lastSeenName
                 var learnedAlias: DeviceAlias? = nil
                 if allowAutoLearn, !d.name.isEmpty {
@@ -822,20 +821,20 @@ final class AppModel: NSObject, ObservableObject {
         if plan.metrics.locatedFriends > 0 { summaryParts.append("friends=\(plan.metrics.locatedFriends)") }
         let summary = summaryParts.joined(separator: " ")
         logger.debug(dryRun ? "[DRY] Summary — \(summary)" : "Plan — \(summary)")
-        
+
         let postSummary = await decryptor.post(toPost,
                                            aliasByUUID: aliasByUUID,
                                            settings: settings,
                                            logger: logger,
                                            dryRun: dryRun)
-        
+
         if !dryRun {
             logger.debug("Result — posted=\(postSummary.successCount) auth_rejected=\(postSummary.authRejectedCount) transient=\(postSummary.transientCount)")
         }
-        
+
         let trackedCount = planToPost
         let postedCount = postSummary.successCount
-        
+
         // Promote/demote auth status based on real posts (never in dry run)
         if !dryRun {
             if postSummary.successCount > 0 {
@@ -876,7 +875,7 @@ final class AppModel: NSObject, ObservableObject {
             }
         }
     }
-    
+
     func resetCounters() {
         totalRunsCount = 0
         runWarningsCount = 0
@@ -906,4 +905,3 @@ final class AppModel: NSObject, ObservableObject {
         return .secondary
     }
 }
-

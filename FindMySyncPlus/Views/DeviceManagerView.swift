@@ -103,18 +103,18 @@ struct DeviceManagerView: View {
     @EnvironmentObject private var settings: SettingsStore
     @EnvironmentObject private var app: AppModel
     @EnvironmentObject private var logger: LogStore
-    
+
     @State private var assignUUID: String? = nil
     @State private var assignName: String = ""
     @State private var assignAlias: String = ""
     @State private var showAssignSheet = false
-    
+
     @State private var pendingUUIDDelete: (aliasKey: String, uuid: String)? = nil
-    
+
     @State private var renameAliasKey: String? = nil
     @State private var renameText: String = ""
     @State private var showRenameSheet = false
-    
+
     @State private var deleteAliasKey: String? = nil
     @State private var showDeleteConfirm = false
 
@@ -291,7 +291,7 @@ Identity is stable: mac is derived from the alias. Do not send `location_name` t
                     .padding(.bottom, 14)
                     .frame(minHeight: 160)
                 }
-                
+
                 // --- Aliases ---
                 VStack(spacing: 0) {
                     sectionHeader(
@@ -379,7 +379,7 @@ Renaming an alias creates a new HA Entity ID (dev_id/host_name).
             }
         }
     }
-       
+
     @ViewBuilder
     private func sectionHeader<Trailing: View>(title: String, tip: String, @ViewBuilder trailing: () -> Trailing = { EmptyView() }) -> some View {
         VStack(spacing: 6) {
@@ -394,7 +394,7 @@ Renaming an alias creates a new HA Entity ID (dev_id/host_name).
         .padding(.top, 10)
         .padding(.bottom, 6)
     }
-    
+
     @ViewBuilder
     var unassignedList: some View {
         // Source presence (overall)
@@ -455,7 +455,7 @@ Renaming an alias creates a new HA Entity ID (dev_id/host_name).
             }
         }
     }
-    
+
     @ViewBuilder
     private var aliasesList: some View {
         if rowsSorted.isEmpty {
@@ -533,7 +533,7 @@ Renaming an alias creates a new HA Entity ID (dev_id/host_name).
             }
         }
     }
-    
+
     private struct CompactSwitchStyle: ToggleStyle {
         func makeBody(configuration: Configuration) -> some View {
             let on = configuration.isOn
@@ -558,7 +558,7 @@ Renaming an alias creates a new HA Entity ID (dev_id/host_name).
             .accessibilityAddTraits(.isButton)
         }
     }
-    
+
     private struct AliasRowView: View {
         let aliasKey: String
         let tracked: Bool
@@ -566,16 +566,16 @@ Renaming an alias creates a new HA Entity ID (dev_id/host_name).
         let lastSeenName: String?
         let sourceBadge: AppModel.DeviceSource?
         let nameLabel: String
-        
+
         var onToggleTracked: (Bool) -> Void
         var onRename: () -> Void
         var onDelete: () -> Void
         var onDeleteUUID: (String) -> Void
-        
+
         @State private var hoverRename = false
         @State private var hoverTrash  = false
         @State private var showCopiedName = false
-        
+
         var body: some View {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(alignment: .firstTextBaseline, spacing: 12) {
@@ -587,7 +587,7 @@ Renaming an alias creates a new HA Entity ID (dev_id/host_name).
                                 .alignmentGuide(.firstTextBaseline) { d in d[.bottom] - 1 }
                         }
                     }
-                    
+
                     HStack(spacing: 5) {
                         Button(action: onRename) {
                             Image(systemName: "square.and.pencil") // boxed pencil
@@ -598,7 +598,7 @@ Renaming an alias creates a new HA Entity ID (dev_id/host_name).
                         .buttonStyle(.plain)
                         .onHover { hoverRename = $0 }
                         .help("Rename alias")
-                        
+
                         Button(action: onDelete) {
                             Image(systemName: "trash")
                                 .font(.system(size: 13, weight: .semibold))
@@ -609,9 +609,9 @@ Renaming an alias creates a new HA Entity ID (dev_id/host_name).
                         .onHover { hoverTrash = $0 }
                         .help("Delete alias")
                     }
-                    
+
                     Spacer()
-                    
+
                     HStack(spacing: 8) {
                         Text(tracked ? "Tracked" : "Not Tracked")
                             .font(.subheadline)
@@ -622,7 +622,7 @@ Renaming an alias creates a new HA Entity ID (dev_id/host_name).
                     }
                     .alignmentGuide(.firstTextBaseline) { d in d[.firstTextBaseline] }
                 }
-                
+
                 Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 6, verticalSpacing: 2) {
                     GridRow {
                         Text(nameLabel)
@@ -678,12 +678,12 @@ Renaming an alias creates a new HA Entity ID (dev_id/host_name).
                         Spacer()
                     }
                 }
-                
+
                 HStack(alignment: .center, spacing: 6) {
                     Text("Known UUIDs:")
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(.secondary)
-                    
+
                     if knownUUIDs.isEmpty {
                         Text("None")
                             .font(.system(size: 12))
@@ -829,4 +829,3 @@ private struct EmptyStateView: View {
         .multilineTextAlignment(.center)
     }
 }
-

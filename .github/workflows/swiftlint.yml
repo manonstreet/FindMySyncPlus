@@ -1,0 +1,24 @@
+name: SwiftLint
+
+on:
+  pull_request:
+    paths:
+      - '**/*.swift'
+      - '.swiftlint.yml'
+  push:
+    branches: [main, v1.1-beta]
+    paths:
+      - '**/*.swift'
+      - '.swiftlint.yml'
+
+jobs:
+  lint:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install SwiftLint
+        run: brew install swiftlint
+
+      - name: Lint
+        run: swiftlint lint --reporter github-actions-logging

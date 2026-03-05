@@ -6,7 +6,7 @@ import SwiftUI
 final class LoginItemManager: ObservableObject {
     @Published var isEnabled: Bool = false
     @AppStorage("loginItemEnabledCache") private var isEnabledCache: Bool = false
-    
+
     init() {
         self.isEnabled = isEnabledCache
         Task {
@@ -26,7 +26,7 @@ final class LoginItemManager: ObservableObject {
             } else {
                 try SMAppService.mainApp.unregister()
             }
-            
+
             let newStatus = SMAppService.mainApp.status == .enabled
             self.isEnabled = newStatus
             self.isEnabledCache = newStatus

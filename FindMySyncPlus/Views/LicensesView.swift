@@ -2,7 +2,7 @@ import SwiftUI
 
 struct LicensesView: View {
     @Environment(\.dismiss) private var dismiss
-    
+
     @State private var content: String = ""
 
     var body: some View {

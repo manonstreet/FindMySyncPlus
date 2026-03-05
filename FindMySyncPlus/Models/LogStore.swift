@@ -6,7 +6,7 @@ struct LogEntry: Identifiable {
     let ts = Date()
     let level: LogLevel
     let message: String
-    
+
     private static let dateFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateFormat = "HH:mm:ss"
@@ -35,7 +35,7 @@ final class LogStore: ObservableObject, @unchecked Sendable {
     func clear() {
         entries.removeAll()
     }
-    
+
     func log(_ level: LogLevel, _ msg: @autoclosure () -> String) {
         // Fast level check before doing any string work
         guard level.rawValue <= minimumLevel.rawValue else { return }
@@ -58,8 +58,7 @@ final class LogStore: ObservableObject, @unchecked Sendable {
 
     // Convenience shorthands
     func error(_ msg: @autoclosure () -> String) { log(.error, msg()) }
-    func warn(_ msg: @autoclosure () -> String)  { log(.warn,  msg()) }
-    func info(_ msg: @autoclosure () -> String)  { log(.info,  msg()) }
+    func warn(_ msg: @autoclosure () -> String)  { log(.warn, msg()) }
+    func info(_ msg: @autoclosure () -> String)  { log(.info, msg()) }
     func debug(_ msg: @autoclosure () -> String) { log(.debug, msg()) }
 }
-

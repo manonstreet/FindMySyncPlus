@@ -32,7 +32,6 @@ struct DeviceManagerHelpView: View {
 
 // Keep this close by so you always see something even if the file is missing.
 
-
 private let defaultHelpMarkdown = """
 # Device Management
 

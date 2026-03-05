@@ -100,10 +100,10 @@ struct Sidebar: View {
 
             SidebarRow(destination: .home, title: "Home", systemImage: "house")
             SidebarRow(destination: .status, title: "Status", systemImage: "waveform.path.ecg.magnifyingglass")
-            
+
             Divider()
                 .padding(.vertical, 4)
-            
+
             Text("SETTINGS")
                 .font(.caption)
                 .fontWeight(.semibold)
@@ -162,4 +162,3 @@ struct Detail: View {
         }
     }
 }
-

@@ -8,7 +8,7 @@ struct GeneralSettingsView: View {
     @EnvironmentObject var app: AppModel
 
     @StateObject private var loginItemManager = LoginItemManager()
-    
+
     @State private var intervalMinutes: Int = 5
     @State private var waitSecondsInt: Int = 10
 
@@ -23,7 +23,7 @@ struct GeneralSettingsView: View {
         nf.maximumFractionDigits = 0
         return nf
     }()
-    
+
     var body: some View {
         ScrollView {
             VStack(spacing: 16) {
@@ -65,25 +65,25 @@ struct GeneralSettingsView: View {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     Text("Startup & Scheduling")
                         .font(.title3).fontWeight(.semibold)
-                        
+
                     InfoTip(message: "Control open at login, start syncing on app launch, and scheduler run frequency.")
                     Spacer()
                 }
-                
+
                 SettingsToggleRow(label: "Open at Login", isOn: Binding(
                     get: { loginItemManager.isEnabled },
                     set: { loginItemManager.setLoginItem(enabled: $0, logger: logger) }
                 ))
                 SettingsToggleRow(label: "Open Main Window on Startup", isOn: $settings.openMainOnLaunch)
                 SettingsToggleRow(label: "Auto-start Scheduler", isOn: $settings.autoStartSchedulerOnLaunch)
-                
+
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Text("Update Interval ")
                         .font(.body)
                         + Text("(minutes)").foregroundStyle(.secondary)
-                    
+
                     Spacer()
-                    
+
                     TextField("", value: $intervalMinutes, formatter: Self.intFormatter)
                         .multilineTextAlignment(.trailing)
                         .frame(width: 56)
@@ -102,7 +102,7 @@ struct GeneralSettingsView: View {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     Text("Find My Cache Refresh")
                         .font(.title3).fontWeight(.semibold)
-                        
+
                     InfoTip(message: "Launch, wait and terminate Find My so caches update before decryption.")
                     Spacer()
                 }
@@ -130,7 +130,7 @@ struct GeneralSettingsView: View {
             }
         }
     }
-    
+
     private var sourcesCard: some View {
         Card {
             VStack(alignment: .leading, spacing: 12) {
@@ -157,7 +157,7 @@ struct GeneralSettingsView: View {
             }
         }
     }
-        
+
     private var deviceManagerCard: some View {
         Card {
             VStack(alignment: .leading, spacing: 12) {
@@ -165,7 +165,12 @@ struct GeneralSettingsView: View {
                     Text("Device Management")
                         .font(.title3).fontWeight(.semibold)
 
-                    InfoTip(message: "Apple rotates device UUIDs periodically. These settings control how many\nold UUIDs to keep per alias and whether to automatically add new UUIDs\nwhen device names match.")
+                    InfoTip(message: """
+                        Apple rotates device UUIDs periodically. \
+                        These settings control how many old UUIDs to keep \
+                        per alias and whether to automatically add new UUIDs \
+                        when device names match.
+                        """)
                 }
                 SettingsToggleRow(label: "Auto-learn UUIDs", isOn: $settings.autoLearnUUIDs)
 
@@ -182,7 +187,7 @@ struct GeneralSettingsView: View {
             }
         }
     }
-    
+
     private func onAppearPopulate() {
         let mins = max(1, Int(settings.updateIntervalSec / 60.0))
         intervalMinutes = mins
@@ -191,4 +196,3 @@ struct GeneralSettingsView: View {
         waitSecondsInt = secs
     }
 }
-
