@@ -71,10 +71,7 @@ struct HomeView: View {
                             CardHeader(title: "Statistics", systemImage: "chart.bar.xaxis")
                             Spacer()
                             Button {
-                                app.totalRunsCount = 0
-                                app.runWarningsCount = 0
-                                app.postedUpdatesCount = 0
-                                app.learnedUUIDsCount = 0
+                                app.resetCounters()
                             } label: {
                                 Image(systemName: "arrow.counterclockwise")
                                     .imageScale(.small)

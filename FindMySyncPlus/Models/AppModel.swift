@@ -30,18 +30,18 @@ final class AppModel: NSObject, ObservableObject {
     @Published var isRunning = false
     @Published private(set) var lastRun: Date?
     @Published private(set) var nextRun: Date?
-    @Published var lastRunHadFatalError: Bool = false
+    @Published private(set) var lastRunHadFatalError: Bool = false
     @Published private(set) var lastRunHadWarnings: Bool = false
-    @Published var runWarningsCount: Int = 0
+    @Published private(set) var runWarningsCount: Int = 0
     @Published var schedulerStartDate: Date? = nil
-    @Published var totalRunsCount: Int = 0
-    @Published var postedUpdatesCount: Int = 0
-    @Published var learnedUUIDsCount: Int = 0
+    @Published private(set) var totalRunsCount: Int = 0
+    @Published private(set) var postedUpdatesCount: Int = 0
+    @Published private(set) var learnedUUIDsCount: Int = 0
     @Published var lastLocatedDevices: [DevicePoint] = []
     @Published var lastLocatedEntries: [LocatedEntry] = []
 
-    var decryptor = Decryptor()
-    var friendDecryptor = FriendDecryptor()
+    private let decryptor = Decryptor()
+    private let friendDecryptor = FriendDecryptor()
     private var timerTask: Task<Void, Never>?
     private weak var settings: SettingsStore?
     private weak var logger: LogStore?
@@ -877,6 +877,13 @@ final class AppModel: NSObject, ObservableObject {
         }
     }
     
+    func resetCounters() {
+        totalRunsCount = 0
+        runWarningsCount = 0
+        postedUpdatesCount = 0
+        learnedUUIDsCount = 0
+    }
+
     var lastRunText: String { formatted(lastRun) }
     var nextRunText: String { formatted(nextRun) }
 
