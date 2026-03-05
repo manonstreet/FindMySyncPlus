@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct SourceBadge: View {
-    let source: AppModel.DeviceSource
+    let source: DeviceSource
     var tint: Color? = nil
     @Environment(\.colorScheme) private var scheme
 

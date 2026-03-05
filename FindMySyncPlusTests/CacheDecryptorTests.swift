@@ -2,12 +2,12 @@ import XCTest
 import CryptoKit
 @testable import FindMySyncPlus
 
-final class DecryptorTests: XCTestCase {
+final class CacheDecryptorTests: XCTestCase {
 
     // MARK: - parseDeviceArray
 
     func testParseDeviceArray_validDevice() {
-        let decryptor = Decryptor()
+        let decryptor = CacheDecryptor()
         let input: [[String: Any]] = [[
             "baUUID": "test-uuid-123",
             "name": "Joel's AirTag",
@@ -29,7 +29,7 @@ final class DecryptorTests: XCTestCase {
     }
 
     func testParseDeviceArray_skipsNoLocation() {
-        let decryptor = Decryptor()
+        let decryptor = CacheDecryptor()
         let input: [[String: Any]] = [[
             "baUUID": "no-loc-uuid",
             "name": "No Location Device"
@@ -39,13 +39,13 @@ final class DecryptorTests: XCTestCase {
     }
 
     func testParseDeviceArray_emptyInput() {
-        let decryptor = Decryptor()
+        let decryptor = CacheDecryptor()
         let result = decryptor.parseDeviceArray([])
         XCTAssertEqual(result.count, 0)
     }
 
     func testParseDeviceArray_batteryStringFull() {
-        let decryptor = Decryptor()
+        let decryptor = CacheDecryptor()
         let input: [[String: Any]] = [[
             "baUUID": "uuid-1",
             "name": "Test",
@@ -58,7 +58,7 @@ final class DecryptorTests: XCTestCase {
     }
 
     func testParseDeviceArray_batteryStringLow() {
-        let decryptor = Decryptor()
+        let decryptor = CacheDecryptor()
         let input: [[String: Any]] = [[
             "baUUID": "uuid-2",
             "name": "Test",
@@ -75,13 +75,13 @@ final class DecryptorTests: XCTestCase {
     func testExtractSymmetricKey_validBase64String() throws {
         let rawKey = Data((0..<32).map { _ in UInt8.random(in: 0...255) })
         let base64 = rawKey.base64EncodedString()
-        let result = try Decryptor.extractSymmetricKey(from: base64)
+        let result = try CacheDecryptor.extractSymmetricKey(from: base64)
         XCTAssertEqual(result, rawKey)
     }
 
     func testExtractSymmetricKey_rawData32Bytes() throws {
         let rawKey = Data((0..<32).map { _ in UInt8.random(in: 0...255) })
-        let result = try Decryptor.extractSymmetricKey(from: rawKey)
+        let result = try CacheDecryptor.extractSymmetricKey(from: rawKey)
         XCTAssertEqual(result, rawKey)
     }
 
@@ -89,20 +89,20 @@ final class DecryptorTests: XCTestCase {
         let rawKey = Data((0..<32).map { _ in UInt8.random(in: 0...255) })
         let base64 = rawKey.base64EncodedString()
         let dict: [String: Any] = ["symmetricKey": base64]
-        let result = try Decryptor.extractSymmetricKey(from: dict)
+        let result = try CacheDecryptor.extractSymmetricKey(from: dict)
         XCTAssertEqual(result, rawKey)
     }
 
     func testExtractSymmetricKey_wrongLength() throws {
         let shortKey = Data([0x01, 0x02, 0x03])
-        let result = try Decryptor.extractSymmetricKey(from: shortKey)
+        let result = try CacheDecryptor.extractSymmetricKey(from: shortKey)
         XCTAssertNil(result)
     }
 
     // MARK: - readEncryptedPayload (activated after actor conversion in Task 6)
 
     func testReadEncryptedPayload_missingFile() async {
-        let decryptor = Decryptor()
+        let decryptor = CacheDecryptor()
         let logStore = LogStore()
         let result = await decryptor.readEncryptedPayload(from: .devices, logger: logStore)
         switch result {
@@ -134,7 +134,7 @@ final class DecryptorTests: XCTestCase {
         payload.append(sealed.ciphertext)
         payload.append(sealed.tag)
 
-        let decryptor = Decryptor()
+        let decryptor = CacheDecryptor()
         let logStore = LogStore()
         await decryptor.loadKeyForTesting(key)
         let result = await decryptor.decryptPayload(payload, logger: logStore)
@@ -164,7 +164,7 @@ final class DecryptorTests: XCTestCase {
         payload.append(sealed.ciphertext)
         payload.append(sealed.tag)
 
-        let decryptor = Decryptor()
+        let decryptor = CacheDecryptor()
         let logStore = LogStore()
         await decryptor.loadKeyForTesting(wrongKey)
         let result = await decryptor.decryptPayload(payload, logger: logStore)
@@ -175,7 +175,7 @@ final class DecryptorTests: XCTestCase {
     }
 
     func testDecryptPayload_noKeyLoaded() async {
-        let decryptor = Decryptor()
+        let decryptor = CacheDecryptor()
         let logStore = LogStore()
         let result = await decryptor.decryptPayload(Data(), logger: logStore)
         if case .failure(.keyNotLoaded) = result { } else {

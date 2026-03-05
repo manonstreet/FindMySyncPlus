@@ -137,7 +137,7 @@ final class SettingsStore: ObservableObject {
         guard let dict = plist as? [String: Any] else {
             throw NSError(domain: "plist", code: 1, userInfo: [NSLocalizedDescriptionKey: "Top-level is not a dictionary"])
         }
-        guard let raw = try Decryptor.extractSymmetricKey(from: dict) else {
+        guard let raw = try CacheDecryptor.extractSymmetricKey(from: dict) else {
             throw NSError(domain: "symmetricKey", code: 2, userInfo: [NSLocalizedDescriptionKey: "symmetricKey not found or invalid"])
         }
         guard Keychain.set(raw, for: .fmipSymmetricKey) else {
@@ -154,7 +154,7 @@ final class SettingsStore: ObservableObject {
         guard let dict = plist as? [String: Any] else {
             throw NSError(domain: "plist", code: 1, userInfo: [NSLocalizedDescriptionKey: "Top-level is not a dictionary"])
         }
-        guard let raw = try Decryptor.extractSymmetricKey(from: dict) else {
+        guard let raw = try CacheDecryptor.extractSymmetricKey(from: dict) else {
             throw NSError(domain: "symmetricKey", code: 2, userInfo: [NSLocalizedDescriptionKey: "symmetricKey not found or invalid"])
         }
         guard Keychain.set(raw, for: .fmfKey) else {

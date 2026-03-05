@@ -28,7 +28,7 @@ enum FriendDecryptorError: LocalizedError {
     }
 }
 
-actor FriendDecryptor {
+actor LocalStorageDecryptor {
 
     private var key: Data?
 

@@ -39,7 +39,7 @@ private struct SectionCard<Content: View>: View {
 private struct UnassignedRow: View {
     let name: String
     let id: String
-    let source: AppModel.DeviceSource
+    let source: DeviceSource
     var onAssign: () -> Void
     var showsDivider: Bool = true
     let isUpdate: Bool
@@ -138,15 +138,15 @@ struct DeviceManagerView: View {
         Set(settings.aliases.flatMap { $0.knownUUIDs })
     }
 
-    private var entriesAll: [AppModel.LocatedEntry] {
+    private var entriesAll: [LocatedEntry] {
         app.lastLocatedEntries
     }
 
-    private var baseUnassigned: [AppModel.LocatedEntry] {
+    private var baseUnassigned: [LocatedEntry] {
         entriesAll.filter { !knownUUIDsSet.contains($0.point.id.normalized()) }
     }
 
-    private var filteredUnassigned: [AppModel.LocatedEntry] {
+    private var filteredUnassigned: [LocatedEntry] {
         switch unassignedFilter {
         case .all:     return baseUnassigned
         case .devices: return baseUnassigned.filter { $0.source == .device }
@@ -159,7 +159,7 @@ struct DeviceManagerView: View {
         settings.aliases.sorted { $0.alias.localizedStandardCompare($1.alias) == .orderedAscending }
     }
 
-    private var sourceMap: [String: AppModel.DeviceSource] {
+    private var sourceMap: [String: DeviceSource] {
         app.sourceByUUIDMap(from: app.lastLocatedEntries)
     }
 
@@ -254,7 +254,7 @@ struct DeviceManagerView: View {
     }
 
     // Determine a single source for an alias record, if all mapped UUIDs agree
-    private func singleSource(forKnownUUIDs uuids: [String], using map: [String: AppModel.DeviceSource]) -> AppModel.DeviceSource? {
+    private func singleSource(forKnownUUIDs uuids: [String], using map: [String: DeviceSource]) -> DeviceSource? {
         let sources = Set(uuids.compactMap { map[$0] })
         return sources.count == 1 ? sources.first : nil
     }
@@ -564,7 +564,7 @@ Renaming an alias creates a new HA Entity ID (dev_id/host_name).
         let tracked: Bool
         let knownUUIDs: [String]
         let lastSeenName: String?
-        let sourceBadge: AppModel.DeviceSource?
+        let sourceBadge: DeviceSource?
         let nameLabel: String
 
         var onToggleTracked: (Bool) -> Void
