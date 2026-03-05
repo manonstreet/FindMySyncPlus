@@ -662,7 +662,7 @@ Renaming an alias creates a new HA Entity ID (dev_id/host_name).
                         Text("Entity ID:")
                             .font(.system(size: 12, weight: .semibold))
                             .foregroundStyle(.secondary)
-                        Text("findmy_\(aliasKey)")
+                        Text(DeviceAlias.entityID(for: aliasKey))
                             .font(.system(size: 12, design: .monospaced))
                             .foregroundStyle(.secondary)
                         Spacer()

@@ -423,7 +423,7 @@ actor Decryptor {
             for d in devices {
                 let uuid = d.id.normalized()
                 if let alias = aliasByUUID[uuid] {
-                    let dev = "findmy_\(alias)"
+                    let dev = DeviceAlias.entityID(for: alias)
                     let mac = macFromAlias(alias)
                     logger.info("[DRY] Would post dev_id=\(dev), host_name=\(dev), mac=\(mac)")
                 } else {
@@ -461,7 +461,7 @@ actor Decryptor {
                         return result
                     }
 
-                    let dev = "findmy_\(alias)"  // dev_id and host_name must match for HA
+                    let dev = DeviceAlias.entityID(for: alias)
                     let mac = macFromAlias(alias)
 
                     // Build payload per HA behavior using Codable

@@ -147,7 +147,7 @@ actor FriendDecryptor {
         var keystream = Data(count: Self.pageSize + kCCBlockSizeAES128)
         var keystreamLen = 0
 
-        _ = keystream.withUnsafeMutableBytes { ksBuf in
+        let ccStatus = keystream.withUnsafeMutableBytes { ksBuf in
             iv.withUnsafeBytes { ivBuf in
                 key.withUnsafeBytes { keyBuf in
                     zeros.withUnsafeBytes { zBuf in
@@ -165,6 +165,7 @@ actor FriendDecryptor {
                 }
             }
         }
+        assert(ccStatus == kCCSuccess, "CCCrypt failed with status \(ccStatus)")
 
         // XOR encrypted content with keystream
         var plaintext = Data(count: Self.contentSize)
@@ -237,7 +238,7 @@ actor FriendDecryptor {
 
     private nonisolated func queryFriends(dbPath: URL, logger: LogStore) -> Result<[DevicePoint], FriendDecryptorError> {
         var db: OpaquePointer?
-        guard sqlite3_open_v2(dbPath.path, &db, SQLITE_OPEN_READWRITE, nil) == SQLITE_OK else {
+        guard sqlite3_open_v2(dbPath.path, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
             let msg = db.flatMap { String(cString: sqlite3_errmsg($0)) } ?? "unknown"
             sqlite3_close(db)
             return .failure(.queryFailed("sqlite3_open failed: \(msg)"))

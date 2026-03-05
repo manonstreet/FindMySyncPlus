@@ -7,6 +7,12 @@ struct DeviceAlias: Equatable, Identifiable, Codable {
     var lastSeenName: String?             // latest Apple device name (informational)
     var id: String { alias }
 
+    /// Home Assistant entity ID for this alias (e.g. "findmy_airpods").
+    var entityID: String { Self.entityID(for: alias) }
+
+    /// Home Assistant entity ID from an alias key string.
+    static func entityID(for alias: String) -> String { "findmy_\(alias)" }
+
     private enum CodingKeys: String, CodingKey { case alias, tracked, knownUUIDs, lastSeenName }
 
     init(alias: String, tracked: Bool, knownUUIDs: [String], lastSeenName: String?) {
