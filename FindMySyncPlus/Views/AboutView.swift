@@ -146,7 +146,7 @@ struct AboutView: View {
                             title: "FMIPDataManager-extractor",
                             author: "Pnut-GGG",
                             url: "https://github.com/Pnut-GGG/FMIPDataManager-extractor",
-                            description: "An essential companion tool for extracting the necessary FMIP decryption keys from the macOS Keychain."
+                            description: "The original method for extracting FMIP decryption keys from the macOS Keychain."
                         )
                     }
                 }
