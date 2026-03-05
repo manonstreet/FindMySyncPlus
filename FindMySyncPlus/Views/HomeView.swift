@@ -17,24 +17,8 @@ struct HomeView: View {
     
     private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
     
-    private var statusText: String {
-        if app.lastRunHadFatalError { return "Error" }
-        if app.isPerformingRun {
-            if app.currentRunMode == .dry { return "Running (dry)" }
-            return "Running (\(app.currentRunKind.rawValue))"
-        }
-        if !app.isRunning { return "Stopped" }
-        if app.lastRunHadWarnings { return "Running (with warnings)" }
-        return "Running (Idle)"
-    }
-    
-    private var statusColor: Color {
-        if app.lastRunHadFatalError { return .red }
-        if app.isPerformingRun { return .green }
-        if app.lastRunHadWarnings { return .orange }
-        if app.isRunning { return .green } // For the "Running (Idle)" state
-        return .secondary
-    }
+    private var statusText: String { app.statusText }
+    private var statusColor: Color { app.statusColor }
 
     var body: some View {
         ScrollView {

@@ -444,24 +444,8 @@ struct FindMySyncPlusApp: App {
         if app.isRunning { app.stop() } else { app.start() }
     }
 
-    private var statusTextInMenu: String {
-        if app.lastRunHadFatalError { return "Error" }
-        if app.isPerformingRun {
-            if app.currentRunMode == .dry { return "Running (dry)" }
-            return "Running (\(app.currentRunKind.rawValue))"
-        }
-        if !app.isRunning { return "Stopped" }
-        if app.lastRunHadWarnings { return "Running (with warnings)" }
-        return "Running (Idle)"
-    }
-
-    private var statusColorInMenu: Color {
-        if app.lastRunHadFatalError { return .red }
-        if app.isPerformingRun { return .green }
-        if app.lastRunHadWarnings { return .orange }
-        if app.isRunning { return .green }
-        return .secondary
-    }
+    private var statusTextInMenu: String { app.statusText }
+    private var statusColorInMenu: Color { app.statusColor }
     
     private var nextRunMenuText: String {
         guard let nextRun = app.nextRun else { return "Next: —" }

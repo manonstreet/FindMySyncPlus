@@ -79,10 +79,7 @@ actor FriendDecryptor {
             if ns.domain == NSCocoaErrorDomain && ns.code == NSFileReadNoSuchFileError {
                 return .failure(.dbNotFound)
             }
-            let permissionDenied = (ns.domain == NSCocoaErrorDomain && ns.code == 257)
-                || error.localizedDescription.localizedCaseInsensitiveContains("operation not permitted")
-                || error.localizedDescription.localizedCaseInsensitiveContains("permission")
-            if permissionDenied {
+            if error.isPermissionDenied {
                 return .failure(.fdaRequired)
             }
             return .failure(.dbCorrupted(error.localizedDescription))

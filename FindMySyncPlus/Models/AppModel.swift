@@ -879,5 +879,24 @@ final class AppModel: NSObject, ObservableObject {
     
     var lastRunText: String { formatted(lastRun) }
     var nextRunText: String { formatted(nextRun) }
+
+    var statusText: String {
+        if lastRunHadFatalError { return "Error" }
+        if isPerformingRun {
+            if currentRunMode == .dry { return "Running (dry)" }
+            return "Running (\(currentRunKind.rawValue))"
+        }
+        if !isRunning { return "Stopped" }
+        if lastRunHadWarnings { return "Running (with warnings)" }
+        return "Running (Idle)"
+    }
+
+    var statusColor: Color {
+        if lastRunHadFatalError { return .red }
+        if isPerformingRun { return .green }
+        if lastRunHadWarnings { return .orange }
+        if isRunning { return .green }
+        return .secondary
+    }
 }
 

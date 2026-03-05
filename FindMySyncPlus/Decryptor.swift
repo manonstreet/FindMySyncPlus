@@ -260,12 +260,7 @@ actor Decryptor {
             outerData = try Data(contentsOf: fileURL)
             Task { @MainActor in logger.needsFullDiskAccess = false }
         } catch {
-            let ns = error as NSError
-            let permissionDenied = (ns.domain == NSCocoaErrorDomain && ns.code == 257)
-            || error.localizedDescription.localizedCaseInsensitiveContains("operation not permitted")
-            || error.localizedDescription.localizedCaseInsensitiveContains("permission")
-            
-            if permissionDenied {
+            if error.isPermissionDenied {
                 Task { @MainActor in logger.needsFullDiskAccess = true }
                 return .failure(.fdaRequired)
             } else {
