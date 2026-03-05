@@ -312,7 +312,9 @@ struct AccessSettingsView: View {
                                         do {
                                             try settings.importFMIPKey(from: url)
                                             app.invalidateDecryptorKey()
-                                        } catch {}
+                                        } catch {
+                                            logger.error("FMIP key import failed: \(error.localizedDescription)")
+                                        }
                                     }
                                 }
                             } label: {

@@ -48,8 +48,13 @@ struct AboutView: View {
 
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 4) {
-                        Link(title, destination: URL(string: url)!)
-                            .font(.headline)
+                        if let destination = URL(string: url) {
+                            Link(title, destination: destination)
+                                .font(.headline)
+                        } else {
+                            Text(title)
+                                .font(.headline)
+                        }
                         Text("by \(author)")
                             .font(.headline)
                             .foregroundStyle(.primary)

@@ -436,9 +436,9 @@ Renaming an alias creates a new HA Entity ID (dev_id/host_name).
                                       id: d.id,
                                       source: entry.source,
                                       onAssign: {
-                            if isUpdate {
-                                settings.updateAliasWithCap(matching.first!.alias, addUUID: d.id, lastSeenName: d.name)
-                                logger.info("Alias \"\(matching.first!.alias)\" updated with UUID \(d.id.normalized())")
+                            if isUpdate, let match = matching.first {
+                                settings.updateAliasWithCap(match.alias, addUUID: d.id, lastSeenName: d.name)
+                                logger.info("Alias \"\(match.alias)\" updated with UUID \(d.id.normalized())")
                             } else {
                                 assignUUID = d.id
                                 assignName = d.name

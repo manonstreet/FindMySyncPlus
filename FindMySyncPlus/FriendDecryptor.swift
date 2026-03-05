@@ -262,7 +262,7 @@ actor FriendDecryptor {
 
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
-            let msg = String(cString: sqlite3_errmsg(db!))
+            let msg = db.flatMap { String(cString: sqlite3_errmsg($0)) } ?? "unknown error"
             return .failure(.queryFailed("prepare failed: \(msg)"))
         }
         defer { sqlite3_finalize(stmt) }
