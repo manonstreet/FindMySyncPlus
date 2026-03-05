@@ -238,7 +238,7 @@ actor FriendDecryptor {
 
     private nonisolated func queryFriends(dbPath: URL, logger: LogStore) -> Result<[DevicePoint], FriendDecryptorError> {
         var db: OpaquePointer?
-        guard sqlite3_open_v2(dbPath.path, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
+        guard sqlite3_open_v2(dbPath.path, &db, SQLITE_OPEN_READWRITE, nil) == SQLITE_OK else {
             let msg = db.flatMap { String(cString: sqlite3_errmsg($0)) } ?? "unknown"
             sqlite3_close(db)
             return .failure(.queryFailed("sqlite3_open failed: \(msg)"))
