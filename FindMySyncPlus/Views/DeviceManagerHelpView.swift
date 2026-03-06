@@ -35,29 +35,33 @@ struct DeviceManagerHelpView: View {
 private let defaultHelpMarkdown = """
 # Device Management
 
-**Identity model**
-- `dev_id = findmy_<alias>`
-- `host_name = findmy_<alias>` (must match `dev_id` so HA entity_id aligns with the alias)
-- `mac = <alias-derived MAC>`
-  The MAC address is a stable value derived from the device's alias, ensuring consistent identification without relying on UUIDs.
-- We do **not** send `location_name` to preserve Home Assistant zone detection.
-- Battery percentage is included when available.
+The Device Manager maps Find My entities to stable Home Assistant identities. It handles three source types — **Devices** (iPhones, Macs), **Items** (AirTags), and **Friends** (shared locations) — each shown with a color-coded badge.
 
-**Workflow**
-- **Unassigned** lists entities (devices and items) we’ve seen with location but no alias.
-- Click **Assign** to create an alias (prefilled from the entity name). You can add more UUIDs later if Apple rotates them.
-- - When a device with the same name is discovered again, an **Update** behavior occurs: the existing device record is refreshed with the new information, maintaining continuity in device tracking.
-- In **Aliases**, toggle **Tracked** to include an alias in posts.
+## Unassigned
 
-**UUID rotation**
-- If Apple rotates a device or item UUID, add the new UUID to the same alias. The HA entity remains `findmy_<alias>`.
-- The app keeps the last N UUIDs per alias (configurable in Settings) and evicts older ones automatically to maintain a clean and efficient identity database.
+Lists discovered entities that don’t have an alias yet. Use the filter menu to show All, Devices, Items, or Friends.
 
-**Dry Run**
-- Shows what would be sent (including `dev_id`, `host_name`, and `mac`), but does not post to HA.
+- **Assign** — creates a new alias (prefilled from the entity name).
+- **Update** — appears when a known device reappears under a new UUID. Adds the UUID to the existing alias automatically.
 
-**Notes**
-- Renaming an alias **changes the entity id** in HA (because `dev_id`/`host_name` change).
-- Only tracked aliases are posted.
-- After aliases are posted, if desired, copy the device names from the Aliases pane using the copy button, and replace the name attribute for each device in Home Assistant's `known_devices.yaml`.
+## Aliases
+
+Shows all created aliases. Use the filter menu to narrow by source type.
+
+- **Tracked toggle** — only tracked aliases are posted to Home Assistant.
+- **Rename** (pencil icon) — changes the alias and HA entity ID.
+- **Delete** (trash icon) — removes the alias from the app (does not affect HA).
+- **Copy name** (clipboard icon) — copies the device’s original name for `known_devices.yaml`.
+
+## How Identity Works
+
+Each alias maps to a single HA entity: `dev_id` and `host_name` are both `findmy_<alias>`, and `mac` is derived from the alias for stability. Battery is included when available. `location_name` is omitted to preserve HA zone detection.
+
+## UUID Rotation
+
+Apple periodically rotates UUIDs. The device reappears in Unassigned with an **Update** button (matched by name). The app keeps the last N UUIDs per alias (configurable in General Settings) and evicts older ones. **Auto-learn UUIDs** can handle this automatically.
+
+## Dry Run
+
+Shows what would be posted without actually sending to HA.
 """
