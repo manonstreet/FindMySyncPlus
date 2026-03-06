@@ -72,10 +72,10 @@ Requires Full Disk Access to read the Find My cache. `FindMyRefresher.swift` can
 
 ## Testing
 
-30 unit tests across three test files: `CacheDecryptorTests` (ChaChaPoly round-trips), `TextSanitizationTests` (slugify, normalizeID), `LocalStorageDecryptorTests` (AES-CBC page decryption). Tests use synthetic data — no real Find My files required. Run via Xcode (Cmd+U) or xcodebuild test.
+52 unit tests across three test files: `CacheDecryptorTests` (ChaChaPoly round-trips), `TextSanitizationTests` (slugify, normalizeID), `LocalStorageDecryptorTests` (AES-CBC page decryption). Tests use synthetic data — no real Find My files required. Run via Xcode (Cmd+U) or xcodebuild test.
 
 ## Conventions
-- `AppModel`, `SettingsStore`, `LogStore` are `@MainActor final class` using `@Published` + Combine for reactivity.
+- `AppModel`, `SettingsStore` are `@MainActor final class` using `@Published` + Combine for reactivity. `LogStore` is `final class ... @unchecked Sendable`.
 - `SyncEngine` is `@MainActor final class` — orchestrates the full sync pipeline (preflight, decrypt, plan, post). Owns `CacheDecryptor` and `LocalStorageDecryptor` instances. Bound to `AppModel` via `bind()`.
 - `CacheDecryptor` is an `actor` — disk I/O and ChaChaPoly decryption run on the actor's cooperative thread pool executor, not the main thread. `fmipKey` and `fmfKey` isolation is compiler-enforced. `parseDeviceArray` and `extractSymmetricKey` are `nonisolated` (pure functions).
 - `LocalStorageDecryptor` is an `actor` — AES-256-CBC page-level decryption of LocalStorage.db with WAL support. `decryptPage`, `parseWAL`, `buildDecryptedDB` are `nonisolated` (pure crypto). Friends are deduplicated against family devices using DSID (Apple's universal person ID).

@@ -77,11 +77,11 @@ final class AppModel: NSObject, ObservableObject {
 
     // MARK: - Key invalidation (forwarded to SyncEngine)
 
-    func invalidateDecryptorKey() {
+    func invalidateCacheDecryptorKey() {
         syncEngine.invalidateCacheDecryptorKey()
     }
 
-    func invalidateFriendDecryptorKey() {
+    func invalidateLocalStorageKey() {
         syncEngine.invalidateLocalStorageKey()
     }
 
