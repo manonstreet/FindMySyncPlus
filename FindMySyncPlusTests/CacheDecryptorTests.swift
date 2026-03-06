@@ -10,7 +10,7 @@ final class CacheDecryptorTests: XCTestCase {
         let decryptor = CacheDecryptor()
         let input: [[String: Any]] = [[
             "baUUID": "test-uuid-123",
-            "name": "Joel's AirTag",
+            "name": "Test AirTag",
             "location": [
                 "latitude": 37.7749,
                 "longitude": -122.4194,
@@ -21,7 +21,7 @@ final class CacheDecryptorTests: XCTestCase {
         let result = decryptor.parseDeviceArray(input)
         XCTAssertEqual(result.count, 1)
         XCTAssertEqual(result[0].id, "test-uuid-123")
-        XCTAssertEqual(result[0].name, "Joel's AirTag")
+        XCTAssertEqual(result[0].name, "Test AirTag")
         XCTAssertEqual(result[0].latitude, 37.7749, accuracy: 0.0001)
         XCTAssertEqual(result[0].longitude, -122.4194, accuracy: 0.0001)
         XCTAssertEqual(result[0].accuracy, 5.0, accuracy: 0.001)

@@ -246,7 +246,7 @@ actor CacheDecryptor {
                 let lon = loc["longitude"] as? Double,
                 let acc = loc["horizontalAccuracy"] as? Double
             else {
-                continue // skip no-location here (we'll log it in AppModel)
+                continue // skip no-location here (we'll log it in SyncEngine)
             }
 
             let battery = (device["batteryLevel"] as? Double) ?? batteryFromStatus(device["batteryStatus"])
