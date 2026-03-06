@@ -311,7 +311,7 @@ struct AccessSettingsView: View {
                                     if let url = await openFilePanel(allowed: [.propertyList]) {
                                         do {
                                             try settings.importFMIPKey(from: url)
-                                            app.invalidateDecryptorKey()
+                                            app.invalidateCacheDecryptorKey()
                                         } catch {
                                             logger.error("FMIP key import failed: \(error.localizedDescription)")
                                         }
@@ -349,7 +349,7 @@ struct AccessSettingsView: View {
                                     if let url = await openFilePanel(allowed: [.data]) {
                                         do {
                                             try settings.importLocalStorageKey(from: url)
-                                            app.invalidateFriendDecryptorKey()
+                                            app.invalidateLocalStorageKey()
                                         } catch {
                                             logger.error("LocalStorage key import failed: \(error.localizedDescription)")
                                         }
@@ -406,7 +406,7 @@ struct AccessSettingsView: View {
             settings.fmipKeyStatus = .notPresent
             settings.enableDevices = false
             settings.enableItems = false
-            app.invalidateDecryptorKey()
+            app.invalidateCacheDecryptorKey()
         case .fmf:
             Keychain.delete(.fmfKey)
             settings.fmfKeyStatus = .notPresent
@@ -415,7 +415,7 @@ struct AccessSettingsView: View {
             Keychain.delete(.localStorageKey)
             settings.localStorageKeyStatus = .notPresent
             settings.enableFriends = false
-            app.invalidateFriendDecryptorKey()
+            app.invalidateLocalStorageKey()
         }
     }
 
@@ -510,7 +510,7 @@ struct AccessSettingsView: View {
         if FileManager.default.fileExists(atPath: fmipFile.path) {
             do {
                 try settings.importFMIPKey(from: fmipFile)
-                app.invalidateDecryptorKey()
+                app.invalidateCacheDecryptorKey()
                 imported += 1
             } catch {
                 logger.error("Bulk import: FMIP key failed: \(error.localizedDescription)")
@@ -534,7 +534,7 @@ struct AccessSettingsView: View {
         if FileManager.default.fileExists(atPath: lsFile.path) {
             do {
                 try settings.importLocalStorageKey(from: lsFile)
-                app.invalidateFriendDecryptorKey()
+                app.invalidateLocalStorageKey()
                 imported += 1
             } catch {
                 logger.error("Bulk import: LocalStorage key failed: \(error.localizedDescription)")

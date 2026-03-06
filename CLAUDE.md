@@ -25,30 +25,22 @@ SwiftLint is configured via `.swiftlint.yml`. Run locally with `swiftlint lint` 
 The app starts as an `.accessory` (menu bar–only) process and switches to `.regular` when a window opens. `PolicyController` manages `NSApplication.activationPolicy`. `AppDelegate` + `WindowManager` handle window lifecycle. `WindowCoordinator` is a singleton that other code uses to open auxiliary windows.
 
 Three `@ObservableObject` singletons are shared via the environment:
-- **`AppModel`** — run engine, scheduler, sync logic
+- **`AppModel`** — scheduler, UI state, counters; owns `SyncEngine`
 - **`SettingsStore`** — all user configuration (`@AppStorage` + Keychain)
 - **`LogStore`** — in-memory log buffer (capped at 5000 entries)
 
 ### Data Flow
 ```
-FMIP cache files (ChaChaPoly-encrypted)
-  ~/Library/Caches/com.apple.findmy.fmipcore/Devices.data
-  ~/Library/Caches/com.apple.findmy.fmipcore/Items.data
-        ↓  Decryptor.swift (ChaChaPoly via CryptoKit; fmipKey from Keychain)
-
-Friend locations (AES-256 encrypted SQLite)
-  ~/Library/Group Containers/group.com.apple.findmy.findmylocateagent/
-    Library/Application Support/LocalStorage.db
-        ↓  FriendDecryptor.swift (page-level AES-CBC keystream XOR; localStorageKey from Keychain)
-
-FMF contact names (ChaChaPoly-encrypted)
-  ~/Library/Caches/com.apple.findmy.fmfcore/FriendCacheData.data
-        ↓  Decryptor.readFMFContactNames (fmfKey from Keychain; maps DSID → displayName)
-
-        ↓
-  AppModel  (matches UUIDs to DeviceAlias records, dedup friends via DSID)
-        ↓
-  HTTP POST → Home Assistant device_tracker.see endpoint
+AppModel (@MainActor)          — scheduler, UI state, counters
+    │
+    └─▶ SyncEngine (@MainActor)   — orchestrates one sync run
+            ├─▶ CacheDecryptor (actor)        — FMIP cache decrypt + parse
+            │     Devices.data / Items.data (ChaChaPoly via CryptoKit)
+            │     FriendCacheData.data (FMF contact names, ChaChaPoly)
+            ├─▶ LocalStorageDecryptor (actor)  — LocalStorage.db decrypt + query
+            │     AES-256-CBC page-level keystream XOR
+            └─▶ HAClient (enum, static)        — HTTP posting + auth testing
+                  POST → Home Assistant device_tracker.see
 ```
 
 Requires Full Disk Access to read the Find My cache. `FindMyRefresher.swift` can launch the Find My app to force a cache refresh.
@@ -63,27 +55,31 @@ Requires Full Disk Access to read the Find My cache. `FindMyRefresher.swift` can
 ### Key Files
 | File | Role |
 |------|------|
-| `Models/AppModel.swift` | Scheduler, run execution, HA posting, UUID learning |
+| `Models/AppModel.swift` | Scheduler, UI state, counters; delegates sync to `SyncEngine` |
+| `SyncEngine.swift` | Orchestrates one sync run: decrypt, plan, post; owns decryptor instances |
+| `CacheDecryptor.swift` | `actor` — FMIP cache decryption (ChaChaPoly), FMF contact name lookup |
+| `LocalStorageDecryptor.swift` | `actor` — LocalStorage.db decryption (AES-256-CBC page-level), SQLite friend query |
+| `HAClient.swift` | `enum` (caseless namespace) — HTTP posting to HA + endpoint auth testing |
 | `Models/SettingsStore.swift` | All persisted config; Keychain wrappers for auth token and 3 decryption keys |
 | `Models/DeviceAlias.swift` | Alias↔UUID mapping model |
 | `Models/LogStore.swift` | Logging with levels; consumed by StatusView |
-| `Decryptor.swift` | `actor` — FMIP cache decryption (ChaChaPoly), FMF contact name lookup, HA posting |
-| `FriendDecryptor.swift` | `actor` — LocalStorage.db decryption (AES-256-CBC page-level), SQLite friend query |
 | `Views/DeviceManagerView.swift` | Assign aliases to discovered UUIDs; source badges (Device/Item/Friend) |
 | `Views/AccessSettingsView.swift` | HA endpoint, auth token, segmented key management UI with bulk import |
 | `Helpers/Keychain.swift` | Generic SecItem wrapper; keys: `fmipSymmetricKey`, `fmfKey`, `localStorageKey` |
 
 ### Device Identity
-`dev_id` is `findmy_<alias>` (lowercased slug). UUIDs for AirTags and iPhone/Apple Watch rotate; `auto-learn UUIDs` in `AppModel` updates `DeviceAlias` when a known device is seen under a new UUID. Dry-run mode reads and decrypts but never POSTs to HA.
+`dev_id` is `findmy_<alias>` (lowercased slug). UUIDs for AirTags and iPhone/Apple Watch rotate; `auto-learn UUIDs` in `SyncEngine` updates `DeviceAlias` when a known device is seen under a new UUID. Dry-run mode reads and decrypts but never POSTs to HA.
 
 ## Testing
 
-47 unit tests across three test files: `DecryptorTests` (ChaChaPoly round-trips), `TextSanitizationTests` (slugify, normalizeID), `FriendDecryptorTests` (AES-CBC page decryption). Tests use synthetic data — no real Find My files required. Run via Xcode (Cmd+U) or xcodebuild test.
+52 unit tests across three test files: `CacheDecryptorTests` (ChaChaPoly round-trips), `TextSanitizationTests` (slugify, normalizeID), `LocalStorageDecryptorTests` (AES-CBC page decryption). Tests use synthetic data — no real Find My files required. Run via Xcode (Cmd+U) or xcodebuild test.
 
 ## Conventions
-- `AppModel`, `SettingsStore`, `LogStore` are `@MainActor final class` using `@Published` + Combine for reactivity.
-- `Decryptor` is an `actor` — disk I/O and ChaChaPoly decryption run on the actor's cooperative thread pool executor, not the main thread. `fmipKey` and `fmfKey` isolation is compiler-enforced. `parseDeviceArray` and `extractSymmetricKey` are `nonisolated` (pure functions). `post` and `testEndpointAuthentication` are `@MainActor` (access SettingsStore).
-- `FriendDecryptor` is an `actor` — AES-256-CBC page-level decryption of LocalStorage.db with WAL support. `decryptPage`, `parseWAL`, `buildDecryptedDB` are `nonisolated` (pure crypto). Friends are deduplicated against family devices using DSID (Apple's universal person ID).
+- `AppModel`, `SettingsStore` are `@MainActor final class` using `@Published` + Combine for reactivity. `LogStore` is `final class ... @unchecked Sendable`.
+- `SyncEngine` is `@MainActor final class` — orchestrates the full sync pipeline (preflight, decrypt, plan, post). Owns `CacheDecryptor` and `LocalStorageDecryptor` instances. Bound to `AppModel` via `bind()`.
+- `CacheDecryptor` is an `actor` — disk I/O and ChaChaPoly decryption run on the actor's cooperative thread pool executor, not the main thread. `fmipKey` and `fmfKey` isolation is compiler-enforced. `parseDeviceArray` and `extractSymmetricKey` are `nonisolated` (pure functions).
+- `LocalStorageDecryptor` is an `actor` — AES-256-CBC page-level decryption of LocalStorage.db with WAL support. `decryptPage`, `parseWAL`, `buildDecryptedDB` are `nonisolated` (pure crypto). Friends are deduplicated against family devices using DSID (Apple's universal person ID).
+- `HAClient` is a caseless `enum` with `@MainActor static` methods for HTTP posting and endpoint auth testing.
 - Keychain reads/writes are synchronous wrappers around `Security.framework`.
 - Transient network errors do not mutate `endpointAuthStatus`; only explicit 401/403 marks it invalid.
 - `LSUIElement = YES` in Info.plist hides the Dock icon by default; `PolicyController` shows it when a window is open.

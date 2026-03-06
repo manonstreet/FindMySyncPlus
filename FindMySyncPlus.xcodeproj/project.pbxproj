@@ -8,9 +8,9 @@
 
 /* Begin PBXBuildFile section */
 		5DAE2C4B2E73A82E00EF354B /* Ink in Frameworks */ = {isa = PBXBuildFile; productRef = 5DAE2C4A2E73A82E00EF354B /* Ink */; };
-		AABB0002AABB0002AABB0002 /* DecryptorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB0001AABB0001AABB0001 /* DecryptorTests.swift */; };
+		AABB0002AABB0002AABB0002 /* CacheDecryptorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB0001AABB0001AABB0001 /* CacheDecryptorTests.swift */; };
 		CC110002CC110002CC110002 /* TextSanitizationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC110001CC110001CC110001 /* TextSanitizationTests.swift */; };
-		CC110004CC110004CC110004 /* FriendDecryptorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC110003CC110003CC110003 /* FriendDecryptorTests.swift */; };
+		CC110004CC110004CC110004 /* LocalStorageDecryptorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC110003CC110003CC110003 /* LocalStorageDecryptorTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -31,12 +31,12 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		AABB0001AABB0001AABB0001 /* DecryptorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DecryptorTests.swift; sourceTree = "<group>"; };
-		CC110001CC110001CC110001 /* TextSanitizationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextSanitizationTests.swift; sourceTree = "<group>"; };
-		CC110003CC110003CC110003 /* FriendDecryptorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FriendDecryptorTests.swift; sourceTree = "<group>"; };
 		5DA3BFED2E5B3B8800B73B01 /* FindMySyncPlus.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FindMySyncPlus.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		5DA3BFFB2E5B3B8900B73B01 /* FindMySyncPlusTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FindMySyncPlusTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		5DA3C0052E5B3B8900B73B01 /* FindMySyncPlusUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FindMySyncPlusUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		AABB0001AABB0001AABB0001 /* CacheDecryptorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheDecryptorTests.swift; sourceTree = "<group>"; };
+		CC110001CC110001CC110001 /* TextSanitizationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextSanitizationTests.swift; sourceTree = "<group>"; };
+		CC110003CC110003CC110003 /* LocalStorageDecryptorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalStorageDecryptorTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -95,16 +95,6 @@
 			);
 			sourceTree = "<group>";
 		};
-		AABB0003AABB0003AABB0003 /* FindMySyncPlusTests */ = {
-			isa = PBXGroup;
-			children = (
-				AABB0001AABB0001AABB0001 /* DecryptorTests.swift */,
-				CC110003CC110003CC110003 /* FriendDecryptorTests.swift */,
-				CC110001CC110001CC110001 /* TextSanitizationTests.swift */,
-			);
-			path = FindMySyncPlusTests;
-			sourceTree = "<group>";
-		};
 		5DA3BFEE2E5B3B8800B73B01 /* Products */ = {
 			isa = PBXGroup;
 			children = (
@@ -113,6 +103,16 @@
 				5DA3C0052E5B3B8900B73B01 /* FindMySyncPlusUITests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		AABB0003AABB0003AABB0003 /* FindMySyncPlusTests */ = {
+			isa = PBXGroup;
+			children = (
+				AABB0001AABB0001AABB0001 /* CacheDecryptorTests.swift */,
+				CC110003CC110003CC110003 /* LocalStorageDecryptorTests.swift */,
+				CC110001CC110001CC110001 /* TextSanitizationTests.swift */,
+			);
+			path = FindMySyncPlusTests;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -264,8 +264,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				AABB0002AABB0002AABB0002 /* DecryptorTests.swift in Sources */,
-				CC110004CC110004CC110004 /* FriendDecryptorTests.swift in Sources */,
+				AABB0002AABB0002AABB0002 /* CacheDecryptorTests.swift in Sources */,
+				CC110004CC110004CC110004 /* LocalStorageDecryptorTests.swift in Sources */,
 				CC110002CC110002CC110002 /* TextSanitizationTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -347,7 +347,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				INFOPLIST_FILE = "FindMySyncPlus/Info.plist";
+				INFOPLIST_FILE = FindMySyncPlus/Info.plist;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MACOSX_DEPLOYMENT_TARGET = 15.5;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
@@ -409,7 +409,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				INFOPLIST_FILE = "FindMySyncPlus/Info.plist";
+				INFOPLIST_FILE = FindMySyncPlus/Info.plist;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MACOSX_DEPLOYMENT_TARGET = 15.5;
 				MTL_ENABLE_DEBUG_INFO = NO;

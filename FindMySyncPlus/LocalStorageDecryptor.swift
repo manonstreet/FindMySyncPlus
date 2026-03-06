@@ -2,7 +2,7 @@ import Foundation
 import CommonCrypto
 import SQLite3
 
-enum FriendDecryptorError: LocalizedError {
+enum LocalStorageDecryptorError: LocalizedError {
     case fdaRequired
     case keyNotLoaded
     case incorrectKey
@@ -28,7 +28,7 @@ enum FriendDecryptorError: LocalizedError {
     }
 }
 
-actor FriendDecryptor {
+actor LocalStorageDecryptor {
 
     private var key: Data?
 
@@ -63,7 +63,7 @@ actor FriendDecryptor {
 
     // MARK: - Public API
 
-    func readFriendLocations(logger: LogStore) -> Result<[DevicePoint], FriendDecryptorError> {
+    func readFriendLocations(logger: LogStore) -> Result<[DevicePoint], LocalStorageDecryptorError> {
         guard let key else { return .failure(.keyNotLoaded) }
 
         let home = FileManager.default.homeDirectoryForCurrentUser
@@ -236,7 +236,7 @@ actor FriendDecryptor {
 
     // MARK: - SQLite query
 
-    private nonisolated func queryFriends(dbPath: URL, logger: LogStore) -> Result<[DevicePoint], FriendDecryptorError> {
+    private nonisolated func queryFriends(dbPath: URL, logger: LogStore) -> Result<[DevicePoint], LocalStorageDecryptorError> {
         var db: OpaquePointer?
         guard sqlite3_open_v2(dbPath.path, &db, SQLITE_OPEN_READWRITE, nil) == SQLITE_OK else {
             let msg = db.flatMap { String(cString: sqlite3_errmsg($0)) } ?? "unknown"

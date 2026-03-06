@@ -2,14 +2,14 @@ import XCTest
 import CommonCrypto
 @testable import FindMySyncPlus
 
-final class FriendDecryptorTests: XCTestCase {
+final class LocalStorageDecryptorTests: XCTestCase {
 
     private let pageSize = 4096
     private let contentSize = 4084
     private let reservedSize = 12
 
     /// Build the AES-CBC keystream for a given page index, key, and reserved bytes.
-    /// This mirrors the algorithm in FriendDecryptor.decryptPage.
+    /// This mirrors the algorithm in LocalStorageDecryptor.decryptPage.
     private func buildKeystream(pageIndex: Int, key: Data, reserved: Data) -> Data {
         let pgno = UInt32(pageIndex + 1)
         var iv = Data(count: 16)
@@ -62,7 +62,7 @@ final class FriendDecryptorTests: XCTestCase {
     // MARK: - decryptPage round-trip
 
     func testDecryptPage_roundTrip() async {
-        let decryptor = FriendDecryptor()
+        let decryptor = LocalStorageDecryptor()
         let key = Data((0..<32).map { _ in UInt8.random(in: 0...255) })
         let reserved = Data((0..<12).map { _ in UInt8.random(in: 0...255) })
 
@@ -78,7 +78,7 @@ final class FriendDecryptorTests: XCTestCase {
     }
 
     func testDecryptPage_differentPagesProduceDifferentKeystreams() async {
-        let decryptor = FriendDecryptor()
+        let decryptor = LocalStorageDecryptor()
         let key = Data((0..<32).map { _ in UInt8.random(in: 0...255) })
         let reserved = Data(count: 12) // same reserved for both
 
@@ -97,7 +97,7 @@ final class FriendDecryptorTests: XCTestCase {
     }
 
     func testDecryptPage_page0FixUp() async {
-        let decryptor = FriendDecryptor()
+        let decryptor = LocalStorageDecryptor()
         let key = Data((0..<32).map { _ in UInt8.random(in: 0...255) })
         let reserved = Data((0..<12).map { _ in UInt8.random(in: 0...255) })
 
@@ -126,7 +126,7 @@ final class FriendDecryptorTests: XCTestCase {
     }
 
     func testDecryptPage_wrongKeyProducesDifferentOutput() async {
-        let decryptor = FriendDecryptor()
+        let decryptor = LocalStorageDecryptor()
         let key1 = Data((0..<32).map { _ in UInt8.random(in: 0...255) })
         let key2 = Data((0..<32).map { _ in UInt8.random(in: 0...255) })
         let reserved = Data(count: 12)
@@ -144,7 +144,7 @@ final class FriendDecryptorTests: XCTestCase {
     }
 
     func testDecryptPage_outputSize() async {
-        let decryptor = FriendDecryptor()
+        let decryptor = LocalStorageDecryptor()
         let key = Data(count: 32)
         let encPage = Data(count: pageSize)
 
