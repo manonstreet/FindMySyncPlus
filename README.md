@@ -27,7 +27,7 @@ Based on [FindMySync](https://github.com/MartinPham/FindMySync) and the decrypti
 |--|:-:|:-:|:-:|
 | macOS 15+ (Sequoia) support | ✅ | ❌ | ➖ |
 | AirTag / Items support | ✅ | ✅ | ❌ |
-| [Friend location tracking](https://github.com/Pnut-GGG/findmy-cache-decryptor/issues/4) | ✅ | ❌ | ❌ |
+| Friend location tracking | ✅ | ❌ | ❌ |
 | Auto-refresh Find My (no AppleScript) | ✅ | ❌ | ➖ |
 | Auto-learn rotating UUIDs | ✅ | ❌ | ➖ |
 | Apple ID credentials required | ❌ | ❌ | ✅ |
