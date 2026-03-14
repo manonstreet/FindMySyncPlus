@@ -22,21 +22,14 @@ struct AccessSettingsView: View {
     private enum KeyTab: String, CaseIterable { case all, fmip, fmf, localStorage }
     @State private var selectedKeyTab: KeyTab = .all
 
+    @State private var pendingTransportMode: TransportMode?
+    @State private var showTransportSwitchAlert: Bool = false
+
     var body: some View {
         ScrollView {
             VStack(spacing: 16) {
-                SectionHeader(title: "TRANSPORT", tip: "Choose how locations are sent to Home Assistant.")
-                transportPickerCard
-
-                if settings.transportMode == .rest {
-                    SectionHeader(title: "REST ENDPOINT", tip: "Configure Home Assistant endpoint and authorization.")
-                    endpointCard
-                    authCard
-                } else {
-                    SectionHeader(title: "MQTT BROKER", tip: "Configure MQTT broker connection for Home Assistant.")
-                    mqttBrokerCard
-                }
-
+                SectionHeader(title: "ENDPOINT", tip: "REST uses HTTP POST to device_tracker/see. MQTT uses HA auto-discovery with richer attributes.\n\nSwitching transport modes creates new entities in Home Assistant. Old entities from the previous mode will become stale and should be removed manually.")
+                endpointCard
                 connectionTestCard
 
                 SectionHeader(title: "LOCAL", tip: "Local key and macOS permissions required for decryption.")
@@ -50,6 +43,21 @@ struct AccessSettingsView: View {
         }
         .onAppear {
             NotificationCenter.default.post(name: .clearToolbarItems, object: nil)
+        }
+        .alert("Switch Transport?",
+               isPresented: $showTransportSwitchAlert,
+               presenting: pendingTransportMode) { mode in
+            Button("Switch") {
+                app.stop()
+                settings.setTransportMode(mode)
+                connectionTestStatus = .idle
+                pendingTransportMode = nil
+            }
+            Button("Cancel", role: .cancel) {
+                pendingTransportMode = nil
+            }
+        } message: { _ in
+            Text("Switching transport will stop the scheduler. Configure your new transport settings, test the connection, then restart the scheduler when ready.")
         }
     }
 
@@ -71,19 +79,12 @@ struct AccessSettingsView: View {
         }
     }
 
-    // MARK: - Full-Width Segmented Control
-    private struct SegmentedKeyPicker: NSViewRepresentable {
-        @Binding var selection: KeyTab
+    // MARK: - Full-Width Segmented Controls
+    private struct FullWidthSegmentedControl<T: CaseIterable & Equatable>: NSViewRepresentable where T.AllCases: RandomAccessCollection {
+        @Binding var selection: T
+        let labels: [String]
 
         func makeNSView(context: Context) -> NSSegmentedControl {
-            let labels = KeyTab.allCases.map { tab -> String in
-                switch tab {
-                case .all: "All"
-                case .fmip: "Find My"
-                case .fmf: "FMF"
-                case .localStorage: "LocalStorage"
-                }
-            }
             let control = NSSegmentedControl(
                 labels: labels,
                 trackingMode: .selectOne,
@@ -91,12 +92,12 @@ struct AccessSettingsView: View {
                 action: #selector(Coordinator.selectionChanged(_:))
             )
             control.segmentDistribution = .fillEqually
-            control.selectedSegment = KeyTab.allCases.firstIndex(of: selection) ?? 0
+            control.selectedSegment = Array(T.allCases).firstIndex(of: selection) ?? 0
             return control
         }
 
         func updateNSView(_ control: NSSegmentedControl, context: Context) {
-            let idx = KeyTab.allCases.firstIndex(of: selection) ?? 0
+            let idx = Array(T.allCases).firstIndex(of: selection) ?? 0
             if control.selectedSegment != idx {
                 control.selectedSegment = idx
             }
@@ -112,11 +113,11 @@ struct AccessSettingsView: View {
         }
 
         final class Coordinator: NSObject {
-            let selection: Binding<KeyTab>
-            init(selection: Binding<KeyTab>) { self.selection = selection }
+            let selection: Binding<T>
+            init(selection: Binding<T>) { self.selection = selection }
 
             @objc func selectionChanged(_ sender: NSSegmentedControl) {
-                let cases = Array(KeyTab.allCases)
+                let cases = Array(T.allCases)
                 let idx = sender.selectedSegment
                 guard idx >= 0, idx < cases.count else { return }
                 selection.wrappedValue = cases[idx]
@@ -124,165 +125,157 @@ struct AccessSettingsView: View {
         }
     }
 
-    // MARK: - Transport Picker
-    private var transportPickerCard: some View {
-        Card {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text("Transport Mode")
-                        .font(.title3).fontWeight(.semibold)
-                    InfoTip(message: """
-                        REST uses HTTP POST to device_tracker/see. \
-                        MQTT uses HA auto-discovery with richer attributes.\n\n\
-                        Switching transport modes creates new entities in Home Assistant. \
-                        Old entities from the previous mode will become stale and should be \
-                        removed manually. Update any automations or dashboards that reference \
-                        the old entities.
-                        """)
-                    Spacer()
+    // MARK: - Transport Picker (inline)
+    private var transportPicker: some View {
+        FullWidthSegmentedControl<TransportMode>(
+            selection: Binding(
+                get: { settings.transportMode },
+                set: { newMode in
+                    guard newMode != settings.transportMode else { return }
+                    if app.isRunning {
+                        pendingTransportMode = newMode
+                        showTransportSwitchAlert = true
+                    } else {
+                        settings.setTransportMode(newMode)
+                        connectionTestStatus = .idle
+                    }
                 }
-                Picker("", selection: Binding(
-                    get: { settings.transportMode },
-                    set: { settings.setTransportMode($0) }
-                )) {
-                    Text("REST").tag(TransportMode.rest)
-                    Text("MQTT").tag(TransportMode.mqtt)
-                }
-                .pickerStyle(.segmented)
-                .onChange(of: settings.transportMode) { _, _ in
-                    connectionTestStatus = .idle
-                }
-            }
-        }
+            ),
+            labels: ["REST", "MQTT"]
+        )
     }
 
-    // MARK: - MQTT Broker
-    private var mqttBrokerCard: some View {
-        Card {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text("Broker")
-                        .font(.title3).fontWeight(.semibold)
-                    InfoTip(message: "MQTT broker connection details. HA's built-in Mosquitto add-on typically runs on port 1883 (or 8883 with TLS).")
-                    Spacer()
-                }
-
-                HStack(spacing: 8) {
-                    TextField("homeassistant.local", text: $settings.mqttHost)
-                        .textFieldStyle(.roundedBorder)
-                    Text(":")
-                        .foregroundStyle(.secondary)
-                    TextField("1883", value: $settings.mqttPort, format: .number)
-                        .textFieldStyle(.roundedBorder)
-                        .frame(width: 70)
-                }
-
-                Toggle("Use TLS", isOn: $settings.mqttUseTLS)
-                    .onChange(of: settings.mqttUseTLS) { _, useTLS in
-                        if useTLS && settings.mqttPort == 1883 {
-                            settings.mqttPort = 8883
-                        } else if !useTLS && settings.mqttPort == 8883 {
-                            settings.mqttPort = 1883
-                        }
-                    }
-
-                TextField("Username", text: $settings.mqttUsername)
-                    .textFieldStyle(.roundedBorder)
-
-                HStack(spacing: 8) {
-                    let passwordBinding = Binding<String>(
-                        get: { settings.mqttPassword },
-                        set: { settings.updateMqttPassword($0) }
-                    )
-                    Group {
-                        if showMqttPassword {
-                            TextField("Password", text: passwordBinding)
-                        } else {
-                            SecureField("Password", text: passwordBinding)
-                        }
-                    }
-                    .textFieldStyle(.roundedBorder)
-                    .layoutPriority(1)
-
-                    Button { showMqttPassword.toggle() } label: {
-                        Image(systemName: showMqttPassword ? "eye.slash" : "eye")
-                            .symbolRenderingMode(.monochrome)
-                            .foregroundStyle(hoveringMqttEye ? Color.accentColor.opacity(0.9) : Color.accentColor.opacity(0.7))
-                    }
-                    .buttonStyle(.borderless)
-                    .onHover { hoveringMqttEye = $0 }
-                    .help(showMqttPassword ? "Hide password" : "Show password")
-                }
-
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text("Topic Prefix")
-                        .font(.callout).foregroundStyle(.secondary)
-                    Spacer()
-                }
-                TextField("findmysyncplus/", text: $settings.mqttTopicPrefix)
-                    .textFieldStyle(.roundedBorder)
-            }
-        }
-    }
-
-    // MARK: - Endpoint
+    // MARK: - Endpoint Card (picker + all connection fields)
     private var endpointCard: some View {
         Card {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text("URL")
-                        .font(.title3).fontWeight(.semibold)
-                    InfoTip(message: "Home Assistant device tracker endpoint used for POST requests.")
-                    Spacer()
-                }
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
+            VStack(alignment: .leading, spacing: 16) {
+                transportPicker
+
+                if settings.transportMode == .rest {
+                    // -- URL --
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Text("URL")
+                            .font(.title3).fontWeight(.semibold)
+                        InfoTip(message: "Home Assistant device tracker endpoint used for POST requests.")
+                        Spacer()
+                    }
                     TextField("http://homeassistant.local:8123/api/services/device_tracker/see", text: $settings.endpointURL)
                         .textFieldStyle(.roundedBorder)
                         .onChange(of: settings.endpointURL) { _, _ in
                             connectionTestStatus = .idle
                         }
-                }
-            }
-        }
-    }
 
-    // MARK: - Authorization
-    private var authCard: some View {
-        Card {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text("Authorization")
-                        .font(.title3).fontWeight(.semibold)
-                    InfoTip(message: "Exact string sent in the authorization header.")
-                    Spacer()
-                }
-
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    let authBinding = Binding<String>(
-                        get: { settings.endpointAuth },
-                        set: { settings.updateEndpointAuth($0) }
-                    )
-
-                    Group {
-                        if showAuth {
-                            TextField("Bearer <token>", text: authBinding)
-                        } else {
-                            SecureField("Bearer <token>", text: authBinding)
+                    // -- Authorization --
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Text("Authorization")
+                            .font(.title3).fontWeight(.semibold)
+                        InfoTip(message: "Exact string sent in the authorization header.")
+                        Spacer()
+                    }
+                    .padding(.top, 4)
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        let authBinding = Binding<String>(
+                            get: { settings.endpointAuth },
+                            set: { settings.updateEndpointAuth($0) }
+                        )
+                        Group {
+                            if showAuth {
+                                TextField("Bearer <token>", text: authBinding)
+                            } else {
+                                SecureField("Bearer <token>", text: authBinding)
+                            }
                         }
-                    }
-                    .textFieldStyle(.roundedBorder)
-                    .layoutPriority(1)
+                        .textFieldStyle(.roundedBorder)
+                        .layoutPriority(1)
 
-                    Spacer(minLength: 0)
+                        Spacer(minLength: 0)
 
-                    Button { showAuth.toggle() } label: {
-                        Image(systemName: showAuth ? "eye.slash" : "eye")
-                            .symbolRenderingMode(.monochrome)
-                            .foregroundStyle(hoveringEye ? Color.accentColor.opacity(0.9) : Color.accentColor.opacity(0.7))
+                        Button { showAuth.toggle() } label: {
+                            Image(systemName: showAuth ? "eye.slash" : "eye")
+                                .symbolRenderingMode(.monochrome)
+                                .foregroundStyle(hoveringEye ? Color.accentColor.opacity(0.9) : Color.accentColor.opacity(0.7))
+                        }
+                        .buttonStyle(.borderless)
+                        .onHover { hoveringEye = $0 }
+                        .help(showAuth ? "Hide value" : "Show value")
                     }
-                    .buttonStyle(.borderless)
-                    .onHover { hoveringEye = $0 }
-                    .help(showAuth ? "Hide value" : "Show value")
+                } else {
+                    // -- Broker --
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Text("Broker")
+                            .font(.title3).fontWeight(.semibold)
+                        InfoTip(message: "MQTT broker connection details. HA's built-in Mosquitto add-on typically runs on port 1883 (or 8883 with TLS).")
+                        Spacer()
+                    }
+                    HStack(spacing: 8) {
+                        TextField("homeassistant.local", text: $settings.mqttHost)
+                            .textFieldStyle(.roundedBorder)
+                        Text(":")
+                            .foregroundStyle(.secondary)
+                        TextField("1883", value: $settings.mqttPort, format: .number.grouping(.never))
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 70)
+                        Button {
+                            settings.mqttUseTLS.toggle()
+                            if settings.mqttUseTLS && settings.mqttPort == 1883 {
+                                settings.mqttPort = 8883
+                            } else if !settings.mqttUseTLS && settings.mqttPort == 8883 {
+                                settings.mqttPort = 1883
+                            }
+                        } label: {
+                            Image(systemName: settings.mqttUseTLS ? "lock.fill" : "lock.open")
+                                .foregroundStyle(settings.mqttUseTLS ? Color.green : Color.secondary)
+                                .frame(width: 16, alignment: .center)
+                        }
+                        .buttonStyle(.borderless)
+                        .help(settings.mqttUseTLS ? "TLS enabled — click to disable" : "TLS disabled — click to enable")
+                    }
+
+                    // -- Credentials --
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Text("Credentials")
+                            .font(.title3).fontWeight(.semibold)
+                        InfoTip(message: "MQTT broker username and password. Leave blank for anonymous access.")
+                        Spacer()
+                    }
+                    .padding(.top, 4)
+                    TextField("Username", text: $settings.mqttUsername)
+                        .textFieldStyle(.roundedBorder)
+                    HStack(spacing: 8) {
+                        let passwordBinding = Binding<String>(
+                            get: { settings.mqttPassword },
+                            set: { settings.updateMqttPassword($0) }
+                        )
+                        Group {
+                            if showMqttPassword {
+                                TextField("Password", text: passwordBinding)
+                            } else {
+                                SecureField("Password", text: passwordBinding)
+                            }
+                        }
+                        .textFieldStyle(.roundedBorder)
+                        .layoutPriority(1)
+
+                        Button { showMqttPassword.toggle() } label: {
+                            Image(systemName: showMqttPassword ? "eye.slash" : "eye")
+                                .symbolRenderingMode(.monochrome)
+                                .foregroundStyle(hoveringMqttEye ? Color.accentColor.opacity(0.9) : Color.accentColor.opacity(0.7))
+                        }
+                        .buttonStyle(.borderless)
+                        .onHover { hoveringMqttEye = $0 }
+                        .help(showMqttPassword ? "Hide password" : "Show password")
+                    }
+
+                    // -- Topic Prefix --
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Text("Topic Prefix")
+                            .font(.title3).fontWeight(.semibold)
+                        InfoTip(message: "Prefix for MQTT discovery and state topics. Must match the prefix configured in Home Assistant's MQTT integration.")
+                        Spacer()
+                    }
+                    .padding(.top, 4)
+                    TextField("findmysyncplus/", text: $settings.mqttTopicPrefix)
+                        .textFieldStyle(.roundedBorder)
                 }
             }
         }
@@ -414,7 +407,10 @@ struct AccessSettingsView: View {
                     Spacer()
                 }
 
-                SegmentedKeyPicker(selection: $selectedKeyTab)
+                FullWidthSegmentedControl<KeyTab>(
+                    selection: $selectedKeyTab,
+                    labels: ["All", "Find My", "FMF", "LocalStorage"]
+                )
 
                 Group {
                     switch selectedKeyTab {

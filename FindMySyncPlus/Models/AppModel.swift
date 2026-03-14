@@ -98,36 +98,36 @@ final class AppModel: NSObject, ObservableObject {
 
         if settings.endpointAuth.isEmpty {
             settings.endpointAuthStatus = .notSet
-            logger.warn("Auth Test: header not set.")
+            logger.warn("REST Test: header not set.")
             return .badConfig("Auth header not set")
         }
 
         do {
             try await HAClient.testEndpointAuthentication(settings: settings)
             syncEngine.updateEndpointAuthStatus(outcome: .success, dryRun: false)
-            logger.info("Auth Test: success")
+            logger.info("REST Test: success")
             return .success
         } catch let auth as AuthError {
             switch auth {
             case .authRejected:
                 syncEngine.updateEndpointAuthStatus(outcome: .authRejected, dryRun: false)
-                logger.error("Auth Test: \(auth.localizedDescription)")
+                logger.error("REST Test: \(auth.localizedDescription)")
                 return .authRejected
             case .requestFailed(let code) where (500...599).contains(code):
-                logger.warn("Auth Test: \(auth.localizedDescription)")
+                logger.warn("REST Test: \(auth.localizedDescription)")
                 return .transient("HTTP \(code)")
             case .networkError:
-                logger.warn("Auth Test: \(auth.localizedDescription)")
+                logger.warn("REST Test: \(auth.localizedDescription)")
                 return .transient("Network error")
             case .invalidURL(let reason):
                 logger.warn(reason)
                 return .badConfig(reason)
             default:
-                logger.warn("Auth Test: \(auth.localizedDescription)")
+                logger.warn("REST Test: \(auth.localizedDescription)")
                 return .transient(auth.localizedDescription)
             }
         } catch {
-            logger.warn("Auth Test: \(error.localizedDescription)")
+            logger.warn("REST Test: \(error.localizedDescription)")
             return .transient(error.localizedDescription)
         }
     }
@@ -136,8 +136,14 @@ final class AppModel: NSObject, ObservableObject {
 
     func triggerManualMQTTTestAsync() async -> (Bool, String) {
         guard !isPerformingRun else { return (false, "Busy") }
-        guard let settings else { return (false, "Unavailable") }
-        return await syncEngine.mqtt.testConnection(settings: settings)
+        guard let settings, let logger else { return (false, "Unavailable") }
+        let (ok, msg) = await syncEngine.mqtt.testConnection(settings: settings)
+        if ok {
+            logger.info("MQTT Test: connected to \(settings.mqttHost):\(settings.mqttPort)")
+        } else {
+            logger.error("MQTT Test: \(msg)")
+        }
+        return (ok, msg)
     }
 
     // MARK: - Scheduler
