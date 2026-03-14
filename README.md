@@ -69,9 +69,11 @@ database owned by `findmylocateagent`.
 FMS+ decrypts this database using the same AES-256 keystream XOR cipher that Apple's `libsqlite3`
 codec uses internally, discovered by reverse-engineering the `sqliteCodecCCCrypto` function.
 
-**Family member dedup** — Family members appear in both `Devices.data` (as shared devices) and
+**Family member dedup & enrichment** — Family members appear in both `Devices.data` (as shared devices) and
 `LocalStorage.db` (as friends). FMS+ automatically detects this overlap using Apple's universal
-person identifier (DSID) and skips duplicates, so each family member is only tracked once.
+person identifier (DSID) and skips duplicates, so each family member is only tracked once. Rich
+attributes from LocalStorage (altitude, speed, course, motion state) are merged onto the FMIP
+device entry, giving family members the best of both sources.
 
 **Setup:** Import `LocalStorage.key` in the Access Settings tab (extracted alongside the other keys in Phase 1) — the Friends source auto-enables when the key is imported.
 
