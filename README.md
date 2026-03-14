@@ -123,8 +123,10 @@ Import all three in the **Access** settings tab (Phase 3) — select the **All**
 
 ### Phase 2 — Install
 
-Download the latest binary from [Releases](../../releases) and move it to your Applications folder,
-or clone the repo and build in Xcode with automatic signing enabled.
+Download the latest `.dmg` from [Releases](../../releases), open it, and drag FindMySyncPlus to
+your Applications folder. Right-click → Open the first time to bypass Gatekeeper.
+
+Alternatively, clone the repo and build in Xcode with automatic signing enabled.
 
 ### Phase 3 — Configure
 
