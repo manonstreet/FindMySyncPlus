@@ -239,9 +239,10 @@ struct AccessSettingsView: View {
                         Spacer()
                     }
                     .padding(.top, 4)
-                    TextField("Username", text: $settings.mqttUsername)
-                        .textFieldStyle(.roundedBorder)
-                    HStack(spacing: 8) {
+                    HStack(spacing: 16) {
+                        TextField("Username", text: $settings.mqttUsername)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 170)
                         let passwordBinding = Binding<String>(
                             get: { settings.mqttPassword },
                             set: { settings.updateMqttPassword($0) }

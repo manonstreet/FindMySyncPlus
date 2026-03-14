@@ -303,8 +303,14 @@ actor LocalStorageDecryptor {
                 speed: locDict["speed"] as? Double,
                 course: locDict["course"] as? Double,
                 timestamp: richTimestamp,
-                motionActivityState: locDict["motionActivityState"] as? Int,
-                locationLabel: locDict["locationLabel"] as? String
+                motionActivityState: {
+                    guard let s = locDict["motionActivityState"] as? Int, s != 0 else { return nil }
+                    return s
+                }(),
+                locationLabel: {
+                    guard let s = locDict["locationLabel"] as? String, s != "$null" else { return nil }
+                    return s
+                }()
             )
 
             let name = prettyName ?? contactId ?? handleId ?? "(unknown)"
