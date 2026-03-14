@@ -60,7 +60,7 @@ final class SyncEngine {
         self.settings = settings
         self.logger = logger
         self.app = app
-        mqttClient.bind(logger: logger)
+        mqttClient.bind(logger: logger, settings: settings)
     }
 
     // MARK: - Key invalidation
@@ -238,10 +238,7 @@ final class SyncEngine {
                 if !fmfNames.isEmpty {
                     friendEntries = friendEntries.map { entry in
                         if let displayName = fmfNames[entry.id] {
-                            return DevicePoint(id: entry.id, name: displayName,
-                                               latitude: entry.latitude, longitude: entry.longitude,
-                                               accuracy: entry.accuracy, battery: entry.battery,
-                                               prsId: entry.prsId, richAttributes: entry.richAttributes)
+                            return entry.with(name: displayName)
                         }
                         return entry
                     }
@@ -521,10 +518,7 @@ final class SyncEngine {
             if let prs = d.prsId, prs != "owner",
                let friendRich = friendRichByDSID[prs.normalized()],
                d.richAttributes == nil {
-                d = DevicePoint(id: d.id, name: d.name,
-                                latitude: d.latitude, longitude: d.longitude,
-                                accuracy: d.accuracy, battery: d.battery,
-                                prsId: d.prsId, richAttributes: friendRich)
+                d = d.with(richAttributes: friendRich)
             }
             let uuid = d.id.normalized()
             let srcLabel = label(for: sourceMap[uuid])

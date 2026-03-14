@@ -21,4 +21,11 @@ struct DevicePoint: Sendable {
         self.prsId = prsId
         self.richAttributes = richAttributes
     }
+
+    func with(name: String? = nil, richAttributes: RichLocationAttributes? = nil) -> DevicePoint {
+        DevicePoint(id: id, name: name ?? self.name,
+                    latitude: latitude, longitude: longitude,
+                    accuracy: accuracy, battery: battery,
+                    prsId: prsId, richAttributes: richAttributes ?? self.richAttributes)
+    }
 }

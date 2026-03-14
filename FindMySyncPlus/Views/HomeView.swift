@@ -184,7 +184,7 @@ struct HomeView: View {
                                         }
                                         .buttonStyle(.link)
                                     } else {
-                                        Text("\(settings.mqttHost):\(settings.mqttPort)")
+                                        Text(verbatim: "\(settings.mqttHost):\(settings.mqttPort)")
                                             .lineLimit(1)
                                             .truncationMode(.middle)
                                             .foregroundStyle(.primary)

@@ -17,15 +17,19 @@ final class MQTTClient: NSObject, ObservableObject {
     private var publishedDiscoveryIds: Set<String> = []
 
     private weak var logger: LogStore?
+    private weak var settings: SettingsStore?
+    private var intentionalDisconnect = false
 
-    func bind(logger: LogStore) {
+    func bind(logger: LogStore, settings: SettingsStore) {
         self.logger = logger
+        self.settings = settings
     }
 
     // MARK: - Connection lifecycle
 
     func connect(settings: SettingsStore) {
         disconnect()
+        intentionalDisconnect = false
         guard !settings.mqttHost.isEmpty else {
             logger?.warn("MQTT: host not configured")
             return
@@ -58,6 +62,7 @@ final class MQTTClient: NSObject, ObservableObject {
     }
 
     func disconnect() {
+        intentionalDisconnect = true
         reconnectTask?.cancel()
         reconnectTask = nil
         reconnectAttempts = 0
@@ -264,6 +269,9 @@ extension MQTTClient: CocoaMQTTDelegate {
             self.connectionState = .disconnected
             if let err {
                 self.logger?.warn("MQTT disconnected: \(err.localizedDescription)")
+            }
+            if !self.intentionalDisconnect, let settings = self.settings {
+                self.scheduleReconnect(settings: settings)
             }
         }
     }
