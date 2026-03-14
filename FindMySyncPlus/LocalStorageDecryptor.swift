@@ -289,6 +289,24 @@ actor LocalStorageDecryptor {
 
             let acc = (locDict["horizontalAccuracy"] as? Double) ?? 0
 
+            // Extract rich location attributes from the bplist blob
+            let richTimestamp: Date? = {
+                if let ts = locDict["timestamp"] as? Double {
+                    // NSDate reference date (2001-01-01) encoded as TimeInterval
+                    return Date(timeIntervalSinceReferenceDate: ts)
+                }
+                return nil
+            }()
+            let rich = RichLocationAttributes(
+                verticalAccuracy: locDict["verticalAccuracy"] as? Double,
+                altitude: locDict["altitude"] as? Double,
+                speed: locDict["speed"] as? Double,
+                course: locDict["course"] as? Double,
+                timestamp: richTimestamp,
+                motionActivityState: locDict["motionActivityState"] as? Int,
+                locationLabel: locDict["locationLabel"] as? String
+            )
+
             let name = prettyName ?? contactId ?? handleId ?? "(unknown)"
 
             // Log types field at debug level for investigation
@@ -302,7 +320,8 @@ actor LocalStorageDecryptor {
                 latitude: lat,
                 longitude: lon,
                 accuracy: acc,
-                battery: nil
+                battery: nil,
+                richAttributes: rich
             ))
         }
 

@@ -8,8 +8,10 @@ struct DevicePoint: Sendable {
     let accuracy: Double
     let battery: Double?
     let prsId: String?     // person ID (base64 DSID); "owner" for self, DSID for family devices
+    let richAttributes: RichLocationAttributes?
 
-    init(id: String, name: String, latitude: Double, longitude: Double, accuracy: Double, battery: Double?, prsId: String? = nil) {
+    // swiftlint:disable:next line_length
+    init(id: String, name: String, latitude: Double, longitude: Double, accuracy: Double, battery: Double?, prsId: String? = nil, richAttributes: RichLocationAttributes? = nil) {
         self.id = id
         self.name = name
         self.latitude = latitude
@@ -17,5 +19,6 @@ struct DevicePoint: Sendable {
         self.accuracy = accuracy
         self.battery = battery
         self.prsId = prsId
+        self.richAttributes = richAttributes
     }
 }

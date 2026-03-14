@@ -57,7 +57,7 @@ enum AuthError: LocalizedError {
     }
 }
 
-private enum PostResult: Sendable {
+enum PostResult: Sendable {
     case success(id: String, status: Int)
     case authRejected(id: String, status: Int)   // 401/403
     case transient(id: String, reason: String)   // network/other HTTP

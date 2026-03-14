@@ -11,6 +11,7 @@
 		AABB0002AABB0002AABB0002 /* CacheDecryptorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB0001AABB0001AABB0001 /* CacheDecryptorTests.swift */; };
 		CC110002CC110002CC110002 /* TextSanitizationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC110001CC110001CC110001 /* TextSanitizationTests.swift */; };
 		CC110004CC110004CC110004 /* LocalStorageDecryptorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC110003CC110003CC110003 /* LocalStorageDecryptorTests.swift */; };
+		MQTT0001MQTT0001MQTT0001 /* CocoaMQTT in Frameworks */ = {isa = PBXBuildFile; productRef = MQTT0002MQTT0002MQTT0002 /* CocoaMQTT */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -66,6 +67,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				5DAE2C4B2E73A82E00EF354B /* Ink in Frameworks */,
+				MQTT0001MQTT0001MQTT0001 /* CocoaMQTT in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -136,6 +138,7 @@
 			name = FindMySyncPlus;
 			packageProductDependencies = (
 				5DAE2C4A2E73A82E00EF354B /* Ink */,
+				MQTT0002MQTT0002MQTT0002 /* CocoaMQTT */,
 			);
 			productName = FindMySequoia;
 			productReference = 5DA3BFED2E5B3B8800B73B01 /* FindMySyncPlus.app */;
@@ -215,6 +218,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				5DAE2C492E73A82E00EF354B /* XCRemoteSwiftPackageReference "Ink" */,
+				MQTT0003MQTT0003MQTT0003 /* XCRemoteSwiftPackageReference "CocoaMQTT" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 5DA3BFEE2E5B3B8800B73B01 /* Products */;
@@ -627,6 +631,14 @@
 				minimumVersion = 0.6.0;
 			};
 		};
+		MQTT0003MQTT0003MQTT0003 /* XCRemoteSwiftPackageReference "CocoaMQTT" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/emqx/CocoaMQTT.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.1.9;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -634,6 +646,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 5DAE2C492E73A82E00EF354B /* XCRemoteSwiftPackageReference "Ink" */;
 			productName = Ink;
+		};
+		MQTT0002MQTT0002MQTT0002 /* CocoaMQTT */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = MQTT0003MQTT0003MQTT0003 /* XCRemoteSwiftPackageReference "CocoaMQTT" */;
+			productName = CocoaMQTT;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

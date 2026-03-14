@@ -132,6 +132,14 @@ final class AppModel: NSObject, ObservableObject {
         }
     }
 
+    // MARK: - MQTT test
+
+    func triggerManualMQTTTestAsync() async -> (Bool, String) {
+        guard !isPerformingRun else { return (false, "Busy") }
+        guard let settings else { return (false, "Unavailable") }
+        return await syncEngine.mqtt.testConnection(settings: settings)
+    }
+
     // MARK: - Scheduler
 
     func start() {
@@ -141,6 +149,9 @@ final class AppModel: NSObject, ObservableObject {
         totalRunsCount = 0
         runWarningsCount = 0
         postedUpdatesCount = 0
+        if let settings, settings.transportMode == .mqtt {
+            syncEngine.mqtt.connect(settings: settings)
+        }
         runOnce()
         scheduleTimer()
     }
@@ -152,6 +163,7 @@ final class AppModel: NSObject, ObservableObject {
         timerTask = nil
         nextRun = nil
         lastRunHadWarnings = false
+        syncEngine.mqtt.disconnect()
     }
 
     @discardableResult

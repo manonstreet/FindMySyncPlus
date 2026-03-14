@@ -8,13 +8,15 @@ struct AccessSettingsView: View {
     @EnvironmentObject var app: AppModel
 
     @State private var showAuth: Bool = false
+    @State private var showMqttPassword: Bool = false
     @State private var authLastTest: Date? = nil
     @State private var hoveringEye: Bool = false
+    @State private var hoveringMqttEye: Bool = false
 
-    private enum AuthStatus {
+    private enum ConnectionTestStatus {
         case idle, running, success, rejected, failed, invalidURL(String)
     }
-    @State private var authStatus: AuthStatus = .idle
+    @State private var connectionTestStatus: ConnectionTestStatus = .idle
     @State private var bulkImportResult: String? = nil
 
     private enum KeyTab: String, CaseIterable { case all, fmip, fmf, localStorage }
@@ -23,10 +25,19 @@ struct AccessSettingsView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 16) {
-                SectionHeader(title: "ENDPOINT", tip: "Configure Home Assistant endpoint and authorization.")
-                endpointCard
-                authCard
-                authTestCard
+                SectionHeader(title: "TRANSPORT", tip: "Choose how locations are sent to Home Assistant.")
+                transportPickerCard
+
+                if settings.transportMode == .rest {
+                    SectionHeader(title: "REST ENDPOINT", tip: "Configure Home Assistant endpoint and authorization.")
+                    endpointCard
+                    authCard
+                } else {
+                    SectionHeader(title: "MQTT BROKER", tip: "Configure MQTT broker connection for Home Assistant.")
+                    mqttBrokerCard
+                }
+
+                connectionTestCard
 
                 SectionHeader(title: "LOCAL", tip: "Local key and macOS permissions required for decryption.")
                     .padding(.top, 8)
@@ -113,6 +124,107 @@ struct AccessSettingsView: View {
         }
     }
 
+    // MARK: - Transport Picker
+    private var transportPickerCard: some View {
+        Card {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text("Transport Mode")
+                        .font(.title3).fontWeight(.semibold)
+                    InfoTip(message: """
+                        REST uses HTTP POST to device_tracker/see. \
+                        MQTT uses HA auto-discovery with richer attributes.\n\n\
+                        Switching transport modes creates new entities in Home Assistant. \
+                        Old entities from the previous mode will become stale and should be \
+                        removed manually. Update any automations or dashboards that reference \
+                        the old entities.
+                        """)
+                    Spacer()
+                }
+                Picker("", selection: Binding(
+                    get: { settings.transportMode },
+                    set: { settings.setTransportMode($0) }
+                )) {
+                    Text("REST").tag(TransportMode.rest)
+                    Text("MQTT").tag(TransportMode.mqtt)
+                }
+                .pickerStyle(.segmented)
+                .onChange(of: settings.transportMode) { _, _ in
+                    connectionTestStatus = .idle
+                }
+            }
+        }
+    }
+
+    // MARK: - MQTT Broker
+    private var mqttBrokerCard: some View {
+        Card {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text("Broker")
+                        .font(.title3).fontWeight(.semibold)
+                    InfoTip(message: "MQTT broker connection details. HA's built-in Mosquitto add-on typically runs on port 1883 (or 8883 with TLS).")
+                    Spacer()
+                }
+
+                HStack(spacing: 8) {
+                    TextField("homeassistant.local", text: $settings.mqttHost)
+                        .textFieldStyle(.roundedBorder)
+                    Text(":")
+                        .foregroundStyle(.secondary)
+                    TextField("1883", value: $settings.mqttPort, format: .number)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 70)
+                }
+
+                Toggle("Use TLS", isOn: $settings.mqttUseTLS)
+                    .onChange(of: settings.mqttUseTLS) { _, useTLS in
+                        if useTLS && settings.mqttPort == 1883 {
+                            settings.mqttPort = 8883
+                        } else if !useTLS && settings.mqttPort == 8883 {
+                            settings.mqttPort = 1883
+                        }
+                    }
+
+                TextField("Username", text: $settings.mqttUsername)
+                    .textFieldStyle(.roundedBorder)
+
+                HStack(spacing: 8) {
+                    let passwordBinding = Binding<String>(
+                        get: { settings.mqttPassword },
+                        set: { settings.updateMqttPassword($0) }
+                    )
+                    Group {
+                        if showMqttPassword {
+                            TextField("Password", text: passwordBinding)
+                        } else {
+                            SecureField("Password", text: passwordBinding)
+                        }
+                    }
+                    .textFieldStyle(.roundedBorder)
+                    .layoutPriority(1)
+
+                    Button { showMqttPassword.toggle() } label: {
+                        Image(systemName: showMqttPassword ? "eye.slash" : "eye")
+                            .symbolRenderingMode(.monochrome)
+                            .foregroundStyle(hoveringMqttEye ? Color.accentColor.opacity(0.9) : Color.accentColor.opacity(0.7))
+                    }
+                    .buttonStyle(.borderless)
+                    .onHover { hoveringMqttEye = $0 }
+                    .help(showMqttPassword ? "Hide password" : "Show password")
+                }
+
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text("Topic Prefix")
+                        .font(.callout).foregroundStyle(.secondary)
+                    Spacer()
+                }
+                TextField("findmysyncplus/", text: $settings.mqttTopicPrefix)
+                    .textFieldStyle(.roundedBorder)
+            }
+        }
+    }
+
     // MARK: - Endpoint
     private var endpointCard: some View {
         Card {
@@ -127,7 +239,7 @@ struct AccessSettingsView: View {
                     TextField("http://homeassistant.local:8123/api/services/device_tracker/see", text: $settings.endpointURL)
                         .textFieldStyle(.roundedBorder)
                         .onChange(of: settings.endpointURL) { _, _ in
-                            authStatus = .idle
+                            connectionTestStatus = .idle
                         }
                 }
             }
@@ -176,57 +288,80 @@ struct AccessSettingsView: View {
         }
     }
 
-    // MARK: - Auth Test
-    private var authTestCard: some View {
+    // MARK: - Connection Test (generic for REST/MQTT)
+    private var connectionTestCard: some View {
         Card {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text("Auth Test")
+                    Text("Connection Test")
                         .font(.title3).fontWeight(.semibold)
-                    InfoTip(message: #"Performs a GET request on the base /api/ endpoint to verify the Authorization header."#)
+                    InfoTip(message: settings.transportMode == .rest
+                            ? "Performs a GET request on the base /api/ endpoint to verify the Authorization header."
+                            : "Attempts to connect to the MQTT broker to verify host, port, and credentials.")
                     Spacer()
                 }
                 HStack {
-                    authStatusDisplay
+                    connectionTestStatusDisplay
                     Spacer()
                     Button {
                         Task {
                             await MainActor.run {
-                                authStatus = .running
+                                connectionTestStatus = .running
                                 authLastTest = nil
                             }
-                            let outcome = await app.triggerManualAuthTestAsync()
-                            await MainActor.run {
-                                authLastTest = Date()
-                                switch outcome {
-                                case .success:
-                                    authStatus = .success
-                                case .authRejected:
-                                    authStatus = .rejected
-                                case .badConfig(let msg):
-                                    authStatus = .invalidURL(msg ?? "Invalid configuration")
-                                case .transient:
-                                    authStatus = .failed
+                            if settings.transportMode == .rest {
+                                let outcome = await app.triggerManualAuthTestAsync()
+                                await MainActor.run {
+                                    authLastTest = Date()
+                                    switch outcome {
+                                    case .success:
+                                        connectionTestStatus = .success
+                                    case .authRejected:
+                                        connectionTestStatus = .rejected
+                                    case .badConfig(let msg):
+                                        connectionTestStatus = .invalidURL(msg ?? "Invalid configuration")
+                                    case .transient:
+                                        connectionTestStatus = .failed
+                                    }
+                                }
+                            } else {
+                                let (ok, msg) = await app.triggerManualMQTTTestAsync()
+                                await MainActor.run {
+                                    authLastTest = Date()
+                                    connectionTestStatus = ok ? .success : .failed
+                                    if !ok {
+                                        connectionTestStatus = .invalidURL(msg)
+                                    }
                                 }
                             }
                         }
                     } label: {
                         if app.isPerformingRun {
-                            Label("Wait…", systemImage: "key.fill")
+                            Label("Wait…", systemImage: settings.transportMode == .rest ? "key.fill" : "network")
                         } else {
-                            Label("Test Auth", systemImage: "key.fill")
+                            Label(settings.transportMode == .rest ? "Test Auth" : "Test Connection",
+                                  systemImage: settings.transportMode == .rest ? "key.fill" : "network")
                         }
                     }
-                    .disabled(app.isPerformingRun || settings.endpointURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .disabled(app.isPerformingRun || testButtonDisabled)
                 }
             }
         }
     }
 
+    private var testButtonDisabled: Bool {
+        switch settings.transportMode {
+        case .rest:
+            return settings.endpointURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        case .mqtt:
+            return settings.mqttHost.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+    }
+
     @ViewBuilder
-    private var authStatusDisplay: some View {
+    private var connectionTestStatusDisplay: some View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
-            switch authStatus {
+            switch connectionTestStatus {
             case .idle:
                 Image(systemName: "minus.circle").foregroundStyle(.secondary)
                 Text("Not tested")
@@ -239,7 +374,7 @@ struct AccessSettingsView: View {
 
             case .success:
                 Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
-                Text("Auth OK")
+                Text(settings.transportMode == .rest ? "Auth OK" : "Connected")
                 if let t = authLastTest {
                     Text("· \(t.formatted(date: .omitted, time: .shortened))")
                         .font(.caption).foregroundStyle(.secondary)
@@ -255,7 +390,7 @@ struct AccessSettingsView: View {
 
             case .failed:
                 Image(systemName: "wifi.exclamationmark").foregroundStyle(.orange)
-                Text("Request failed")
+                Text(settings.transportMode == .rest ? "Request failed" : "Connection failed")
                 if let t = authLastTest {
                     Text("· \(t.formatted(date: .omitted, time: .shortened))")
                         .font(.caption).foregroundStyle(.secondary)

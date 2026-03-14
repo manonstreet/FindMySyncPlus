@@ -151,27 +151,51 @@ struct HomeView: View {
                             }
 
                             GridRow {
+                                Text("Transport").fontWeight(.semibold)
+                                Text(settings.transportMode == .rest ? "REST" : "MQTT")
+                            }
+
+                            GridRow {
                                 Text("Endpoint").fontWeight(.semibold)
-                                if settings.endpointURL.isEmpty {
-                                    Button {
-                                        NotificationCenter.default.post(name: .navigateToAccess, object: nil)
-                                    } label: {
-                                        Text("Not set")
-                                            .foregroundStyle(.red)
-                                            .underline()
+                                if settings.transportMode == .rest {
+                                    if settings.endpointURL.isEmpty {
+                                        Button {
+                                            NotificationCenter.default.post(name: .navigateToAccess, object: nil)
+                                        } label: {
+                                            Text("Not set")
+                                                .foregroundStyle(.red)
+                                                .underline()
+                                        }
+                                        .buttonStyle(.link)
+                                    } else {
+                                        Text(settings.endpointURL)
+                                            .lineLimit(1)
+                                            .truncationMode(.middle)
+                                            .foregroundStyle(.primary)
                                     }
-                                    .buttonStyle(.link)
                                 } else {
-                                    Text(settings.endpointURL)
-                                        .lineLimit(1)
-                                        .truncationMode(.middle)
-                                        .foregroundStyle(.primary)
+                                    if settings.mqttHost.isEmpty {
+                                        Button {
+                                            NotificationCenter.default.post(name: .navigateToAccess, object: nil)
+                                        } label: {
+                                            Text("Not set")
+                                                .foregroundStyle(.red)
+                                                .underline()
+                                        }
+                                        .buttonStyle(.link)
+                                    } else {
+                                        Text("\(settings.mqttHost):\(settings.mqttPort)")
+                                            .lineLimit(1)
+                                            .truncationMode(.middle)
+                                            .foregroundStyle(.primary)
+                                    }
                                 }
                             }
 
-                            if settings.endpointAuthStatus == .notSet || settings.endpointAuthStatus == .invalid {
+                            if settings.transportMode == .rest &&
+                               (settings.endpointAuthStatus == .notSet || settings.endpointAuthStatus == .invalid) {
                                 GridRow {
-                                    Text("Auth Header").fontWeight(.semibold)
+                                    Text("Authorization").fontWeight(.semibold)
                                     switch settings.endpointAuthStatus {
                                     case .notSet:
                                         Button {

@@ -11,8 +11,10 @@ directly to your Home Assistant instance on a configurable schedule. No cloud re
 service. Your Find My data goes straight to your home network and nowhere else.
 
 It tracks Devices (iPhones, Apple Watch), Items (AirTags), and Friends — including live friend
-coordinates by decrypting `LocalStorage.db`, something no other tool supports. Rotating UUIDs are
-handled automatically, and all sensitive credentials are stored securely in the macOS Keychain.
+coordinates by decrypting `LocalStorage.db`, something no other tool supports. Supports both
+**REST** (`device_tracker/see`) and **MQTT** (with HA auto-discovery and rich attributes) transports.
+Rotating UUIDs are handled automatically, and all sensitive credentials are stored securely in the
+macOS Keychain.
 
 Based on [FindMySync](https://github.com/MartinPham/FindMySync) and the decryption research by
 [Pnut-GGG](https://github.com/Pnut-GGG/findmy-cache-decryptor).
@@ -43,6 +45,8 @@ Based on [FindMySync](https://github.com/MartinPham/FindMySync) and the decrypti
 ## Features
 
 - Tracks **Devices** (iPhone, Apple Watch), **Items** (AirTags), and **Friends**
+- **Two transport modes** — REST (`device_tracker/see`) or MQTT with Home Assistant auto-discovery
+- **MQTT rich attributes** — altitude, speed, course, motion state, location labels via `json_attributes_topic`
 - **Friend location tracking** — decrypts `LocalStorage.db` for live friend coordinates; family members already tracked via Devices are automatically deduplicated using Apple's universal person identifier (DSID)
 - **Device Manager** — assign friendly aliases to devices, items, and friends; aliases become stable HA entity IDs even as UUIDs rotate
 - **Auto-learn UUIDs** — automatically re-maps devices when Apple rotates their identifier
@@ -91,7 +95,7 @@ person identifier (DSID) and skips duplicates, so each family member is only tra
 ## Requirements
 
 - macOS 15 (Sequoia) or higher
-- A running Home Assistant instance with the `device_tracker.see` API enabled
+- A running Home Assistant instance — either the `device_tracker.see` REST API or an MQTT broker (e.g. Mosquitto add-on)
 - Find My encryption keys extracted from Keychain (see Phase 1 below)
 
 ---
@@ -124,9 +128,10 @@ or clone the repo and build in Xcode with automatic signing enabled.
 
 Launch the app and open the **Access** pane (the Home screen will show "Not Set" errors — click one):
 
-1. Enter your Home Assistant `device_tracker.see` endpoint URL
-2. Enter your Authorization header (include the `Bearer` prefix)
-3. Click **Test Auth** to verify the connection
+1. **Choose transport mode** — select **REST** or **MQTT** at the top of the Access pane
+2. **REST users:** Enter your HA `device_tracker.see` endpoint URL and Authorization header (include the `Bearer` prefix)
+   **MQTT users:** Enter your broker host, port, username, and password. Set topic prefix if desired (default: `findmysyncplus/`). HA auto-discovery creates entities automatically — no `known_devices.yaml` needed
+3. Click **Test Connection** to verify
 4. Under **Decryption Keys**, select the **All** tab and click **Import All from Folder** — point it at the `keys/` directory from Phase 1
 5. Click **Open Preferences** and grant Full Disk Access
 6. Quit and relaunch the app
@@ -156,12 +161,14 @@ Under the **General** pane, recommended settings:
 4. Give each entry an alias — the Home Assistant entity will be `findmy_<alias>`
 5. Return to the **Home** pane and enable the **Scheduler**
 
-**Optional:** In Home Assistant, edit `known_devices.yaml` to add friendly names:
+**REST users:** Optionally edit `known_devices.yaml` in Home Assistant to add friendly names:
 ```yaml
 findmy_alias1:
   name: "Alice's AirTag"
   track: true
 ```
+
+**MQTT users:** Entities are created automatically via HA auto-discovery — no `known_devices.yaml` needed. Rich attributes (altitude, speed, motion state, etc.) are available on each entity's `json_attributes`.
 
 ---
 
@@ -182,3 +189,5 @@ reflects that journey.
 - `LocalStorage.db` cipher — reverse-engineered from Apple's `sqliteCodecCCCrypto` in `libsqlite3.dylib` via `lldb` disassembly, with [Claude](https://claude.ai)
 - [findmy-key-extractor](https://github.com/manonstreet/findmy-key-extractor) — extracts all 3 Find My encryption keys required for setup
 - [Ink](https://github.com/JohnSundell/Ink) — MIT-licensed Markdown parser used in-app
+- [FollowMyFriends](https://github.com/bytePatrol/FollowMyFriends) — reference for MQTT transport pattern
+- [CocoaMQTT](https://github.com/emqx/CocoaMQTT) — MIT-licensed MQTT client for Swift

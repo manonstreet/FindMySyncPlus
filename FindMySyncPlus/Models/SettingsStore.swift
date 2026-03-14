@@ -50,12 +50,20 @@ enum EndpointAuthStatus: String, Codable {
     case invalid
 }
 
+enum TransportMode: String, CaseIterable {
+    case rest
+    case mqtt
+}
+
 @MainActor
 final class SettingsStore: ObservableObject {
     init() {
         // Load Keychain-backed values synchronously to avoid launch-time UI flicker
         if let s = Keychain.getString(for: .endpointAuth) {
             self.endpointAuth = s
+        }
+        if let p = Keychain.getString(for: .mqttPassword) {
+            self.mqttPassword = p
         }
 
         if Keychain.getData(for: .fmipSymmetricKey) != nil {
@@ -77,9 +85,23 @@ final class SettingsStore: ObservableObject {
         }
 
         self.loadAliasesFromStorage()
+
+        // Migration: existing REST users keep REST as default transport
+        if !transportModeExplicitlySet && !endpointURL.isEmpty {
+            transportMode = .rest
+        }
     }
 
-    // Endpoint
+    func setTransportMode(_ mode: TransportMode) {
+        transportMode = mode
+        transportModeExplicitlySet = true
+    }
+
+    // Transport mode
+    @AppStorage("transportMode") var transportMode: TransportMode = .rest
+    @AppStorage("transportModeExplicitlySet") private var transportModeExplicitlySet: Bool = false
+
+    // Endpoint (REST)
     @AppStorage("endpointURL") var endpointURL: String = ""
 
     @Published var endpointAuth: String = "" {
@@ -90,6 +112,23 @@ final class SettingsStore: ObservableObject {
                 endpointAuthStatus = .unverified
             }
         }
+    }
+
+    // MQTT broker settings
+    @AppStorage("mqttHost") var mqttHost: String = ""
+    @AppStorage("mqttPort") var mqttPort: Int = 1883
+    @AppStorage("mqttUseTLS") var mqttUseTLS: Bool = false
+    @AppStorage("mqttUsername") var mqttUsername: String = ""
+    @AppStorage("mqttTopicPrefix") var mqttTopicPrefix: String = "findmysyncplus/"
+
+    @Published var mqttPassword: String = "" {
+        didSet {
+            _ = Keychain.setString(mqttPassword, for: .mqttPassword)
+        }
+    }
+
+    func updateMqttPassword(_ newValue: String) {
+        mqttPassword = newValue
     }
 
     // Interval (seconds on disk, minutes in UI)

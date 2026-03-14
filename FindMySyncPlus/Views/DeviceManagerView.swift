@@ -501,6 +501,7 @@ Renaming an alias creates a new HA Entity ID (dev_id/host_name).
                                     lastSeenName: rec.lastSeenName,
                                     sourceBadge: singleSource,
                                     nameLabel: "Name:",
+                                    transportMode: settings.transportMode,
                                     onToggleTracked: { (newValue: Bool) in
                                         settings.setAlias(rec.alias, tracked: newValue)
                                     },
@@ -566,6 +567,7 @@ Renaming an alias creates a new HA Entity ID (dev_id/host_name).
         let lastSeenName: String?
         let sourceBadge: DeviceSource?
         let nameLabel: String
+        let transportMode: TransportMode
 
         var onToggleTracked: (Bool) -> Void
         var onRename: () -> Void
@@ -667,15 +669,17 @@ Renaming an alias creates a new HA Entity ID (dev_id/host_name).
                             .foregroundStyle(.secondary)
                         Spacer()
                     }
-                    GridRow {
-                        Text("MAC:")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(.secondary)
-                        Text(macFromAlias(aliasKey))
-                            .font(.system(size: 12, design: .monospaced))
-                            .foregroundStyle(.secondary)
-                            .textSelection(.enabled)
-                        Spacer()
+                    if transportMode == .rest {
+                        GridRow {
+                            Text("MAC:")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                            Text(macFromAlias(aliasKey))
+                                .font(.system(size: 12, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                                .textSelection(.enabled)
+                            Spacer()
+                        }
                     }
                 }
 

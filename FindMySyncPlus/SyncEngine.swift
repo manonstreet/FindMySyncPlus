@@ -48,6 +48,9 @@ final class SyncEngine {
 
     private let cacheDecryptor = CacheDecryptor()
     private let localStorageDecryptor = LocalStorageDecryptor()
+    private let mqttClient = MQTTClient()
+
+    var mqtt: MQTTClient { mqttClient }
 
     private weak var settings: SettingsStore?
     private weak var logger: LogStore?
@@ -57,6 +60,7 @@ final class SyncEngine {
         self.settings = settings
         self.logger = logger
         self.app = app
+        mqttClient.bind(logger: logger)
     }
 
     // MARK: - Key invalidation
@@ -118,6 +122,7 @@ final class SyncEngine {
 
     // MARK: - Run pipeline
 
+    // swiftlint:disable:next cyclomatic_complexity function_body_length
     func run(kind: RunKind, dryRun: Bool) async {
         guard let settings, let logger, let app else { return }
 
@@ -284,11 +289,21 @@ final class SyncEngine {
         let summary = summaryParts.joined(separator: " ")
         logger.debug(dryRun ? "[DRY] Summary — \(summary)" : "Plan — \(summary)")
 
-        let postSummary = await HAClient.post(toPost,
+        let postSummary: PostSummary
+        switch settings.transportMode {
+        case .rest:
+            postSummary = await HAClient.post(toPost,
                                               aliasByUUID: aliasByUUID,
                                               settings: settings,
                                               logger: logger,
                                               dryRun: dryRun)
+        case .mqtt:
+            postSummary = await mqttClient.post(toPost,
+                                                aliasByUUID: aliasByUUID,
+                                                settings: settings,
+                                                logger: logger,
+                                                dryRun: dryRun)
+        }
 
         if !dryRun {
             logger.debug("Result — posted=\(postSummary.successCount) auth_rejected=\(postSummary.authRejectedCount) transient=\(postSummary.transientCount)")
@@ -297,8 +312,8 @@ final class SyncEngine {
         let trackedCount = planToPost
         let postedCount = postSummary.successCount
 
-        // Promote/demote auth status based on real posts (never in dry run)
-        if !dryRun {
+        // Promote/demote auth status based on real posts (REST only, never in dry run)
+        if !dryRun && settings.transportMode == .rest {
             if postSummary.successCount > 0 {
                 updateEndpointAuthStatus(outcome: .success, dryRun: false)
             } else if postSummary.authRejectedCount > 0 {
@@ -635,36 +650,46 @@ final class SyncEngine {
             return false
         }
 
-        // 3) Endpoint auth (normal runs only)
+        // 3) Transport connectivity (normal runs only)
         if dryRun {
-            logger.info("[DRY] Skipping pre-flight endpoint authentication test")
+            logger.info("[DRY] Skipping pre-flight transport test")
         } else {
-            if settings.endpointAuth.isEmpty {
-                settings.endpointAuthStatus = .notSet
-            }
-            do {
-                try await HAClient.testEndpointAuthentication(settings: settings)
-                updateEndpointAuthStatus(outcome: .success, dryRun: false)
-                logger.debug("Pre-flight check passed: Endpoint authentication is valid.")
-            } catch let auth as AuthError {
-                switch auth {
-                case .authRejected:
-                    updateEndpointAuthStatus(outcome: .authRejected, dryRun: false)
-                    logger.error(auth.localizedDescription)
-                    return false
-                case .requestFailed(let status) where (500...599).contains(status):
-                    logger.warn("Pre-flight auth check: endpoint unavailable (HTTP \(status)). Aborting run.")
-                    return false
-                case .networkError:
-                    logger.warn("Pre-flight auth check: network error. Aborting run. \(auth.localizedDescription)")
-                    return false
-                default:
-                    logger.warn("Pre-flight auth check warning: \(auth.localizedDescription). Aborting run.")
+            switch settings.transportMode {
+            case .rest:
+                if settings.endpointAuth.isEmpty {
+                    settings.endpointAuthStatus = .notSet
+                }
+                do {
+                    try await HAClient.testEndpointAuthentication(settings: settings)
+                    updateEndpointAuthStatus(outcome: .success, dryRun: false)
+                    logger.debug("Pre-flight check passed: Endpoint authentication is valid.")
+                } catch let auth as AuthError {
+                    switch auth {
+                    case .authRejected:
+                        updateEndpointAuthStatus(outcome: .authRejected, dryRun: false)
+                        logger.error(auth.localizedDescription)
+                        return false
+                    case .requestFailed(let status) where (500...599).contains(status):
+                        logger.warn("Pre-flight auth check: endpoint unavailable (HTTP \(status)). Aborting run.")
+                        return false
+                    case .networkError:
+                        logger.warn("Pre-flight auth check: network error. Aborting run. \(auth.localizedDescription)")
+                        return false
+                    default:
+                        logger.warn("Pre-flight auth check warning: \(auth.localizedDescription). Aborting run.")
+                        return false
+                    }
+                } catch {
+                    logger.warn("Pre-flight auth check warning: \(error.localizedDescription). Aborting run.")
                     return false
                 }
-            } catch {
-                logger.warn("Pre-flight auth check warning: \(error.localizedDescription). Aborting run.")
-                return false
+            case .mqtt:
+                let connected = await mqttClient.ensureConnected(settings: settings)
+                if connected {
+                    logger.debug("Pre-flight check passed: MQTT broker connected.")
+                } else {
+                    logger.warn("Pre-flight: MQTT broker not reachable. Continuing run (will retry at post time).")
+                }
             }
         }
         return true
