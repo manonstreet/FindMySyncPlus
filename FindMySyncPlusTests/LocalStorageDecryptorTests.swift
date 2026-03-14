@@ -151,4 +151,15 @@ final class LocalStorageDecryptorTests: XCTestCase {
         let decrypted = decryptor.decryptPage(encPage, pageIndex: 0, key: key)
         XCTAssertEqual(decrypted.count, contentSize)
     }
+
+    // MARK: - Location Label Decoding
+
+    func testDecodeAppleLocationLabels() {
+        XCTAssertEqual(RichLocationAttributes.decodeLocationLabel("_$!<home>!$_"), "Home")
+        XCTAssertEqual(RichLocationAttributes.decodeLocationLabel("_$!<work>!$_"), "Work")
+        XCTAssertEqual(RichLocationAttributes.decodeLocationLabel("_$!<school>!$_"), "School")
+        XCTAssertEqual(RichLocationAttributes.decodeLocationLabel("Coffee Shop"), "Coffee Shop")
+        XCTAssertEqual(RichLocationAttributes.decodeLocationLabel(""), "")
+        XCTAssertEqual(RichLocationAttributes.decodeLocationLabel("_$!<>!$_"), "_$!<>!$_")
+    }
 }

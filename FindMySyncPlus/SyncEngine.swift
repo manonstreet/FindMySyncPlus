@@ -241,7 +241,7 @@ final class SyncEngine {
                             return DevicePoint(id: entry.id, name: displayName,
                                                latitude: entry.latitude, longitude: entry.longitude,
                                                accuracy: entry.accuracy, battery: entry.battery,
-                                               prsId: entry.prsId)
+                                               prsId: entry.prsId, richAttributes: entry.richAttributes)
                         }
                         return entry
                     }
@@ -507,7 +507,25 @@ final class SyncEngine {
             }
         }
 
+        // Build rich-attribute lookup from friend entries for family merge
+        var friendRichByDSID: [String: RichLocationAttributes] = [:]
+        for f in friendEntries {
+            if let rich = f.richAttributes {
+                friendRichByDSID[f.id.normalized()] = rich
+            }
+        }
+
         for d in allDevices {
+            // Merge rich attributes from LocalStorage friend data onto family FMIP devices
+            var d = d
+            if let prs = d.prsId, prs != "owner",
+               let friendRich = friendRichByDSID[prs.normalized()],
+               d.richAttributes == nil {
+                d = DevicePoint(id: d.id, name: d.name,
+                                latitude: d.latitude, longitude: d.longitude,
+                                accuracy: d.accuracy, battery: d.battery,
+                                prsId: d.prsId, richAttributes: friendRich)
+            }
             let uuid = d.id.normalized()
             let srcLabel = label(for: sourceMap[uuid])
 

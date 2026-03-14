@@ -309,7 +309,7 @@ actor LocalStorageDecryptor {
                 }(),
                 locationLabel: {
                     guard let s = locDict["locationLabel"] as? String, s != "$null" else { return nil }
-                    return s
+                    return RichLocationAttributes.decodeLocationLabel(s)
                 }()
             )
 

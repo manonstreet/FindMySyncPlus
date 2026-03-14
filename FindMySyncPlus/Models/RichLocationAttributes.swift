@@ -20,4 +20,16 @@ struct RichLocationAttributes: Sendable {
         default: return "Unknown"
         }
     }
+
+    /// Decode Apple's special location label encoding.
+    /// `_$!<home>!$_` → "Home", `_$!<work>!$_` → "Work", etc.
+    /// Non-encoded labels pass through unchanged.
+    static func decodeLocationLabel(_ raw: String) -> String {
+        guard raw.hasPrefix("_$!<") && raw.hasSuffix(">!$_") else { return raw }
+        let start = raw.index(raw.startIndex, offsetBy: 4)
+        let end = raw.index(raw.endIndex, offsetBy: -4)
+        guard start < end else { return raw }
+        let inner = String(raw[start..<end])
+        return inner.prefix(1).uppercased() + inner.dropFirst()
+    }
 }

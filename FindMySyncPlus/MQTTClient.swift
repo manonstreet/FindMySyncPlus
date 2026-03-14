@@ -250,7 +250,8 @@ extension MQTTClient: CocoaMQTTDelegate {
                 self.connectionState = .connected
                 self.reconnectAttempts = 0
                 self.reconnectTask?.cancel()
-                self.logger?.info("MQTT connected")
+                self.publishedDiscoveryIds.removeAll()
+                self.logger?.info("MQTT connected (discovery will re-publish)")
             } else {
                 self.logger?.error("MQTT connection rejected: \(ackDesc)")
                 self.connectionState = .disconnected
