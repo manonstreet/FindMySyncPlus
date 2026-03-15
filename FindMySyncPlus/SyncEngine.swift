@@ -48,9 +48,15 @@ final class SyncEngine {
 
     private let cacheDecryptor = CacheDecryptor()
     private let localStorageDecryptor = LocalStorageDecryptor()
+    private let restClient = RESTClient()
     private let mqttClient = MQTTClient()
 
     var mqtt: MQTTClient { mqttClient }
+    var rest: RESTClient { restClient }
+
+    private var transport: TransportClient {
+        settings?.transportMode == .mqtt ? mqttClient : restClient
+    }
 
     private weak var settings: SettingsStore?
     private weak var logger: LogStore?
@@ -122,7 +128,6 @@ final class SyncEngine {
 
     // MARK: - Run pipeline
 
-    // swiftlint:disable:next cyclomatic_complexity function_body_length
     func run(kind: RunKind, dryRun: Bool) async {
         guard let settings, let logger, let app else { return }
 
@@ -135,27 +140,11 @@ final class SyncEngine {
             app.currentRunMode = .normal
         }
 
-        await cacheDecryptor.ensureFMIPKey(logger: logger)
-        if settings.enableFriends {
-            await localStorageDecryptor.ensureKey(logger: logger)
-            await cacheDecryptor.ensureFMFKey(logger: logger)
-        }
-
-        // --- Source summary ---
-        let srcDevices = settings.enableDevices ? "Devices \u{2713}" : "Devices (off)"
-        let srcItems = settings.enableItems ? "Items \u{2713}" : "Items (off)"
-        let srcFriends = settings.enableFriends ? "Friends \u{2713}" : "Friends (off)"
-        logger.debug("Sources: \(srcDevices), \(srcItems), \(srcFriends)")
-
+        await ensureKeys(settings: settings, logger: logger)
+        logSources(settings: settings, logger: logger)
         if dryRun { logger.info("[DRY] Beginning run") }
 
-        // --- Pre-flight ---
-        let candidates: [FMIPCacheFile] = {
-            var list: [FMIPCacheFile] = []
-            if settings.enableDevices { list.append(.devices) }
-            if settings.enableItems   { list.append(.items) }
-            return list
-        }()
+        let candidates = buildCandidates(settings: settings)
         let hasFMIPSources = !candidates.isEmpty
         let hasFriendSource = settings.enableFriends
 
@@ -168,175 +157,195 @@ final class SyncEngine {
             guard await runPreflight(using: candidates, settings: settings, logger: logger, dryRun: dryRun) else { return }
         }
 
-        // --- Optional Find My refresh/kill ---
-        if settings.autoLaunchKillFindMy {
-            if dryRun {
-                logger.info("[DRY] Would refresh Find My (launch/kill)")
-            } else {
-                await FindMyRefresher.refreshBlocking(
-                    logger: logger,
-                    enabled: true,
-                    waitSeconds: settings.findMyWaitSeconds
-                )
-            }
-        }
+        await refreshFindMyIfNeeded(settings: settings, logger: logger, dryRun: dryRun)
 
-        // --- Read/decrypt/parse FMIP caches (post-refresh) ---
-        var io: IOPhase?
-        if hasFMIPSources {
-            do {
-                io = try await readAndParseCaches(
-                    candidates: candidates,
-                    settings: settings,
-                    logger: logger
-                )
-            } catch DecryptorError.incorrectKey {
-                settings.fmipKeyStatus = .invalid
-                logger.error(DecryptorError.incorrectKey.localizedDescription)
-                return
-            } catch DecryptorError.fdaRequired {
-                logger.error("\(FMIPCacheFile.devices.displayName) or \(FMIPCacheFile.items.displayName) cache requires Full Disk Access.")
-                return
-            } catch {
-                logger.warn(error.localizedDescription)
-                return
-            }
-            if let ioVal = io, ioVal.hadSuccessfulDecrypt {
-                settings.fmipKeyStatus = .valid
-            } else if hasFMIPSources && !hasFriendSource {
-                logger.warn("No enabled caches produced usable data; aborting run.")
-                return
-            }
-        }
+        let io = await readCaches(candidates: candidates, hasFMIPSources: hasFMIPSources,
+                                  hasFriendSource: hasFriendSource, settings: settings, logger: logger)
+        guard io != nil || hasFriendSource else { return }
 
-        // --- Read friend locations ---
-        var friendEntries: [DevicePoint] = []
-        if hasFriendSource {
-            switch await localStorageDecryptor.readFriendLocations(logger: logger) {
-            case .success(let friends):
-                friendEntries = friends
-                settings.localStorageKeyStatus = .valid
-                logger.info("Friends: found \(friends.count) friend location(s)")
-            case .failure(.keyNotLoaded):
-                logger.error("Unexpected: LocalStorage key not loaded despite Friends being enabled")
-            case .failure(.incorrectKey):
-                settings.localStorageKeyStatus = .invalid
-                logger.error("Friends: LocalStorage key is incorrect.")
-            case .failure(.dbNotFound):
-                logger.debug("Friends: LocalStorage.db not found; skipping.")
-            case .failure(.fdaRequired):
-                logger.error("Friends: Full Disk Access required to read LocalStorage.db.")
-            case .failure(let e):
-                logger.warn("Friends: \(e.localizedDescription)")
-            }
-        }
+        var friendEntries = await readFriends(enabled: hasFriendSource, settings: settings, logger: logger)
+        friendEntries = await enrichFriendNames(friendEntries, settings: settings, logger: logger)
 
-        // Enrich friend names from FMF contact cache (DSID → display name)
-        if !friendEntries.isEmpty {
-            if let fmfNames = await cacheDecryptor.readFMFContactNames(logger: logger) {
-                settings.fmfKeyStatus = .valid
-                if !fmfNames.isEmpty {
-                    friendEntries = friendEntries.map { entry in
-                        if let displayName = fmfNames[entry.id] {
-                            return entry.with(name: displayName)
-                        }
-                        return entry
-                    }
-                    logger.debug("Friends: enriched names from FMF contacts (\(fmfNames.count) available)")
-                }
-            }
-        }
-
-        // Abort if neither source produced data
         let hadFMIPData = io?.hadSuccessfulDecrypt ?? false
         if !hadFMIPData && friendEntries.isEmpty {
-            if hasFMIPSources {
-                logger.warn("No enabled sources produced usable data; aborting run.")
-            }
+            if hasFMIPSources { logger.warn("No enabled sources produced usable data; aborting run.") }
             return
         }
 
-        // --- Build plan & log ---
         let plan = buildPlanAndLog(
             devicesBySource: io?.devicesBySource ?? [:],
             rawBySource: io?.rawBySource ?? [:],
             friendEntries: friendEntries,
-            settings: settings,
-            logger: logger,
+            settings: settings, logger: logger,
             allowAutoLearn: (settings.autoLearnUUIDs && !dryRun)
         )
-        let toPost = plan.toPost
-        let aliasByUUID = plan.aliasByUUID
 
-        // --- Plan summary (before posting) ---
-        let planDiscovered = plan.metrics.discoveredDevices + plan.metrics.discoveredItems + plan.metrics.discoveredFriends
-        let planLocated    = plan.metrics.locatedDevices + plan.metrics.locatedItems + plan.metrics.locatedFriends
-        let planToPost     = plan.metrics.toPostCount
-        let planUnassigned = plan.metrics.unassignedCount
-        let planNoLocation = plan.metrics.noLocationCount
+        logPlanSummary(plan, dryRun: dryRun, logger: logger)
 
-        var summaryParts = [
-            "discovered=\(planDiscovered)",
-            "located=\(planLocated)",
-            "\(dryRun ? "would_post" : "to_post")=\(planToPost)",
-            "unassigned=\(planUnassigned)"
-        ]
-        if planNoLocation > 0 { summaryParts.append("no_location=\(planNoLocation)") }
-        if plan.metrics.locatedFriends > 0 { summaryParts.append("friends=\(plan.metrics.locatedFriends)") }
-        let summary = summaryParts.joined(separator: " ")
-        logger.debug(dryRun ? "[DRY] Summary — \(summary)" : "Plan — \(summary)")
+        let postSummary = await postAndReport(plan.toPost, aliasByUUID: plan.aliasByUUID,
+                                              settings: settings, logger: logger, dryRun: dryRun)
 
-        let postSummary: PostSummary
-        switch settings.transportMode {
-        case .rest:
-            postSummary = await HAClient.post(toPost,
-                                              aliasByUUID: aliasByUUID,
-                                              settings: settings,
-                                              logger: logger,
-                                              dryRun: dryRun)
-        case .mqtt:
-            postSummary = await mqttClient.post(toPost,
-                                                aliasByUUID: aliasByUUID,
-                                                settings: settings,
-                                                logger: logger,
-                                                dryRun: dryRun)
+        logRunComplete(t0: t0, plan: plan, postSummary: postSummary, dryRun: dryRun,
+                       app: app, logger: logger)
+    }
+
+    // MARK: - Run pipeline helpers
+
+    private func ensureKeys(settings: SettingsStore, logger: LogStore) async {
+        await cacheDecryptor.ensureFMIPKey(logger: logger)
+        if settings.enableFriends {
+            await localStorageDecryptor.ensureKey(logger: logger)
+            await cacheDecryptor.ensureFMFKey(logger: logger)
         }
+    }
 
+    private func logSources(settings: SettingsStore, logger: LogStore) {
+        let srcDevices = settings.enableDevices ? "Devices \u{2713}" : "Devices (off)"
+        let srcItems = settings.enableItems ? "Items \u{2713}" : "Items (off)"
+        let srcFriends = settings.enableFriends ? "Friends \u{2713}" : "Friends (off)"
+        logger.debug("Sources: \(srcDevices), \(srcItems), \(srcFriends)")
+    }
+
+    private func buildCandidates(settings: SettingsStore) -> [FMIPCacheFile] {
+        var list: [FMIPCacheFile] = []
+        if settings.enableDevices { list.append(.devices) }
+        if settings.enableItems   { list.append(.items) }
+        return list
+    }
+
+    private func refreshFindMyIfNeeded(settings: SettingsStore, logger: LogStore, dryRun: Bool) async {
+        guard settings.autoLaunchKillFindMy else { return }
+        if dryRun {
+            logger.info("[DRY] Would refresh Find My (launch/kill)")
+        } else {
+            await FindMyRefresher.refreshBlocking(
+                logger: logger, enabled: true, waitSeconds: settings.findMyWaitSeconds
+            )
+        }
+    }
+
+    private func readCaches(candidates: [FMIPCacheFile], hasFMIPSources: Bool,
+                            hasFriendSource: Bool, settings: SettingsStore, logger: LogStore) async -> IOPhase? {
+        guard hasFMIPSources else { return nil }
+        do {
+            let io = try await readAndParseCaches(candidates: candidates, settings: settings, logger: logger)
+            if io.hadSuccessfulDecrypt {
+                settings.fmipKeyStatus = .valid
+            } else if !hasFriendSource {
+                logger.warn("No enabled caches produced usable data; aborting run.")
+            }
+            return io
+        } catch DecryptorError.incorrectKey {
+            settings.fmipKeyStatus = .invalid
+            logger.error(DecryptorError.incorrectKey.localizedDescription)
+            return nil
+        } catch DecryptorError.fdaRequired {
+            logger.error("\(FMIPCacheFile.devices.displayName) or \(FMIPCacheFile.items.displayName) cache requires Full Disk Access.")
+            return nil
+        } catch {
+            logger.warn(error.localizedDescription)
+            return nil
+        }
+    }
+
+    private func readFriends(enabled: Bool, settings: SettingsStore, logger: LogStore) async -> [DevicePoint] {
+        guard enabled else { return [] }
+        switch await localStorageDecryptor.readFriendLocations(logger: logger) {
+        case .success(let friends):
+            settings.localStorageKeyStatus = .valid
+            logger.info("Friends: found \(friends.count) friend location(s)")
+            return friends
+        case .failure(.keyNotLoaded):
+            logger.error("Unexpected: LocalStorage key not loaded despite Friends being enabled")
+        case .failure(.incorrectKey):
+            settings.localStorageKeyStatus = .invalid
+            logger.error("Friends: LocalStorage key is incorrect.")
+        case .failure(.dbNotFound):
+            logger.debug("Friends: LocalStorage.db not found; skipping.")
+        case .failure(.fdaRequired):
+            logger.error("Friends: Full Disk Access required to read LocalStorage.db.")
+        case .failure(let e):
+            logger.warn("Friends: \(e.localizedDescription)")
+        }
+        return []
+    }
+
+    private func enrichFriendNames(_ entries: [DevicePoint], settings: SettingsStore, logger: LogStore) async -> [DevicePoint] {
+        guard !entries.isEmpty else { return entries }
+        guard let fmfNames = await cacheDecryptor.readFMFContactNames(logger: logger) else { return entries }
+        settings.fmfKeyStatus = .valid
+        guard !fmfNames.isEmpty else { return entries }
+        let enriched = entries.map { entry in
+            if let displayName = fmfNames[entry.id] {
+                return entry.with(name: displayName)
+            }
+            return entry
+        }
+        logger.debug("Friends: enriched names from FMF contacts (\(fmfNames.count) available)")
+        return enriched
+    }
+
+    private func logPlanSummary(_ plan: PlanPhase, dryRun: Bool, logger: LogStore) {
+        let m = plan.metrics
+        var parts = [
+            "discovered=\(m.discoveredDevices + m.discoveredItems + m.discoveredFriends)",
+            "located=\(m.locatedDevices + m.locatedItems + m.locatedFriends)",
+            "\(dryRun ? "would_post" : "to_post")=\(m.toPostCount)",
+            "unassigned=\(m.unassignedCount)"
+        ]
+        if m.noLocationCount > 0 { parts.append("no_location=\(m.noLocationCount)") }
+        if m.locatedFriends > 0 { parts.append("friends=\(m.locatedFriends)") }
+        let summary = parts.joined(separator: " ")
+        logger.debug(dryRun ? "[DRY] Summary — \(summary)" : "Plan — \(summary)")
+    }
+
+    private func postAndReport(_ devices: [DevicePoint], aliasByUUID: [String: String],
+                               settings: SettingsStore, logger: LogStore, dryRun: Bool) async -> PostSummary {
+        let postSummary = await transport.post(devices, aliasByUUID: aliasByUUID,
+                                               settings: settings, logger: logger, dryRun: dryRun)
         if !dryRun {
             logger.debug("Result — posted=\(postSummary.successCount) auth_rejected=\(postSummary.authRejectedCount) transient=\(postSummary.transientCount)")
+
+            if settings.transportMode == .rest {
+                if postSummary.successCount > 0 {
+                    updateEndpointAuthStatus(outcome: .success, dryRun: false)
+                } else if postSummary.authRejectedCount > 0 {
+                    updateEndpointAuthStatus(outcome: .authRejected, dryRun: false)
+                }
+            }
         }
+        return postSummary
+    }
 
-        let trackedCount = planToPost
-        let postedCount = postSummary.successCount
-
-        // Promote/demote auth status based on real posts (REST only, never in dry run)
-        if !dryRun && settings.transportMode == .rest {
-            if postSummary.successCount > 0 {
-                updateEndpointAuthStatus(outcome: .success, dryRun: false)
-            } else if postSummary.authRejectedCount > 0 {
-                updateEndpointAuthStatus(outcome: .authRejected, dryRun: false)
-            } // else only transients → no change
-        }
-
-        let elapsed = Date().timeIntervalSince(t0)
-        let elapsedStr = String(format: "%.2f", elapsed)
+    private func logRunComplete(t0: Date, plan: PlanPhase, postSummary: PostSummary,
+                                dryRun: Bool, app: AppModel, logger: LogStore) {
+        let m = plan.metrics
+        let elapsed = String(format: "%.2f", Date().timeIntervalSince(t0))
 
         if dryRun {
-            logger.info("[DRY] Finished run — \(summary) elapsed=\(elapsedStr)s")
+            var parts = [
+                "discovered=\(m.discoveredDevices + m.discoveredItems + m.discoveredFriends)",
+                "located=\(m.locatedDevices + m.locatedItems + m.locatedFriends)",
+                "would_post=\(m.toPostCount)",
+                "unassigned=\(m.unassignedCount)"
+            ]
+            if m.noLocationCount > 0 { parts.append("no_location=\(m.noLocationCount)") }
+            if m.locatedFriends > 0 { parts.append("friends=\(m.locatedFriends)") }
+            logger.info("[DRY] Finished run — \(parts.joined(separator: " ")) elapsed=\(elapsed)s")
         } else {
             var parts = [
-                "discovered=\(planDiscovered)",
-                "unassigned=\(planUnassigned)",
-                "located=\(planLocated)",
-                "tracked=\(trackedCount)",
+                "discovered=\(m.discoveredDevices + m.discoveredItems + m.discoveredFriends)",
+                "unassigned=\(m.unassignedCount)",
+                "located=\(m.locatedDevices + m.locatedItems + m.locatedFriends)",
+                "tracked=\(m.toPostCount)",
                 "posted=\(postSummary.successCount)"
             ]
-            if planNoLocation > 0 { parts.append("no_location=\(planNoLocation)") }
-            if plan.metrics.locatedFriends > 0 { parts.append("friends=\(plan.metrics.locatedFriends)") }
-            logger.info("Finished run — " + parts.joined(separator: " ") + " elapsed=\(elapsedStr)s")
+            if m.noLocationCount > 0 { parts.append("no_location=\(m.noLocationCount)") }
+            if m.locatedFriends > 0 { parts.append("friends=\(m.locatedFriends)") }
+            logger.info("Finished run — \(parts.joined(separator: " ")) elapsed=\(elapsed)s")
 
             if !app.lastRunHadWarnings { app.totalRunsCount += 1 }
-            app.postedUpdatesCount += postedCount
+            app.postedUpdatesCount += postSummary.successCount
         }
     }
 
@@ -672,7 +681,7 @@ final class SyncEngine {
                     settings.endpointAuthStatus = .notSet
                 }
                 do {
-                    try await HAClient.testEndpointAuthentication(settings: settings)
+                    try await restClient.testEndpointAuthentication(settings: settings)
                     updateEndpointAuthStatus(outcome: .success, dryRun: false)
                     logger.debug("Pre-flight check passed: Endpoint authentication is valid.")
                 } catch let auth as AuthError {

@@ -8,7 +8,7 @@ enum MQTTConnectionState: Sendable {
 }
 
 @MainActor
-final class MQTTClient: NSObject, ObservableObject {
+final class MQTTClient: NSObject, ObservableObject, TransportClient {
     @Published private(set) var connectionState: MQTTConnectionState = .disconnected
 
     private var client: CocoaMQTT?

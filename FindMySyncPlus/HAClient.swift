@@ -1,6 +1,6 @@
 import Foundation
 
-struct HAPayload: Codable, Sendable {
+private struct HAPayload: Codable, Sendable {
     let dev_id: String
     let host_name: String
     let mac: String
@@ -57,21 +57,16 @@ enum AuthError: LocalizedError {
     }
 }
 
-enum PostResult: Sendable {
+private enum PostResult: Sendable {
     case success(id: String, status: Int)
     case authRejected(id: String, status: Int)   // 401/403
     case transient(id: String, reason: String)   // network/other HTTP
 }
 
-struct PostSummary: Sendable {
-    let successCount: Int
-    let authRejectedCount: Int
-    let transientCount: Int
-}
+@MainActor
+final class RESTClient: TransportClient {
 
-enum HAClient {
-
-    @MainActor static func testEndpointAuthentication(settings: SettingsStore) async throws {
+    func testEndpointAuthentication(settings: SettingsStore) async throws {
         guard
             let fullURL = URL(string: settings.endpointURL),
             let scheme = fullURL.scheme, scheme.hasPrefix("http"),
@@ -111,7 +106,7 @@ enum HAClient {
 
             let status = http.statusCode
             if (200...299).contains(status) {
-                return // Success!
+                return
             } else if status == 401 || status == 403 {
                 throw AuthError.authRejected(status)
             } else {
@@ -119,17 +114,39 @@ enum HAClient {
             }
         } catch {
             if let authError = error as? AuthError {
-                throw authError // Re-throw our specific error
+                throw authError
             }
-            throw AuthError.networkError(error) // Wrap any other error
+            throw AuthError.networkError(error)
         }
     }
 
-    @MainActor static func post(_ devices: [DevicePoint],
-                                 aliasByUUID: [String: String],
-                                 settings: SettingsStore,
-                                 logger: LogStore,
-                                 dryRun: Bool = false) async -> PostSummary {
+    // MARK: - TransportClient
+
+    func ensureConnected(settings: SettingsStore) async -> Bool {
+        // REST is stateless — validate auth as the connectivity check
+        do {
+            try await testEndpointAuthentication(settings: settings)
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    func testConnection(settings: SettingsStore) async -> (Bool, String) {
+        do {
+            try await testEndpointAuthentication(settings: settings)
+            return (true, "Connected successfully to \(settings.endpointURL)")
+        } catch {
+            return (false, error.localizedDescription)
+        }
+    }
+
+    // swiftlint:disable:next function_body_length
+    func post(_ devices: [DevicePoint],
+              aliasByUUID: [String: String],
+              settings: SettingsStore,
+              logger: LogStore,
+              dryRun: Bool = false) async -> PostSummary {
 
         if dryRun {
             for d in devices {
@@ -139,7 +156,6 @@ enum HAClient {
                     let mac = macFromAlias(alias)
                     logger.info("[DRY] Would post dev_id=\(dev), host_name=\(dev), mac=\(mac)")
                 } else {
-                    // Defensive (toPost should already be filtered)
                     logger.warn("[DRY] Skipping \(uuid): no alias mapping found")
                 }
             }
@@ -166,7 +182,6 @@ enum HAClient {
                     defer { Task { await semaphore.signal() } }
                     let result: PostResult
 
-                    // Resolve alias (toPost should ensure this exists)
                     let uuid = d.id.normalized()
                     guard let alias = aliasByUUID[uuid] else {
                         result = .transient(id: d.id, reason: "No alias for UUID \(uuid)")
@@ -176,7 +191,6 @@ enum HAClient {
                     let dev = DeviceAlias.entityID(for: alias)
                     let mac = macFromAlias(alias)
 
-                    // Build payload per HA behavior using Codable
                     let payload = HAPayload(
                         dev_id: dev,
                         host_name: dev,
@@ -186,7 +200,6 @@ enum HAClient {
                         battery: d.battery.map { Int(($0 * 100).rounded()) }
                     )
 
-                    // Encode once per task (JSONEncoder isn't guaranteed thread-safe)
                     guard let body = try? JSONEncoder().encode(payload) else {
                         result = .transient(id: d.id, reason: "Failed to encode JSON payload.")
                         return result
@@ -215,7 +228,8 @@ enum HAClient {
                             result = .transient(id: dev, reason: "Non-HTTP response")
                         }
                     } catch {
-                        result = .transient(id: dev, reason: "POST request failed with network error: \(error.localizedDescription)")
+                        result = .transient(id: dev,
+                                            reason: "POST request failed with network error: \(error.localizedDescription)")
                     }
 
                     return result

@@ -103,7 +103,7 @@ final class AppModel: NSObject, ObservableObject {
         }
 
         do {
-            try await HAClient.testEndpointAuthentication(settings: settings)
+            try await syncEngine.rest.testEndpointAuthentication(settings: settings)
             syncEngine.updateEndpointAuthStatus(outcome: .success, dryRun: false)
             logger.info("REST Test: success")
             return .success
