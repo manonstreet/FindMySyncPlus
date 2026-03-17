@@ -57,7 +57,7 @@ struct AccessSettingsView: View {
                 pendingTransportMode = nil
             }
         } message: { _ in
-            Text("Switching transport will stop the scheduler. Configure your new transport settings, test the connection, then restart the scheduler when ready.")
+            Text("Switching transport will stop the scheduler and create new device tracker entities in Home Assistant. Old entities from the previous transport will become stale and should be removed manually.\n\nConfigure your new transport settings, verify the connection, then restart the scheduler when ready.")
         }
     }
 
@@ -141,7 +141,7 @@ struct AccessSettingsView: View {
                     }
                 }
             ),
-            labels: ["REST", "MQTT"]
+            labels: TransportMode.allCases.map { $0.rawValue.uppercased() }
         )
     }
 
@@ -159,11 +159,14 @@ struct AccessSettingsView: View {
                         InfoTip(message: "Home Assistant device tracker endpoint used for POST requests.")
                         Spacer()
                     }
-                    TextField("http://homeassistant.local:8123/api/services/device_tracker/see", text: $settings.endpointURL)
-                        .textFieldStyle(.roundedBorder)
-                        .onChange(of: settings.endpointURL) { _, _ in
-                            connectionTestStatus = .idle
-                        }
+                    HStack(spacing: 8) {
+                        TextField("http://homeassistant.local:8123/api/services/device_tracker/see", text: $settings.endpointURL)
+                            .textFieldStyle(.roundedBorder)
+                            .onChange(of: settings.endpointURL) { _, _ in
+                                connectionTestStatus = .idle
+                            }
+                        Color.clear.frame(width: 16)
+                    }
 
                     // -- Authorization --
                     HStack(alignment: .firstTextBaseline, spacing: 6) {
@@ -173,7 +176,7 @@ struct AccessSettingsView: View {
                         Spacer()
                     }
                     .padding(.top, 4)
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    HStack(spacing: 8) {
                         let authBinding = Binding<String>(
                             get: { settings.endpointAuth },
                             set: { settings.updateEndpointAuth($0) }
@@ -186,14 +189,12 @@ struct AccessSettingsView: View {
                             }
                         }
                         .textFieldStyle(.roundedBorder)
-                        .layoutPriority(1)
-
-                        Spacer(minLength: 0)
 
                         Button { showAuth.toggle() } label: {
                             Image(systemName: showAuth ? "eye.slash" : "eye")
                                 .symbolRenderingMode(.monochrome)
                                 .foregroundStyle(hoveringEye ? Color.accentColor.opacity(0.9) : Color.accentColor.opacity(0.7))
+                                .frame(width: 16, alignment: .center)
                         }
                         .buttonStyle(.borderless)
                         .onHover { hoveringEye = $0 }
@@ -239,7 +240,7 @@ struct AccessSettingsView: View {
                         Spacer()
                     }
                     .padding(.top, 4)
-                    HStack(spacing: 16) {
+                    HStack(spacing: 8) {
                         TextField("Username", text: $settings.mqttUsername)
                             .textFieldStyle(.roundedBorder)
                             .frame(width: 170)
@@ -255,12 +256,12 @@ struct AccessSettingsView: View {
                             }
                         }
                         .textFieldStyle(.roundedBorder)
-                        .layoutPriority(1)
 
                         Button { showMqttPassword.toggle() } label: {
                             Image(systemName: showMqttPassword ? "eye.slash" : "eye")
                                 .symbolRenderingMode(.monochrome)
                                 .foregroundStyle(hoveringMqttEye ? Color.accentColor.opacity(0.9) : Color.accentColor.opacity(0.7))
+                                .frame(width: 16, alignment: .center)
                         }
                         .buttonStyle(.borderless)
                         .onHover { hoveringMqttEye = $0 }
@@ -275,8 +276,11 @@ struct AccessSettingsView: View {
                         Spacer()
                     }
                     .padding(.top, 4)
-                    TextField("findmysyncplus/", text: $settings.mqttTopicPrefix)
-                        .textFieldStyle(.roundedBorder)
+                    HStack(spacing: 8) {
+                        TextField("findmysyncplus/", text: $settings.mqttTopicPrefix)
+                            .textFieldStyle(.roundedBorder)
+                        Color.clear.frame(width: 16)
+                    }
                 }
             }
         }
@@ -331,10 +335,9 @@ struct AccessSettingsView: View {
                         }
                     } label: {
                         if app.isPerformingRun {
-                            Label("Wait…", systemImage: settings.transportMode == .rest ? "key.fill" : "network")
+                            Label("Wait…", systemImage: "network")
                         } else {
-                            Label(settings.transportMode == .rest ? "Test Auth" : "Test Connection",
-                                  systemImage: settings.transportMode == .rest ? "key.fill" : "network")
+                            Label("Verify", systemImage: "network")
                         }
                     }
                     .disabled(app.isPerformingRun || testButtonDisabled)

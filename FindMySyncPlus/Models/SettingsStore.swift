@@ -51,8 +51,8 @@ enum EndpointAuthStatus: String, Codable {
 }
 
 enum TransportMode: String, CaseIterable {
-    case rest
     case mqtt
+    case rest
 }
 
 @MainActor
@@ -86,9 +86,10 @@ final class SettingsStore: ObservableObject {
 
         self.loadAliasesFromStorage()
 
-        // Migration: existing REST users keep REST as default transport
+        // One-time migration: existing REST users keep REST as default transport
         if !transportModeExplicitlySet && !endpointURL.isEmpty {
             transportMode = .rest
+            transportModeExplicitlySet = true
         }
     }
 
@@ -98,7 +99,7 @@ final class SettingsStore: ObservableObject {
     }
 
     // Transport mode
-    @AppStorage("transportMode") var transportMode: TransportMode = .rest
+    @AppStorage("transportMode") var transportMode: TransportMode = .mqtt
     @AppStorage("transportModeExplicitlySet") private var transportModeExplicitlySet: Bool = false
 
     // Endpoint (REST)

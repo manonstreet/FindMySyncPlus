@@ -19,6 +19,7 @@ struct InfoTip: View {
         .popover(isPresented: $show, arrowEdge: .top) {
             Text(message)
                 .font(.callout)
+                .fixedSize(horizontal: false, vertical: true)
                 .padding(12)
                 .frame(maxWidth: 520)
         }
