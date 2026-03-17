@@ -69,7 +69,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
         let hosting = NSHostingController(rootView: AnyView(content()))
         let win = NSWindow(contentViewController: hosting)
         win.title = title
-        win.setContentSize(NSSize(width: 800, height: 780))
+        win.setContentSize(NSSize(width: 800, height: 810))
         win.delegate = self
         win.isReleasedWhenClosed = false
         win.styleMask.insert(.fullSizeContentView)
