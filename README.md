@@ -32,7 +32,6 @@ Based on [FindMySync](https://github.com/MartinPham/FindMySync) and the decrypti
 | Friend location tracking | ✅ | ❌ | ❌ |
 | Auto-refresh Find My (no AppleScript) | ✅ | ❌ | ➖ |
 | Auto-learn rotating UUIDs | ✅ | ❌ | ➖ |
-| Apple ID credentials required | ❌ | ❌ | ✅ |
 | HA Mobile App on tracked devices | Not required | Not required | ⚠️ Recommended |
 | Connects to Apple iCloud API | ➖ | ➖ | ✅ |
 | Runs inside Home Assistant | ❌ Requires a Mac | ❌ Requires a Mac | ✅ |
