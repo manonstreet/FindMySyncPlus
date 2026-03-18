@@ -132,10 +132,10 @@ Alternatively, clone the repo and build in Xcode with automatic signing enabled.
 
 Launch the app and open the **Access** pane (the Home screen will show "Not Set" errors — click one):
 
-1. **Choose transport mode** — select **REST** or **MQTT** at the top of the Access pane
-2. **REST users:** Enter your HA `device_tracker.see` endpoint URL and Authorization header (include the `Bearer` prefix)
-   **MQTT users:** Enter your broker host, port, username, and password. Set topic prefix if desired (default: `findmysyncplus/`). HA auto-discovery creates entities automatically — no `known_devices.yaml` needed
-3. Click **Test Connection** to verify
+1. **Choose transport mode** — MQTT is selected by default. Switch to REST if preferred.
+2. **MQTT users:** Enter your broker host, port, username, and password. Set topic prefix if desired (default: `findmysyncplus/`). HA auto-discovery creates entities automatically — no `known_devices.yaml` needed
+   **REST users:** Enter your HA `device_tracker.see` endpoint URL and Authorization header (include the `Bearer` prefix)
+3. Click **Verify** to test the connection
 4. Under **Decryption Keys**, select the **All** tab and click **Import All from Folder** — point it at the `keys/` directory from Phase 1
 5. Click **Open Preferences** and grant Full Disk Access
 6. Quit and relaunch the app
