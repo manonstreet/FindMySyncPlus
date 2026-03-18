@@ -77,7 +77,7 @@ Requires Full Disk Access to read the Find My cache. `FindMyRefresher.swift` can
 
 ## Testing
 
-53 unit tests across three test files: `CacheDecryptorTests` (ChaChaPoly round-trips), `TextSanitizationTests` (slugify, normalizeID), `LocalStorageDecryptorTests` (AES-CBC page decryption, Apple location label decoding). Tests use synthetic data — no real Find My files required. Run via Xcode (Cmd+U) or xcodebuild test.
+58 unit tests across four test files: `CacheDecryptorTests` (ChaChaPoly round-trips), `TextSanitizationTests` (slugify, normalizeID), `LocalStorageDecryptorTests` (AES-CBC page decryption, Apple location label decoding), `ModelTests` (DevicePoint.with() copy semantics, RichLocationAttributes motion state mapping). Tests use synthetic data — no real Find My files required. Run via Xcode (Cmd+U) or xcodebuild test.
 
 ## Conventions
 - `AppModel`, `SettingsStore` are `@MainActor final class` using `@Published` + Combine for reactivity. `LogStore` is `final class ... @unchecked Sendable`.
