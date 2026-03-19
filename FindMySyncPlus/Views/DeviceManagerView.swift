@@ -266,11 +266,7 @@ struct DeviceManagerView: View {
                 VStack(spacing: 0) {
                     sectionHeader(
                         title: "Unassigned",
-                        tip: """
-Link a device’s UUID to an alias.
-Entity_id derives from the alias: dev_id == host_name == `findmy_<alias>`.
-Identity is stable: mac is derived from the alias. Do not send `location_name` to preserve HA zones.
-""",
+                        tip: "Link a device’s UUID to an alias. The alias becomes a stable Home Assistant entity that persists even when Apple rotates UUIDs.",
                         trailing: {
                             Picker("", selection: $unassignedFilter) {
                                 ForEach(SourceFilter.allCases) { f in
@@ -296,10 +292,7 @@ Identity is stable: mac is derived from the alias. Do not send `location_name` t
                 VStack(spacing: 0) {
                     sectionHeader(
                         title: "Aliases",
-                        tip: """
-Add UUIDs here if Apple rotates them; the entity remains `findmy_<alias>`.
-Renaming an alias creates a new HA Entity ID (dev_id/host_name).
-""",
+                        tip: "Manage your tracked aliases. Apple rotates UUIDs periodically — add new ones here and the HA entity stays the same. Renaming an alias changes its HA entity ID.",
                         trailing: {
                             Picker("", selection: $aliasesFilter) {
                                 ForEach(SourceFilter.allCases) { f in
