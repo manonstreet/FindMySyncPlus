@@ -156,7 +156,6 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
                     "name": d.name.isEmpty ? alias : d.name,
                     "unique_id": devId,
                     "object_id": devId,
-                    "state_topic": "\(prefix)\(devId)/state",
                     "json_attributes_topic": "\(prefix)\(devId)/attributes",
                     "source_type": "gps"
                 ]
@@ -164,15 +163,6 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
                 publishedDiscoveryIds.insert(devId)
                 logger.info("MQTT discovery published for \(devId)")
             }
-
-            // Publish state
-            let stateMsg = CocoaMQTTMessage(
-                topic: "\(prefix)\(devId)/state",
-                string: "not_home",
-                qos: .qos1,
-                retained: false
-            )
-            client.publish(stateMsg)
 
             // Build and publish attributes
             let attrs = buildAttributes(for: d, iso: iso)
