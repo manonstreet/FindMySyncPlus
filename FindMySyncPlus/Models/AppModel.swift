@@ -31,6 +31,7 @@ final class AppModel: NSObject, ObservableObject {
 
     let syncEngine = SyncEngine()
     private var timerTask: Task<Void, Never>?
+    private let cacheWatcher = FindMyCacheWatcher()
     private weak var settings: SettingsStore?
     private weak var logger: LogStore?
 
@@ -150,14 +151,24 @@ final class AppModel: NSObject, ObservableObject {
 
     func start() {
         guard !isRunning else { return }
+        
         isRunning = true
         schedulerStartDate = Date()
         totalRunsCount = 0
         runWarningsCount = 0
         postedUpdatesCount = 0
+        
         if let settings, settings.transportMode == .mqtt {
             syncEngine.mqtt.connect(settings: settings)
         }
+        
+        if let logger {
+            cacheWatcher.start(logger: logger) { [weak self] in
+                guard let self else { return }
+                _ = self.runNowIfIdle()
+            }
+        }
+        
         runOnce()
         scheduleTimer()
     }
@@ -165,10 +176,15 @@ final class AppModel: NSObject, ObservableObject {
     func stop() {
         isRunning = false
         schedulerStartDate = nil
+        
+        cacheWatcher.stop()
+        
         timerTask?.cancel()
         timerTask = nil
+        
         nextRun = nil
         lastRunHadWarnings = false
+        
         syncEngine.mqtt.disconnect()
     }
 
