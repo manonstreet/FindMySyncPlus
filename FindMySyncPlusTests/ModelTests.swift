@@ -55,6 +55,20 @@ final class DevicePointTests: XCTestCase {
         XCTAssertNil(updated.battery)
         XCTAssertEqual(updated.name, "Y")
     }
+
+    func testParentIDDefaultsToNil() {
+        let p = DevicePoint(id: "x", name: "x", latitude: 0, longitude: 0, accuracy: 0, battery: nil)
+        XCTAssertNil(p.parentID)
+    }
+
+    func testParentIDPreservedThroughWith() {
+        let p = DevicePoint(id: "child", name: "Left Bud",
+                            latitude: 1, longitude: 2, accuracy: 3, battery: 0.5,
+                            parentID: "parent-baUUID")
+        let renamed = p.with(name: "Renamed")
+        XCTAssertEqual(renamed.parentID, "parent-baUUID")
+        XCTAssertEqual(renamed.name, "Renamed")
+    }
 }
 
 final class RichLocationAttributesTests: XCTestCase {
