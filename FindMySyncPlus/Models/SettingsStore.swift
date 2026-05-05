@@ -145,6 +145,11 @@ final class SettingsStore: ObservableObject {
     @AppStorage("enableDevices") var enableDevices: Bool = true
     @AppStorage("enableItems") var enableItems: Bool = true
     @AppStorage("enableFriends") var enableFriends: Bool = false
+    /// When on, grouped sub-items (e.g. AirPods Left/Right Bud) without an
+    /// assigned alias are hidden from the Device Manager and excluded from
+    /// posting. Aliased children always remain visible/published. Default on
+    /// to keep new and upgrading users' Device Managers tidy.
+    @AppStorage("hideGroupedChildren") var hideGroupedChildren: Bool = true
     @AppStorage("maxUUIDsPerAlias") var maxUUIDsPerAlias: Int = 2
     @AppStorage("autoLearnUUIDs") var autoLearnUUIDs: Bool = false
 
