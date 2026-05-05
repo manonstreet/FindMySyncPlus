@@ -307,15 +307,21 @@ struct DeviceManagerView: View {
                         title: "Unassigned",
                         tip: "Link a device’s UUID to an alias. The alias becomes a stable Home Assistant entity that persists even when Apple rotates UUIDs.",
                         trailing: {
-                            Picker("", selection: $unassignedFilter) {
-                                ForEach(SourceFilter.allCases) { f in
-                                    Text(f.title).tag(f)
+                            HStack(spacing: 12) {
+                                Toggle("Hide sub-items", isOn: $settings.hideGroupedChildren)
+                                    .toggleStyle(.checkbox)
+                                    .controlSize(.small)
+                                    .help("Hide ungrouped sub-items (e.g. AirPods buds) so only the parent device appears here. Aliased sub-items remain visible.")
+                                Picker("", selection: $unassignedFilter) {
+                                    ForEach(SourceFilter.allCases) { f in
+                                        Text(f.title).tag(f)
+                                    }
                                 }
+                                .pickerStyle(.menu)
+                                .controlSize(.small)
+                                .labelsHidden()
+                                .help("Filter unassigned entries by source")
                             }
-                            .pickerStyle(.menu)
-                            .controlSize(.small)
-                            .labelsHidden()
-                            .help("Filter unassigned entries by source")
                         }
                     )
                     SectionCard(gutter: 14, innerTrailing: 14) {
