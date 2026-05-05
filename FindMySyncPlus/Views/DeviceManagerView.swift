@@ -99,6 +99,33 @@ private struct AliasRowContainer<Content: View>: View {
     }
 }
 
+private struct ParentDisclosureRow<Header: View, Children: View>: View {
+    let isCollapsed: Bool
+    let onToggle: () -> Void
+    @ViewBuilder let header: () -> Header
+    @ViewBuilder let children: () -> Children
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Button(action: onToggle) {
+                    Image(systemName: isCollapsed ? "chevron.right" : "chevron.down")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 12)
+                }
+                .buttonStyle(.plain)
+                .help(isCollapsed ? "Expand grouped sub-items" : "Collapse grouped sub-items")
+                header()
+            }
+            if !isCollapsed {
+                children()
+                    .padding(.leading, 24)
+            }
+        }
+    }
+}
+
 struct DeviceManagerView: View {
     @EnvironmentObject private var settings: SettingsStore
     @EnvironmentObject private var app: AppModel
@@ -117,6 +144,9 @@ struct DeviceManagerView: View {
 
     @State private var deleteAliasKey: String? = nil
     @State private var showDeleteConfirm = false
+
+    // Ephemeral collapse state for parent group rows in the unassigned list.
+    @State private var collapsedParents: Set<String> = []
 
     // Unified source filter for both Unassigned and Aliases sections
     private enum SourceFilter: String, CaseIterable, Identifiable {
@@ -428,27 +458,51 @@ struct DeviceManagerView: View {
                 emptyState(img, msg)
             }
         } else {
+            // Partition into top-level entries (no parentID) and children grouped
+            // by parentID. Children whose parent isn't in the filtered list are
+            // treated as orphans and shown flat at the top level.
+            let topLevelIDs: Set<String> = Set(filteredUnassigned
+                .filter { $0.point.parentID == nil }
+                .map { $0.point.id.normalized() })
+            let topLevel: [LocatedEntry] = filteredUnassigned.filter { e in
+                guard let pid = e.point.parentID else { return true }
+                return !topLevelIDs.contains(pid.normalized())
+            }
+            let childrenByParent: [String: [LocatedEntry]] = Dictionary(grouping:
+                filteredUnassigned.filter { e in
+                    guard let pid = e.point.parentID else { return false }
+                    return topLevelIDs.contains(pid.normalized())
+                }, by: { $0.point.parentID!.normalized() })
+
             ScrollView {
                 LazyVStack(spacing: 0) {
-                    ForEach(Array(filteredUnassigned.enumerated()), id: \.1.point.id) { idx, entry in
-                        let d = entry.point
-                        let matching = settings.aliases.filter { ($0.lastSeenName ?? "").caseInsensitiveCompare(d.name) == .orderedSame }
-                        let isUpdate = !matching.isEmpty
-                        UnassignedRow(name: d.name,
-                                      id: d.id,
-                                      source: entry.source,
-                                      onAssign: {
-                            if isUpdate, let match = matching.first {
-                                settings.updateAliasWithCap(match.alias, addUUID: d.id, lastSeenName: d.name)
-                                logger.info("Alias \"\(match.alias)\" updated with UUID \(d.id.normalized())")
-                            } else {
-                                assignUUID = d.id
-                                assignName = d.name
-                                assignAlias = slugifyAlias(d.name.isEmpty ? "device" : d.name)
-                                showAssignSheet = true
-                            }
-                        }, showsDivider: idx < filteredUnassigned.count - 1, isUpdate: isUpdate)
-                        .padding(.top, idx == 0 ? -8 : 0)
+                    ForEach(Array(topLevel.enumerated()), id: \.1.point.id) { idx, entry in
+                        let isLast = idx == topLevel.count - 1
+                        let parentNormalizedID = entry.point.id.normalized()
+                        let kids = childrenByParent[parentNormalizedID] ?? []
+
+                        if kids.isEmpty {
+                            unassignedRowFor(entry: entry, isLast: isLast)
+                                .padding(.top, idx == 0 ? -8 : 0)
+                        } else {
+                            ParentDisclosureRow(
+                                isCollapsed: collapsedParents.contains(parentNormalizedID),
+                                onToggle: {
+                                    if collapsedParents.contains(parentNormalizedID) {
+                                        collapsedParents.remove(parentNormalizedID)
+                                    } else {
+                                        collapsedParents.insert(parentNormalizedID)
+                                    }
+                                },
+                                header: { unassignedRowFor(entry: entry, isLast: false) },
+                                children: {
+                                    ForEach(Array(kids.enumerated()), id: \.1.point.id) { kIdx, kEntry in
+                                        unassignedRowFor(entry: kEntry, isLast: kIdx == kids.count - 1 && isLast)
+                                    }
+                                }
+                            )
+                            .padding(.top, idx == 0 ? -8 : 0)
+                        }
                     }
                 }
                 .padding(.leading, 12)
@@ -456,6 +510,27 @@ struct DeviceManagerView: View {
                 .padding(.vertical, 8)
             }
         }
+    }
+
+    @ViewBuilder
+    private func unassignedRowFor(entry: LocatedEntry, isLast: Bool) -> some View {
+        let d = entry.point
+        let matching = settings.aliases.filter { ($0.lastSeenName ?? "").caseInsensitiveCompare(d.name) == .orderedSame }
+        let isUpdate = !matching.isEmpty
+        UnassignedRow(name: d.name,
+                      id: d.id,
+                      source: entry.source,
+                      onAssign: {
+            if isUpdate, let match = matching.first {
+                settings.updateAliasWithCap(match.alias, addUUID: d.id, lastSeenName: d.name)
+                logger.info("Alias \"\(match.alias)\" updated with UUID \(d.id.normalized())")
+            } else {
+                assignUUID = d.id
+                assignName = d.name
+                assignAlias = slugifyAlias(d.name.isEmpty ? "device" : d.name)
+                showAssignSheet = true
+            }
+        }, showsDivider: !isLast, isUpdate: isUpdate)
     }
 
     @ViewBuilder
