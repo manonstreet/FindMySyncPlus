@@ -410,6 +410,32 @@ final class SyncEngine {
             devicesBySource[file, default: []].append(contentsOf: points)
         }
 
+        // Phase 4 — backfill stale parent locations from their freshest child.
+        // Parent group entries from Devices.data sometimes carry a stale
+        // location (isOld=true) while their children in Items.data have fresh
+        // ones; use the children's data so the parent entity reflects current
+        // location.
+        if let devices = devicesBySource[.devices], !devices.isEmpty,
+           let items = devicesBySource[.items], !items.isEmpty {
+            let parentIDs: Set<String> = Set(
+                (rawBySource[.devices] ?? []).compactMap { raw -> String? in
+                    guard raw["itemGroup"] is [String: Any] else { return nil }
+                    return (raw["baUUID"] as? String).nonNullish
+                }
+            )
+            let parents = devices.filter { parentIDs.contains($0.id) }
+            if !parents.isEmpty {
+                let backfilled = backfillParentLocations(
+                    parents: parents,
+                    children: items,
+                    rawDevices: rawBySource[.devices] ?? [],
+                    rawItems: rawBySource[.items] ?? []
+                )
+                let backfilledByID = Dictionary(uniqueKeysWithValues: backfilled.map { ($0.id, $0) })
+                devicesBySource[.devices] = devices.map { backfilledByID[$0.id] ?? $0 }
+            }
+        }
+
         // Update UI with merged devices and entries tagged with source
         let allDevices = Array(devicesBySource.values.joined())
         var allEntries: [LocatedEntry] = []
@@ -459,6 +485,77 @@ final class SyncEngine {
         return points.filter { p in
             guard p.parentID != nil else { return true }
             return aliasByUUID[p.id.normalized()] != nil
+        }
+    }
+
+    /// Returns `parents` with each parent's location replaced by its freshest
+    /// child's location when the parent's own location is unreliable. A
+    /// parent location is considered unreliable when its `isOld` flag is true
+    /// or when at least one child reports a `timeStamp` newer by ≥ 60_000 ms.
+    nonisolated func backfillParentLocations(
+        parents: [DevicePoint],
+        children: [DevicePoint],
+        rawDevices: [[String: Any]],
+        rawItems: [[String: Any]]
+    ) -> [DevicePoint] {
+        guard !parents.isEmpty else { return parents }
+
+        struct Stamp { let ts: Double; let isOld: Bool }
+        var parentStamp: [String: Stamp] = [:]
+        for raw in rawDevices {
+            guard raw["itemGroup"] is [String: Any] else { continue }
+            guard let id = (raw["baUUID"] as? String).nonNullish else { continue }
+            let loc = raw["location"] as? [String: Any]
+            let ts = (loc?["timeStamp"] as? Double) ?? 0
+            let isOld = (loc?["isOld"] as? Bool) ?? false
+            parentStamp[id] = Stamp(ts: ts, isOld: isOld)
+        }
+
+        // Map parentID -> freshest child (id, timestamp, point).
+        let childByID: [String: DevicePoint] = Dictionary(
+            uniqueKeysWithValues: children.compactMap { c -> (String, DevicePoint)? in
+                guard c.parentID != nil else { return nil }
+                return (c.id, c)
+            }
+        )
+        var freshestChildByParent: [String: (ts: Double, point: DevicePoint)] = [:]
+        for raw in rawItems {
+            let id = (raw["identifier"] as? String).nonNullish
+                ?? (raw["baUUID"] as? String).nonNullish
+                ?? (raw["deviceDiscoveryId"] as? String).nonNullish
+                ?? (raw["serialNumber"] as? String).nonNullish
+            guard let id else { continue }
+            guard let point = childByID[id], let pid = point.parentID else { continue }
+            let loc = raw["location"] as? [String: Any]
+            let ts = (loc?["timeStamp"] as? Double) ?? 0
+            if let existing = freshestChildByParent[pid] {
+                if ts > existing.ts {
+                    freshestChildByParent[pid] = (ts, point)
+                }
+            } else {
+                freshestChildByParent[pid] = (ts, point)
+            }
+        }
+
+        let staleThresholdMs: Double = 60_000
+        return parents.map { parent in
+            guard let pst = parentStamp[parent.id],
+                  let (childTs, childPoint) = freshestChildByParent[parent.id] else {
+                return parent
+            }
+            let parentIsStale = pst.isOld || (childTs > pst.ts + staleThresholdMs)
+            guard parentIsStale else { return parent }
+            return DevicePoint(
+                id: parent.id,
+                name: parent.name,
+                latitude: childPoint.latitude,
+                longitude: childPoint.longitude,
+                accuracy: childPoint.accuracy,
+                battery: parent.battery,
+                prsId: parent.prsId,
+                richAttributes: parent.richAttributes,
+                parentID: parent.parentID
+            )
         }
     }
 
