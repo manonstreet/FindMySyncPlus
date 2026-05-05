@@ -362,6 +362,10 @@ final class SyncEngine {
         var devicesBySource: [FMIPCacheFile: [DevicePoint]] = [:]
         var hadSuccessfulDecrypt = false
 
+        // Phase 1 — read+decrypt each cache into raw dicts only. Parsing into
+        // DevicePoint is deferred until Phase 3 so we have the full picture
+        // (we need Devices.data parent groups before we can stamp parentID
+        // onto Items.data children).
         for file in candidates {
             switch await cacheDecryptor.readEncryptedPayload(from: file, logger: logger) {
             case .success(let data):
@@ -370,8 +374,6 @@ final class SyncEngine {
                     switch cacheDecryptor.parsePlistData(plaintext) {
                     case .success(let arr):
                         rawBySource[file, default: []].append(contentsOf: arr)
-                        let points = cacheDecryptor.parseDeviceArray(arr)
-                        devicesBySource[file, default: []].append(contentsOf: points)
                         hadSuccessfulDecrypt = true
                     case .failure(let e):
                         logger.warn("\(file.displayName) plist parse failed: \(e.localizedDescription)")
@@ -394,6 +396,20 @@ final class SyncEngine {
             }
         }
 
+        // Phase 2 — build groupIdentifier -> parent id map from Devices.data
+        // entries that own an itemGroup (e.g. an AirPods Pro pair). Children
+        // (e.g. Case, Left Bud, Right Bud) carry this same id in their
+        // `groupIdentifier` field and will get parentID stamped accordingly.
+        let groupParentIDs = buildGroupParentIDs(rawDevices: rawBySource[.devices] ?? [])
+
+        // Phase 3 — parse raw -> DevicePoint, threading the group map only
+        // for items (parents themselves don't need parentID).
+        for (file, arr) in rawBySource {
+            let map = (file == .items) ? groupParentIDs : [:]
+            let points = cacheDecryptor.parseDeviceArray(arr, groupParentIDs: map)
+            devicesBySource[file, default: []].append(contentsOf: points)
+        }
+
         // Update UI with merged devices and entries tagged with source
         let allDevices = Array(devicesBySource.values.joined())
         var allEntries: [LocatedEntry] = []
@@ -412,6 +428,21 @@ final class SyncEngine {
             devicesBySource: devicesBySource,
             hadSuccessfulDecrypt: hadSuccessfulDecrypt
         )
+    }
+
+    /// Maps each grouped child's `groupIdentifier` to the parent device's id.
+    /// A parent device entry in Devices.data is identified by the presence of
+    /// an `itemGroup` dict; the parent's id is its `baUUID`. The child's
+    /// `groupIdentifier` field carries the same string, so the map's key and
+    /// value are identical.
+    private func buildGroupParentIDs(rawDevices: [[String: Any]]) -> [String: String] {
+        var map: [String: String] = [:]
+        for raw in rawDevices {
+            guard raw["itemGroup"] is [String: Any] else { continue }
+            guard let parentID = (raw["baUUID"] as? String).nonNullish else { continue }
+            map[parentID] = parentID
+        }
+        return map
     }
 
     // MARK: - Build plan and log
