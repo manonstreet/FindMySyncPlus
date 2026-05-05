@@ -445,6 +445,23 @@ final class SyncEngine {
         return map
     }
 
+    /// Returns `points` with unaliased children removed when `hideEnabled` is
+    /// true. A "child" is any DevicePoint with a non-nil `parentID`; "aliased"
+    /// means an entry in `aliasByUUID` exists for the child's id (normalized).
+    /// Aliased children are always preserved so existing user setups continue
+    /// to publish unchanged.
+    nonisolated func filterHiddenGroupedChildren(
+        _ points: [DevicePoint],
+        aliasByUUID: [String: String],
+        hideEnabled: Bool
+    ) -> [DevicePoint] {
+        guard hideEnabled else { return points }
+        return points.filter { p in
+            guard p.parentID != nil else { return true }
+            return aliasByUUID[p.id.normalized()] != nil
+        }
+    }
+
     // MARK: - Build plan and log
 
     private func logDevice(_ d: DevicePoint, source: String, alias: String?, tracked: Bool, logger: LogStore) {
@@ -645,6 +662,19 @@ final class SyncEngine {
         app.lastLocatedEntries = allEntries
         app.lastLocatedDevices = allEntries.map(\.point)
 
+        // Hide unaliased grouped children from posting when the toggle is on.
+        // Aliased children are always kept (their alias is in aliasByUUID), so
+        // existing user setups continue to publish unchanged.
+        let filteredToPost = filterHiddenGroupedChildren(
+            toPost,
+            aliasByUUID: aliasByUUID,
+            hideEnabled: settings.hideGroupedChildren
+        )
+        let droppedChildren = toPost.count - filteredToPost.count
+        if droppedChildren > 0 {
+            logger.debug("Hid \(droppedChildren) unaliased grouped child entr\(droppedChildren == 1 ? "y" : "ies") from posting (hideGroupedChildren is on).")
+        }
+
         let metrics = RunMetrics(
             discoveredDevices: discoveredDevices,
             discoveredItems: discoveredItems,
@@ -654,11 +684,11 @@ final class SyncEngine {
             locatedFriends: friendEntries.count(where: { !familyDSIDs.contains($0.id.normalized()) }),
             unassignedCount: unassignedCount,
             notTrackedCount: notTrackedCount,
-            toPostCount: toPost.count,
+            toPostCount: filteredToPost.count,
             noLocationCount: noLocationCount
         )
 
-        return PlanPhase(toPost: toPost, aliasByUUID: aliasByUUID, metrics: metrics)
+        return PlanPhase(toPost: filteredToPost, aliasByUUID: aliasByUUID, metrics: metrics)
     }
 
     // MARK: - Preflight
