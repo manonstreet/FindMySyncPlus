@@ -226,7 +226,14 @@ actor CacheDecryptor {
     }
 
     // Returns only devices that have a valid location.
-    nonisolated func parseDeviceArray(_ decryptedArray: [[String: Any]]) -> [DevicePoint] {
+    // `groupParentIDs` maps a child's `groupIdentifier` value to the parent's id (the
+    // parent device's `baUUID`). Children whose `groupIdentifier` resolves get
+    // `parentID` set; everything else gets `parentID == nil`. This function does
+    // not rename items — naming/visibility decisions live upstream in SyncEngine.
+    nonisolated func parseDeviceArray(
+        _ decryptedArray: [[String: Any]],
+        groupParentIDs: [String: String] = [:]
+    ) -> [DevicePoint] {
         var results: [DevicePoint] = []
         results.reserveCapacity(decryptedArray.count)
 
@@ -252,13 +259,20 @@ actor CacheDecryptor {
             let battery = (device["batteryLevel"] as? Double) ?? batteryFromStatus(device["batteryStatus"])
             let prsId = (device["prsId"] as? String).nonNullish
 
+            var parentID: String? = nil
+            if !groupParentIDs.isEmpty,
+               let gid = (device["groupIdentifier"] as? String).nonNullish {
+                parentID = groupParentIDs[gid]
+            }
+
             results.append(DevicePoint(id: id,
                                        name: name,
                                        latitude: lat,
                                        longitude: lon,
                                        accuracy: acc,
                                        battery: battery,
-                                       prsId: prsId))
+                                       prsId: prsId,
+                                       parentID: parentID))
         }
 
         return results
