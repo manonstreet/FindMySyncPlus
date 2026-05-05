@@ -146,12 +146,21 @@ struct DeviceManagerView: View {
         entriesAll.filter { !knownUUIDsSet.contains($0.point.id.normalized()) }
     }
 
+    /// `baseUnassigned` filtered by the hideGroupedChildren toggle. Aliased
+    /// children are already excluded from `baseUnassigned`; this only drops
+    /// remaining (unaliased) children with `parentID` set.
+    private var baseUnassignedAfterGroupHide: [LocatedEntry] {
+        guard settings.hideGroupedChildren else { return baseUnassigned }
+        return baseUnassigned.filter { $0.point.parentID == nil }
+    }
+
     private var filteredUnassigned: [LocatedEntry] {
+        let base = baseUnassignedAfterGroupHide
         switch unassignedFilter {
-        case .all:     return baseUnassigned
-        case .devices: return baseUnassigned.filter { $0.source == .device }
-        case .items:   return baseUnassigned.filter { $0.source == .item }
-        case .friends: return baseUnassigned.filter { $0.source == .friend }
+        case .all:     return base
+        case .devices: return base.filter { $0.source == .device }
+        case .items:   return base.filter { $0.source == .item }
+        case .friends: return base.filter { $0.source == .friend }
         }
     }
 
