@@ -12,6 +12,7 @@
 		CC110002CC110002CC110002 /* TextSanitizationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC110001CC110001CC110001 /* TextSanitizationTests.swift */; };
 		CC110004CC110004CC110004 /* LocalStorageDecryptorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC110003CC110003CC110003 /* LocalStorageDecryptorTests.swift */; };
 		DD220002DD220002DD220002 /* ModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD220001DD220001DD220001 /* ModelTests.swift */; };
+		EE330002EE330002EE330002 /* SyncEngineGroupingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE330001EE330001EE330001 /* SyncEngineGroupingTests.swift */; };
 		MQTT0001MQTT0001MQTT0001 /* CocoaMQTT in Frameworks */ = {isa = PBXBuildFile; productRef = MQTT0002MQTT0002MQTT0002 /* CocoaMQTT */; };
 /* End PBXBuildFile section */
 
@@ -40,6 +41,7 @@
 		CC110001CC110001CC110001 /* TextSanitizationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextSanitizationTests.swift; sourceTree = "<group>"; };
 		CC110003CC110003CC110003 /* LocalStorageDecryptorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalStorageDecryptorTests.swift; sourceTree = "<group>"; };
 		DD220001DD220001DD220001 /* ModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelTests.swift; sourceTree = "<group>"; };
+		EE330001EE330001EE330001 /* SyncEngineGroupingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncEngineGroupingTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -115,6 +117,7 @@
 				AABB0001AABB0001AABB0001 /* CacheDecryptorTests.swift */,
 				CC110003CC110003CC110003 /* LocalStorageDecryptorTests.swift */,
 				DD220001DD220001DD220001 /* ModelTests.swift */,
+				EE330001EE330001EE330001 /* SyncEngineGroupingTests.swift */,
 				CC110001CC110001CC110001 /* TextSanitizationTests.swift */,
 			);
 			path = FindMySyncPlusTests;
@@ -274,6 +277,7 @@
 				AABB0002AABB0002AABB0002 /* CacheDecryptorTests.swift in Sources */,
 				CC110004CC110004CC110004 /* LocalStorageDecryptorTests.swift in Sources */,
 				DD220002DD220002DD220002 /* ModelTests.swift in Sources */,
+				EE330002EE330002EE330002 /* SyncEngineGroupingTests.swift in Sources */,
 				CC110002CC110002CC110002 /* TextSanitizationTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -455,7 +459,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 1.3.1b;
+				MARKETING_VERSION = 1.4.0b;
 				PRODUCT_BUNDLE_IDENTIFIER = com.manonstreet.FindMySyncPlus;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -492,7 +496,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 1.3.1b;
+				MARKETING_VERSION = 1.4.0b;
 				PRODUCT_BUNDLE_IDENTIFIER = com.manonstreet.FindMySyncPlus;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -514,7 +518,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "";
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 1.3.1b;
+				MARKETING_VERSION = 1.4.0b;
 				PRODUCT_BUNDLE_IDENTIFIER = com.manonstreet.FindMySequoiaTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -535,7 +539,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "";
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 1.3.1b;
+				MARKETING_VERSION = 1.4.0b;
 				PRODUCT_BUNDLE_IDENTIFIER = com.manonstreet.FindMySequoiaTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -555,7 +559,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "";
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 1.3.1b;
+				MARKETING_VERSION = 1.4.0b;
 				PRODUCT_BUNDLE_IDENTIFIER = com.manonstreet.FindMySequoiaUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -575,7 +579,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "";
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 1.3.1b;
+				MARKETING_VERSION = 1.4.0b;
 				PRODUCT_BUNDLE_IDENTIFIER = com.manonstreet.FindMySequoiaUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";

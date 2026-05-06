@@ -70,6 +70,49 @@ final class CacheDecryptorTests: XCTestCase {
         XCTAssertEqual(result[0].battery ?? 0, 0.25, accuracy: 0.001)
     }
 
+    // MARK: - parseDeviceArray groupParentIDs plumbing
+
+    func testParseDeviceArray_childGetsParentID() {
+        let decryptor = CacheDecryptor()
+        let parentID = "PARENT-UUID-1"
+        let groupParentIDs = ["GROUP-1": parentID]
+        let input: [[String: Any]] = [[
+            "identifier": "CHILD-A",
+            "groupIdentifier": "GROUP-1",
+            "name": "Case",
+            "location": ["latitude": 1.0, "longitude": 1.0, "horizontalAccuracy": 1.0]
+        ]]
+        let result = decryptor.parseDeviceArray(input, groupParentIDs: groupParentIDs)
+        XCTAssertEqual(result.count, 1)
+        XCTAssertEqual(result[0].parentID, parentID)
+        XCTAssertEqual(result[0].name, "Case")
+    }
+
+    func testParseDeviceArray_unknownGroupIdentifierLeavesParentIDNil() {
+        let decryptor = CacheDecryptor()
+        let input: [[String: Any]] = [[
+            "identifier": "ITEM",
+            "groupIdentifier": "UNKNOWN-GROUP",
+            "name": "Left Bud",
+            "location": ["latitude": 1.0, "longitude": 1.0, "horizontalAccuracy": 1.0]
+        ]]
+        let result = decryptor.parseDeviceArray(input, groupParentIDs: ["OTHER": "X"])
+        XCTAssertEqual(result.count, 1)
+        XCTAssertNil(result[0].parentID)
+    }
+
+    func testParseDeviceArray_noGroupArgKeepsParentIDNil() {
+        let decryptor = CacheDecryptor()
+        let input: [[String: Any]] = [[
+            "identifier": "PLAIN",
+            "name": "AirTag",
+            "location": ["latitude": 1.0, "longitude": 1.0, "horizontalAccuracy": 1.0]
+        ]]
+        let result = decryptor.parseDeviceArray(input)
+        XCTAssertEqual(result.count, 1)
+        XCTAssertNil(result[0].parentID)
+    }
+
     // MARK: - extractSymmetricKey
 
     func testExtractSymmetricKey_validBase64String() throws {

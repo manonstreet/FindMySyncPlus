@@ -64,7 +64,7 @@ Requires Full Disk Access to read the Find My cache. `FindMyRefresher.swift` can
 | `CacheDecryptor.swift` | `actor` — FMIP cache decryption (ChaChaPoly), FMF contact name lookup |
 | `LocalStorageDecryptor.swift` | `actor` — LocalStorage.db decryption (AES-256-CBC page-level), SQLite friend query |
 | `Models/SettingsStore.swift` | All persisted config; Keychain wrappers for auth token and 3 decryption keys |
-| `Models/DevicePoint.swift` | Device location struct with `with()` copy method for safe field updates |
+| `Models/DevicePoint.swift` | Device location struct with `with()` copy method for safe field updates; carries `parentID` for grouped accessories (e.g. AirPods Case/Buds) |
 | `Models/RichLocationAttributes.swift` | Rich location data (altitude, speed, course, motion state, location label) with Apple label decoder |
 | `Models/DeviceAlias.swift` | Alias↔UUID mapping model |
 | `Models/LogStore.swift` | Logging with levels; consumed by StatusView |
@@ -77,7 +77,7 @@ Requires Full Disk Access to read the Find My cache. `FindMyRefresher.swift` can
 
 ## Testing
 
-58 unit tests across four test files: `CacheDecryptorTests` (ChaChaPoly round-trips), `TextSanitizationTests` (slugify, normalizeID), `LocalStorageDecryptorTests` (AES-CBC page decryption, Apple location label decoding), `ModelTests` (DevicePoint.with() copy semantics, RichLocationAttributes motion state mapping). Tests use synthetic data — no real Find My files required. Run via Xcode (Cmd+U) or xcodebuild test.
+70 unit tests across five test files: `CacheDecryptorTests` (ChaChaPoly round-trips, parentID plumbing for grouped items), `TextSanitizationTests` (slugify, normalizeID), `LocalStorageDecryptorTests` (AES-CBC page decryption, Apple location label decoding), `ModelTests` (DevicePoint.with() copy semantics, RichLocationAttributes motion state mapping, parentID preservation), `SyncEngineGroupingTests` (unaliased grouped child filter, parent location backfill from freshest child). Tests use synthetic data — no real Find My files required. Run via Xcode (Cmd+U) or xcodebuild test.
 
 ## Conventions
 - `AppModel`, `SettingsStore` are `@MainActor final class` using `@Published` + Combine for reactivity. `LogStore` is `final class ... @unchecked Sendable`.
@@ -91,3 +91,4 @@ Requires Full Disk Access to read the Find My cache. `FindMyRefresher.swift` can
 - `LSUIElement = YES` in Info.plist hides the Dock icon by default; `PolicyController` shows it when a window is open.
 - `SettingsStore.batchUpdateLastSeenNames` batches all alias name updates into a single UserDefaults write per run cycle.
 - MQTT is the default transport for new users. Existing REST users are preserved via a one-time migration.
+- `SyncEngine` recognizes grouped accessories: items in `Items.data` whose `groupIdentifier` matches a `Devices.data` parent's `baUUID` get `parentID` set on their `DevicePoint`. Parent group locations are backfilled from the freshest child when stale (`isOld: true` or older by ≥60 s). The posting filter drops unaliased grouped children — the parent is the canonical entity; sub-items opt in by being aliased.

@@ -9,9 +9,10 @@ struct DevicePoint: Sendable {
     let battery: Double?
     let prsId: String?     // person ID (base64 DSID); "owner" for self, DSID for family devices
     let richAttributes: RichLocationAttributes?
+    let parentID: String?  // non-nil for grouped children (e.g. AirPods bud → its case/group baUUID)
 
     // swiftlint:disable:next line_length
-    init(id: String, name: String, latitude: Double, longitude: Double, accuracy: Double, battery: Double?, prsId: String? = nil, richAttributes: RichLocationAttributes? = nil) {
+    init(id: String, name: String, latitude: Double, longitude: Double, accuracy: Double, battery: Double?, prsId: String? = nil, richAttributes: RichLocationAttributes? = nil, parentID: String? = nil) {
         self.id = id
         self.name = name
         self.latitude = latitude
@@ -20,12 +21,14 @@ struct DevicePoint: Sendable {
         self.battery = battery
         self.prsId = prsId
         self.richAttributes = richAttributes
+        self.parentID = parentID
     }
 
     func with(name: String? = nil, richAttributes: RichLocationAttributes? = nil) -> DevicePoint {
         DevicePoint(id: id, name: name ?? self.name,
                     latitude: latitude, longitude: longitude,
                     accuracy: accuracy, battery: battery,
-                    prsId: prsId, richAttributes: richAttributes ?? self.richAttributes)
+                    prsId: prsId, richAttributes: richAttributes ?? self.richAttributes,
+                    parentID: parentID)
     }
 }
