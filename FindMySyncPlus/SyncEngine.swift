@@ -471,17 +471,17 @@ final class SyncEngine {
         return map
     }
 
-    /// Returns `points` with unaliased children removed when `hideEnabled` is
-    /// true. A "child" is any DevicePoint with a non-nil `parentID`; "aliased"
-    /// means an entry in `aliasByUUID` exists for the child's id (normalized).
-    /// Aliased children are always preserved so existing user setups continue
-    /// to publish unchanged.
-    nonisolated func filterHiddenGroupedChildren(
+    /// Returns `points` with unaliased grouped children removed. A "child" is
+    /// any DevicePoint with a non-nil `parentID`; "aliased" means an entry in
+    /// `aliasByUUID` exists for the child's id (normalized). Aliased children
+    /// are always preserved so existing user setups continue to publish
+    /// unchanged. Unaliased children are dropped because the parent group
+    /// entity (e.g. "AirPods Pro") is the canonical entity for the pair —
+    /// users opt sub-items in by aliasing them.
+    nonisolated func filterUnaliasedGroupedChildren(
         _ points: [DevicePoint],
-        aliasByUUID: [String: String],
-        hideEnabled: Bool
+        aliasByUUID: [String: String]
     ) -> [DevicePoint] {
-        guard hideEnabled else { return points }
         return points.filter { p in
             guard p.parentID != nil else { return true }
             return aliasByUUID[p.id.normalized()] != nil
@@ -759,17 +759,13 @@ final class SyncEngine {
         app.lastLocatedEntries = allEntries
         app.lastLocatedDevices = allEntries.map(\.point)
 
-        // Hide unaliased grouped children from posting when the toggle is on.
-        // Aliased children are always kept (their alias is in aliasByUUID), so
-        // existing user setups continue to publish unchanged.
-        let filteredToPost = filterHiddenGroupedChildren(
-            toPost,
-            aliasByUUID: aliasByUUID,
-            hideEnabled: settings.hideGroupedChildren
-        )
+        // Drop unaliased grouped children from posting. The parent group
+        // entity is the canonical "AirPods" (or similar) for HA; sub-items
+        // only publish if the user has explicitly aliased them.
+        let filteredToPost = filterUnaliasedGroupedChildren(toPost, aliasByUUID: aliasByUUID)
         let droppedChildren = toPost.count - filteredToPost.count
         if droppedChildren > 0 {
-            logger.debug("Hid \(droppedChildren) unaliased grouped child entr\(droppedChildren == 1 ? "y" : "ies") from posting (hideGroupedChildren is on).")
+            logger.debug("Skipped \(droppedChildren) unaliased grouped child entr\(droppedChildren == 1 ? "y" : "ies") from posting.")
         }
 
         let metrics = RunMetrics(

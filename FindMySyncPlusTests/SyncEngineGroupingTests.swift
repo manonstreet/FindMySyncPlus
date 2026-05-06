@@ -14,32 +14,21 @@ final class SyncEngineGroupingTests: XCTestCase {
                     battery: nil, parentID: parentID)
     }
 
-    // MARK: - filterHiddenGroupedChildren
+    // MARK: - filterUnaliasedGroupedChildren
 
-    func testFilter_disabled_returnsEverything() {
+    func testFilter_keepsParents_dropsUnaliasedChildren() {
         let engine = SyncEngine()
         let points = [
             makePoint(id: Self.parentID),
             makePoint(id: Self.childAID, parentID: Self.parentID),
             makePoint(id: Self.childBID, parentID: Self.parentID)
         ]
-        let result = engine.filterHiddenGroupedChildren(points, aliasByUUID: [:], hideEnabled: false)
-        XCTAssertEqual(result.count, 3)
-    }
-
-    func testFilter_enabled_keepsParents_dropsUnaliasedChildren() {
-        let engine = SyncEngine()
-        let points = [
-            makePoint(id: Self.parentID),
-            makePoint(id: Self.childAID, parentID: Self.parentID),
-            makePoint(id: Self.childBID, parentID: Self.parentID)
-        ]
-        let result = engine.filterHiddenGroupedChildren(points, aliasByUUID: [:], hideEnabled: true)
+        let result = engine.filterUnaliasedGroupedChildren(points, aliasByUUID: [:])
         XCTAssertEqual(result.count, 1)
         XCTAssertEqual(result[0].id, Self.parentID)
     }
 
-    func testFilter_enabled_keepsAliasedChildren() {
+    func testFilter_keepsAliasedChildren() {
         let engine = SyncEngine()
         let points = [
             makePoint(id: Self.parentID),
@@ -48,18 +37,18 @@ final class SyncEngineGroupingTests: XCTestCase {
         ]
         // Alias map is keyed by normalized id (hex-only, lowercased).
         let alias = [Self.childAID.normalized(): Self.aliasKey]
-        let result = engine.filterHiddenGroupedChildren(points, aliasByUUID: alias, hideEnabled: true)
+        let result = engine.filterUnaliasedGroupedChildren(points, aliasByUUID: alias)
         let ids = Set(result.map { $0.id })
         XCTAssertEqual(ids, [Self.parentID, Self.childAID])
     }
 
-    func testFilter_enabled_ignoresUngroupedItems() {
+    func testFilter_ignoresUngroupedItems() {
         let engine = SyncEngine()
         let points = [
             makePoint(id: "AABB1111-2222-3333-4444-555566667777"),
             makePoint(id: "CCDD8888-9999-AAAA-BBBB-CCCCCCCCCCCC")
         ]
-        let result = engine.filterHiddenGroupedChildren(points, aliasByUUID: [:], hideEnabled: true)
+        let result = engine.filterUnaliasedGroupedChildren(points, aliasByUUID: [:])
         XCTAssertEqual(result.count, 2)
     }
 

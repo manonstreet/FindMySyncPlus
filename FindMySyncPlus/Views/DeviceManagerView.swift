@@ -43,6 +43,9 @@ private struct UnassignedRow: View {
     var onAssign: () -> Void
     var showsDivider: Bool = true
     let isUpdate: Bool
+    /// When set, renders a small disclosure chevron inline with the title.
+    /// Tap toggles `isCollapsed` via `onToggle`. nil = no chevron.
+    var disclosure: (isCollapsed: Bool, onToggle: () -> Void)? = nil
     @State private var hovering = false
     var body: some View {
         HStack(spacing: 12) {
@@ -57,6 +60,17 @@ private struct UnassignedRow: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
+            if let disc = disclosure {
+                Button(action: disc.onToggle) {
+                    Image(systemName: disc.isCollapsed ? "chevron.right" : "chevron.down")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Color.accentColor)
+                        .frame(width: 14, height: 14)
+                }
+                .buttonStyle(.plain)
+                .help(disc.isCollapsed ? "Expand grouped sub-items" : "Collapse grouped sub-items")
+                .padding(.trailing, 4)
+            }
             Button(action: onAssign) {
                 Text(isUpdate ? "Update" : "Assign")
             }
@@ -99,28 +113,21 @@ private struct AliasRowContainer<Content: View>: View {
     }
 }
 
+/// Wraps a parent row + its children (indented) in a vertical stack. The
+/// chevron itself is rendered inline by UnassignedRow via the `disclosure`
+/// param so we don't shift row content for a leading disclosure column.
 private struct ParentDisclosureRow<Header: View, Children: View>: View {
+    let hasChildren: Bool
     let isCollapsed: Bool
-    let onToggle: () -> Void
     @ViewBuilder let header: () -> Header
     @ViewBuilder let children: () -> Children
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Button(action: onToggle) {
-                    Image(systemName: isCollapsed ? "chevron.right" : "chevron.down")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 12)
-                }
-                .buttonStyle(.plain)
-                .help(isCollapsed ? "Expand grouped sub-items" : "Collapse grouped sub-items")
-                header()
-            }
-            if !isCollapsed {
+            header()
+            if hasChildren && !isCollapsed {
                 children()
-                    .padding(.leading, 24)
+                    .padding(.leading, 12)
             }
         }
     }
@@ -145,8 +152,10 @@ struct DeviceManagerView: View {
     @State private var deleteAliasKey: String? = nil
     @State private var showDeleteConfirm = false
 
-    // Ephemeral collapse state for parent group rows in the unassigned list.
-    @State private var collapsedParents: Set<String> = []
+    // Ephemeral expand state for parent group rows in the unassigned list.
+    // Empty set means every parent is collapsed (the default), so the user
+    // sees just parent rows and clicks the chevron to reveal sub-items.
+    @State private var expandedParents: Set<String> = []
 
     // Unified source filter for both Unassigned and Aliases sections
     private enum SourceFilter: String, CaseIterable, Identifiable {
@@ -176,21 +185,12 @@ struct DeviceManagerView: View {
         entriesAll.filter { !knownUUIDsSet.contains($0.point.id.normalized()) }
     }
 
-    /// `baseUnassigned` filtered by the hideGroupedChildren toggle. Aliased
-    /// children are already excluded from `baseUnassigned`; this only drops
-    /// remaining (unaliased) children with `parentID` set.
-    private var baseUnassignedAfterGroupHide: [LocatedEntry] {
-        guard settings.hideGroupedChildren else { return baseUnassigned }
-        return baseUnassigned.filter { $0.point.parentID == nil }
-    }
-
     private var filteredUnassigned: [LocatedEntry] {
-        let base = baseUnassignedAfterGroupHide
         switch unassignedFilter {
-        case .all:     return base
-        case .devices: return base.filter { $0.source == .device }
-        case .items:   return base.filter { $0.source == .item }
-        case .friends: return base.filter { $0.source == .friend }
+        case .all:     return baseUnassigned
+        case .devices: return baseUnassigned.filter { $0.source == .device }
+        case .items:   return baseUnassigned.filter { $0.source == .item }
+        case .friends: return baseUnassigned.filter { $0.source == .friend }
         }
     }
 
@@ -307,21 +307,15 @@ struct DeviceManagerView: View {
                         title: "Unassigned",
                         tip: "Link a device’s UUID to an alias. The alias becomes a stable Home Assistant entity that persists even when Apple rotates UUIDs.",
                         trailing: {
-                            HStack(spacing: 12) {
-                                Toggle("Hide sub-items", isOn: $settings.hideGroupedChildren)
-                                    .toggleStyle(.checkbox)
-                                    .controlSize(.small)
-                                    .help("Hide ungrouped sub-items (e.g. AirPods buds) so only the parent device appears here. Aliased sub-items remain visible.")
-                                Picker("", selection: $unassignedFilter) {
-                                    ForEach(SourceFilter.allCases) { f in
-                                        Text(f.title).tag(f)
-                                    }
+                            Picker("", selection: $unassignedFilter) {
+                                ForEach(SourceFilter.allCases) { f in
+                                    Text(f.title).tag(f)
                                 }
-                                .pickerStyle(.menu)
-                                .controlSize(.small)
-                                .labelsHidden()
-                                .help("Filter unassigned entries by source")
                             }
+                            .pickerStyle(.menu)
+                            .controlSize(.small)
+                            .labelsHidden()
+                            .help("Filter unassigned entries by source")
                         }
                     )
                     SectionCard(gutter: 14, innerTrailing: 14) {
@@ -486,29 +480,33 @@ struct DeviceManagerView: View {
                         let isLast = idx == topLevel.count - 1
                         let parentNormalizedID = entry.point.id.normalized()
                         let kids = childrenByParent[parentNormalizedID] ?? []
-
-                        if kids.isEmpty {
-                            unassignedRowFor(entry: entry, isLast: isLast)
-                                .padding(.top, idx == 0 ? -8 : 0)
-                        } else {
-                            ParentDisclosureRow(
-                                isCollapsed: collapsedParents.contains(parentNormalizedID),
-                                onToggle: {
-                                    if collapsedParents.contains(parentNormalizedID) {
-                                        collapsedParents.remove(parentNormalizedID)
-                                    } else {
-                                        collapsedParents.insert(parentNormalizedID)
-                                    }
-                                },
-                                header: { unassignedRowFor(entry: entry, isLast: false) },
-                                children: {
-                                    ForEach(Array(kids.enumerated()), id: \.1.point.id) { kIdx, kEntry in
-                                        unassignedRowFor(entry: kEntry, isLast: kIdx == kids.count - 1 && isLast)
-                                    }
+                        let isExpanded = expandedParents.contains(parentNormalizedID)
+                        let disclosure: (isCollapsed: Bool, onToggle: () -> Void)? = kids.isEmpty
+                            ? nil
+                            : (!isExpanded, {
+                                if expandedParents.contains(parentNormalizedID) {
+                                    expandedParents.remove(parentNormalizedID)
+                                } else {
+                                    expandedParents.insert(parentNormalizedID)
                                 }
-                            )
-                            .padding(.top, idx == 0 ? -8 : 0)
-                        }
+                            })
+
+                        ParentDisclosureRow(
+                            hasChildren: !kids.isEmpty,
+                            isCollapsed: !isExpanded,
+                            header: {
+                                unassignedRowFor(entry: entry,
+                                                 isLast: kids.isEmpty || !isExpanded ? isLast : false,
+                                                 disclosure: disclosure)
+                            },
+                            children: {
+                                ForEach(Array(kids.enumerated()), id: \.1.point.id) { kIdx, kEntry in
+                                    unassignedRowFor(entry: kEntry,
+                                                     isLast: kIdx == kids.count - 1 && isLast)
+                                }
+                            }
+                        )
+                        .padding(.top, idx == 0 ? -8 : 0)
                     }
                 }
                 .padding(.leading, 12)
@@ -519,7 +517,11 @@ struct DeviceManagerView: View {
     }
 
     @ViewBuilder
-    private func unassignedRowFor(entry: LocatedEntry, isLast: Bool) -> some View {
+    private func unassignedRowFor(
+        entry: LocatedEntry,
+        isLast: Bool,
+        disclosure: (isCollapsed: Bool, onToggle: () -> Void)? = nil
+    ) -> some View {
         let d = entry.point
         let matching = settings.aliases.filter { ($0.lastSeenName ?? "").caseInsensitiveCompare(d.name) == .orderedSame }
         let isUpdate = !matching.isEmpty
@@ -536,7 +538,7 @@ struct DeviceManagerView: View {
                 assignAlias = slugifyAlias(d.name.isEmpty ? "device" : d.name)
                 showAssignSheet = true
             }
-        }, showsDivider: !isLast, isUpdate: isUpdate)
+        }, showsDivider: !isLast, isUpdate: isUpdate, disclosure: disclosure)
     }
 
     @ViewBuilder
