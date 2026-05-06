@@ -48,6 +48,7 @@ Based on [FindMySync](https://github.com/MartinPham/FindMySync) and the decrypti
 - **MQTT rich attributes** — altitude, speed, course, motion state, location labels via `json_attributes_topic`
 - **Friend location tracking** — decrypts `LocalStorage.db` for live friend coordinates; family members already tracked via Devices are automatically deduplicated using Apple's universal person identifier (DSID)
 - **Device Manager** — assign friendly aliases to devices, items, and friends; aliases become stable HA entity IDs even as UUIDs rotate
+- **Grouped accessories** — AirPods Pro pairs (and similar) appear as a single Device Manager entry; sub-items (Case, Left Bud, Right Bud) can be revealed and aliased individually if needed
 - **Auto-learn UUIDs** — automatically re-maps devices when Apple rotates their identifier
 - Configurable scheduler with selectable refresh interval and manual **Run Now** and **Dry Run** modes
 - **Four log levels** (Error / Warn / Info / Debug) with per-run statistics — posted updates, warnings, learned UUIDs
