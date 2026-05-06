@@ -28,7 +28,12 @@ struct AccessSettingsView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 16) {
-                SectionHeader(title: "ENDPOINT", tip: "REST uses HTTP POST to device_tracker/see. MQTT uses HA auto-discovery with richer attributes.\n\nSwitching transport modes creates new entities in Home Assistant. Old entities from the previous mode will become stale and should be removed manually.")
+                SectionHeader(
+                    title: "ENDPOINT",
+                    tip: "REST uses HTTP POST to device_tracker/see. MQTT uses HA auto-discovery with richer attributes.\n\n"
+                        + "Switching transport modes creates new entities in Home Assistant. "
+                        + "Old entities from the previous mode will become stale and should be removed manually."
+                )
                 endpointCard
                 connectionTestCard
 
@@ -57,7 +62,11 @@ struct AccessSettingsView: View {
                 pendingTransportMode = nil
             }
         } message: { _ in
-            Text("Switching transport will stop the scheduler and create new device tracker entities in Home Assistant. Old entities from the previous transport will become stale and should be removed manually.\n\nConfigure your new transport settings, verify the connection, then restart the scheduler when ready.")
+            Text(
+                "Switching transport will stop the scheduler and create new device tracker entities in Home Assistant. "
+                + "Old entities from the previous transport will become stale and should be removed manually.\n\n"
+                + "Configure your new transport settings, verify the connection, then restart the scheduler when ready."
+            )
         }
     }
 
