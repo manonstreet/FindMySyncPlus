@@ -39,7 +39,7 @@ private struct SectionCard<Content: View>: View {
 private struct AssignedBadge: View {
     @Environment(\.colorScheme) private var scheme
     var body: some View {
-        let color = Color.green
+        let color = Color.gray
         let fillOpacity: Double = (scheme == .dark) ? 0.28 : 0.12
         let strokeOpacity: Double = (scheme == .dark) ? 0.55 : 0.35
         Text("Assigned")

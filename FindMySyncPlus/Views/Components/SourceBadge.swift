@@ -8,8 +8,9 @@ struct SourceBadge: View {
     private var resolvedTint: Color {
         if let tint { return tint }
         switch source {
+        case .device: return .accentColor   // typically blue
+        case .item:   return .green
         case .friend: return .purple
-        default: return .accentColor
         }
     }
 
