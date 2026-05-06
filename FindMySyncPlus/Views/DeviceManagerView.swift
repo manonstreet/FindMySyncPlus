@@ -43,10 +43,12 @@ private struct UnassignedRow: View {
     var onAssign: () -> Void
     var showsDivider: Bool = true
     let isUpdate: Bool
-    /// When set, renders a small disclosure chevron inline with the title.
-    /// Tap toggles `isCollapsed` via `onToggle`. nil = no chevron.
+    /// When set, renders a small disclosure pill (visible on row hover or
+    /// while the parent is expanded). Tap toggles `isCollapsed` via `onToggle`.
+    /// nil = no chevron.
     var disclosure: (isCollapsed: Bool, onToggle: () -> Void)? = nil
     @State private var hovering = false
+    @State private var pillHovering = false
     var body: some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
@@ -60,14 +62,21 @@ private struct UnassignedRow: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            if let disc = disclosure {
+            if let disc = disclosure, hovering || !disc.isCollapsed {
                 Button(action: disc.onToggle) {
                     Image(systemName: disc.isCollapsed ? "chevron.right" : "chevron.down")
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(Color.accentColor)
-                        .frame(width: 14, height: 14)
+                        .frame(width: 12, height: 12)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 3)
+                        .background(
+                            RoundedRectangle(cornerRadius: 5, style: .continuous)
+                                .fill(Color.secondary.opacity(pillHovering ? 0.18 : 0.10))
+                        )
                 }
                 .buttonStyle(.plain)
+                .onHover { pillHovering = $0 }
                 .help(disc.isCollapsed ? "Expand grouped sub-items" : "Collapse grouped sub-items")
                 .padding(.trailing, 4)
             }
