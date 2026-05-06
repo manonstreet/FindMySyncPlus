@@ -36,6 +36,28 @@ private struct SectionCard<Content: View>: View {
     }
 }
 
+private struct AssignedBadge: View {
+    @Environment(\.colorScheme) private var scheme
+    var body: some View {
+        let color = Color.green
+        let fillOpacity: Double = (scheme == .dark) ? 0.28 : 0.12
+        let strokeOpacity: Double = (scheme == .dark) ? 0.55 : 0.35
+        Text("Assigned")
+            .font(.system(size: 10, weight: .semibold))
+            .padding(.horizontal, 5)
+            .padding(.vertical, 1)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(color.opacity(fillOpacity))
+            )
+            .overlay(
+                Capsule(style: .continuous)
+                    .stroke(color.opacity(strokeOpacity), lineWidth: 0.5)
+            )
+            .foregroundStyle(.primary)
+    }
+}
+
 private struct UnassignedRow: View {
     let name: String
     let id: String
@@ -47,6 +69,9 @@ private struct UnassignedRow: View {
     /// while the parent is expanded). Tap toggles `isCollapsed` via `onToggle`.
     /// nil = no chevron.
     var disclosure: (isCollapsed: Bool, onToggle: () -> Void)? = nil
+    /// True for grouped parents that already own an alias. The Assign button
+    /// is disabled and an "Assigned" pill is shown next to the source badge.
+    var isAssigned: Bool = false
     @State private var hovering = false
     @State private var pillHovering = false
     var body: some View {
@@ -56,6 +81,9 @@ private struct UnassignedRow: View {
                     Text(name.isEmpty ? "(Unnamed device)" : name)
                         .fontWeight(.semibold)
                     SourceBadge(source: source)
+                    if isAssigned {
+                        AssignedBadge()
+                    }
                 }
                 Text(id)
                     .font(.system(.footnote, design: .monospaced))
@@ -83,6 +111,7 @@ private struct UnassignedRow: View {
             Button(action: onAssign) {
                 Text(isUpdate ? "Update" : "Assign")
             }
+            .disabled(isAssigned)
         }
         .padding(.vertical, 8)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -190,8 +219,23 @@ struct DeviceManagerView: View {
         app.lastLocatedEntries
     }
 
+    /// Set of normalized UUIDs that are referenced as a parent by some
+    /// detected child entry. Used so aliased grouped parents stay visible
+    /// in the Unassigned list (with their children nested) — it would be
+    /// confusing to make children orphan-flat once their parent is aliased.
+    private var groupedParentIDs: Set<String> {
+        Set(entriesAll.compactMap { $0.point.parentID?.normalized() })
+    }
+
     private var baseUnassigned: [LocatedEntry] {
-        entriesAll.filter { !knownUUIDsSet.contains($0.point.id.normalized()) }
+        entriesAll.filter { entry in
+            let normalized = entry.point.id.normalized()
+            // Always include unaliased entries.
+            guard knownUUIDsSet.contains(normalized) else { return true }
+            // Aliased entries are normally hidden, except keep aliased grouped
+            // parents visible so their children can stay nested under them.
+            return groupedParentIDs.contains(normalized)
+        }
     }
 
     private var filteredUnassigned: [LocatedEntry] {
@@ -532,8 +576,13 @@ struct DeviceManagerView: View {
         disclosure: (isCollapsed: Bool, onToggle: () -> Void)? = nil
     ) -> some View {
         let d = entry.point
+        let isAssigned = knownUUIDsSet.contains(d.id.normalized())
         let matching = settings.aliases.filter { ($0.lastSeenName ?? "").caseInsensitiveCompare(d.name) == .orderedSame }
-        let isUpdate = !matching.isEmpty
+        // "Update" is the rotated-UUID flow: a name match on an alias whose
+        // UUID rotated, so clicking adds the new UUID to the existing alias.
+        // When this UUID is already in the alias, "Update" would no-op — show
+        // a (disabled) "Assign" instead. The label change keeps the row honest.
+        let isUpdate = !isAssigned && !matching.isEmpty
         UnassignedRow(name: d.name,
                       id: d.id,
                       source: entry.source,
@@ -547,7 +596,8 @@ struct DeviceManagerView: View {
                 assignAlias = slugifyAlias(d.name.isEmpty ? "device" : d.name)
                 showAssignSheet = true
             }
-        }, showsDivider: !isLast, isUpdate: isUpdate, disclosure: disclosure)
+        }, showsDivider: !isLast, isUpdate: isUpdate,
+                      disclosure: disclosure, isAssigned: isAssigned)
     }
 
     @ViewBuilder
