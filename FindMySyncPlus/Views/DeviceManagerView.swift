@@ -65,9 +65,9 @@ private struct UnassignedRow: View {
     var onAssign: () -> Void
     var showsDivider: Bool = true
     let isUpdate: Bool
-    /// When set, renders a small disclosure pill (visible on row hover or
-    /// while the parent is expanded). Tap toggles `isCollapsed` via `onToggle`.
-    /// nil = no chevron.
+    /// When set, renders a small disclosure pill on the right. Always visible
+    /// so the expand affordance is discoverable without requiring hover.
+    /// Tap toggles `isCollapsed` via `onToggle`. nil = no chevron.
     var disclosure: (isCollapsed: Bool, onToggle: () -> Void)? = nil
     /// True for grouped parents that already own an alias. The Assign button
     /// is disabled and an "Assigned" pill is shown next to the source badge.
@@ -84,30 +84,31 @@ private struct UnassignedRow: View {
                     if isAssigned {
                         AssignedBadge()
                     }
+                    // Small disclosure pill, sized to sit inline with the
+                    // badges (similar visual weight). Only on parent rows.
+                    if let disc = disclosure {
+                        Button(action: disc.onToggle) {
+                            Image(systemName: disc.isCollapsed ? "chevron.right" : "chevron.down")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(Color.accentColor)
+                                .frame(width: 10, height: 10)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 3)
+                                .background(
+                                    Capsule(style: .continuous)
+                                        .fill(Color.secondary.opacity(pillHovering ? 0.18 : 0.10))
+                                )
+                        }
+                        .buttonStyle(.plain)
+                        .onHover { pillHovering = $0 }
+                        .help(disc.isCollapsed ? "Expand grouped sub-items" : "Collapse grouped sub-items")
+                    }
                 }
                 Text(id)
                     .font(.system(.footnote, design: .monospaced))
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            if let disc = disclosure, hovering || !disc.isCollapsed {
-                Button(action: disc.onToggle) {
-                    Image(systemName: disc.isCollapsed ? "chevron.right" : "chevron.down")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(Color.accentColor)
-                        .frame(width: 12, height: 12)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 3)
-                        .background(
-                            RoundedRectangle(cornerRadius: 5, style: .continuous)
-                                .fill(Color.secondary.opacity(pillHovering ? 0.18 : 0.10))
-                        )
-                }
-                .buttonStyle(.plain)
-                .onHover { pillHovering = $0 }
-                .help(disc.isCollapsed ? "Expand grouped sub-items" : "Collapse grouped sub-items")
-                .padding(.trailing, 4)
-            }
             Button(action: onAssign) {
                 Text(isUpdate ? "Update" : "Assign")
             }

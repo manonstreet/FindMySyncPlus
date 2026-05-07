@@ -17,7 +17,7 @@ Source badges indicate where each entry came from: **Device** (blue), **Item** (
 
 Some Apple accessories report as a parent device with sub-items (e.g. an AirPods Pro pair has Case, Left Bud, and Right Bud as children of the pair). The Unassigned list surfaces only the parent (e.g. "AirPods Pro") by default.
 
-- **Hover a parent row** to reveal a small chevron pill on the right. Click it to expand and see the sub-items indented underneath.
+- **Parent rows show a small chevron pill** on the right. Click it to expand and see the sub-items indented underneath.
 - **Sub-items are not posted to Home Assistant unless aliased.** The parent group entity is the canonical "AirPods" entry. To publish a specific bud (e.g. for finding a lost one), expand the parent and assign that sub-item like any other entry.
 - **Parent location is automatically backfilled** from the freshest child when the parent's own location is stale, so the parent entity always reflects the most current known location.
 
