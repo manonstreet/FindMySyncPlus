@@ -149,7 +149,13 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
 
             let devId = DeviceAlias.entityID(for: alias)
 
-            // Publish HA auto-discovery config (once per session)
+            // Publish HA auto-discovery config (once per session). The
+            // `device` block groups all FindMySync+ entities under a single
+            // device card in HA's Devices & Services view. No `state_topic`
+            // on purpose — HA derives tracker state from latitude/longitude
+            // in json_attributes_topic (device_tracker.mqtt + source_type=gps);
+            // publishing state messages on every sync caused home → not_home
+            // → home flapping that reset zone-duration counters (commit 4c28f0d).
             if !publishedDiscoveryIds.contains(devId) {
                 let configTopic = "homeassistant/device_tracker/\(devId)/config"
                 let configPayload: [String: Any] = [
@@ -157,7 +163,13 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
                     "unique_id": devId,
                     "object_id": devId,
                     "json_attributes_topic": "\(prefix)\(devId)/attributes",
-                    "source_type": "gps"
+                    "source_type": "gps",
+                    "device": [
+                        "identifiers": ["findmysyncplus"],
+                        "name": "FindMySync+",
+                        "manufacturer": "Apple",
+                        "model": "Find My"
+                    ]
                 ]
                 publishJSON(client: client, topic: configTopic, payload: configPayload, retain: true)
                 publishedDiscoveryIds.insert(devId)
