@@ -221,11 +221,15 @@ struct DeviceManagerView: View {
     }
 
     /// Set of normalized UUIDs that are referenced as a parent by some
-    /// detected child entry. Used so aliased grouped parents stay visible
-    /// in the Unassigned list (with their children nested) — it would be
-    /// confusing to make children orphan-flat once their parent is aliased.
+    /// detected *unaliased* child entry. Used so aliased grouped parents
+    /// stay visible in the Unassigned list (with their children nested)
+    /// only when there's still a child left to alias. Once every child is
+    /// also aliased, the parent disappears from the Unassigned list because
+    /// nothing is left to manage there.
     private var groupedParentIDs: Set<String> {
-        Set(entriesAll.compactMap { $0.point.parentID?.normalized() })
+        Set(entriesAll
+            .filter { !knownUUIDsSet.contains($0.point.id.normalized()) }
+            .compactMap { $0.point.parentID?.normalized() })
     }
 
     private var baseUnassigned: [LocatedEntry] {
