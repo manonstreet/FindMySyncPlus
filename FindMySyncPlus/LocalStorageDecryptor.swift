@@ -91,15 +91,20 @@ actor LocalStorageDecryptor {
         // Parse WAL if present
         let walPages = parseWAL(walURL)
 
-        // Build encrypted page array, merging WAL overrides
+        // Build encrypted page array, merging WAL overrides.
+        // LocalStorage.db is often a single page with the real content in the WAL —
+        // extend the page array when WAL frames reference pages beyond EOF
+        // (same approach as findmy-key-extractor's decrypt_localstorage.py).
         var encPages: [Data] = (0..<pageCount).map { i in
             let start = i * Self.pageSize
             return Data(dbData[start..<start + Self.pageSize])
         }
         for (idx, pageData) in walPages {
-            if idx < encPages.count {
-                encPages[idx] = pageData
+            guard idx >= 0 else { continue }
+            while idx >= encPages.count {
+                encPages.append(Data(count: Self.pageSize))
             }
+            encPages[idx] = pageData
         }
 
         // Verify key by decrypting page 0
