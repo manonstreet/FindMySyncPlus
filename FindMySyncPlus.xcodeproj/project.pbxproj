@@ -8,11 +8,6 @@
 
 /* Begin PBXBuildFile section */
 		5DAE2C4B2E73A82E00EF354B /* Ink in Frameworks */ = {isa = PBXBuildFile; productRef = 5DAE2C4A2E73A82E00EF354B /* Ink */; };
-		AABB0002AABB0002AABB0002 /* CacheDecryptorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB0001AABB0001AABB0001 /* CacheDecryptorTests.swift */; };
-		CC110002CC110002CC110002 /* TextSanitizationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC110001CC110001CC110001 /* TextSanitizationTests.swift */; };
-		CC110004CC110004CC110004 /* LocalStorageDecryptorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC110003CC110003CC110003 /* LocalStorageDecryptorTests.swift */; };
-		DD220002DD220002DD220002 /* ModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD220001DD220001DD220001 /* ModelTests.swift */; };
-		EE330002EE330002EE330002 /* SyncEngineGroupingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE330001EE330001EE330001 /* SyncEngineGroupingTests.swift */; };
 		MQTT0001MQTT0001MQTT0001 /* CocoaMQTT in Frameworks */ = {isa = PBXBuildFile; productRef = MQTT0002MQTT0002MQTT0002 /* CocoaMQTT */; };
 /* End PBXBuildFile section */
 
@@ -37,11 +32,6 @@
 		5DA3BFED2E5B3B8800B73B01 /* FindMySyncPlus.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FindMySyncPlus.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		5DA3BFFB2E5B3B8900B73B01 /* FindMySyncPlusTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FindMySyncPlusTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		5DA3C0052E5B3B8900B73B01 /* FindMySyncPlusUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FindMySyncPlusUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		AABB0001AABB0001AABB0001 /* CacheDecryptorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheDecryptorTests.swift; sourceTree = "<group>"; };
-		CC110001CC110001CC110001 /* TextSanitizationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextSanitizationTests.swift; sourceTree = "<group>"; };
-		CC110003CC110003CC110003 /* LocalStorageDecryptorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalStorageDecryptorTests.swift; sourceTree = "<group>"; };
-		DD220001DD220001DD220001 /* ModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelTests.swift; sourceTree = "<group>"; };
-		EE330001EE330001EE330001 /* SyncEngineGroupingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncEngineGroupingTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -61,6 +51,11 @@
 				5D5822292E6F2342000DB127 /* Exceptions for "FindMySyncPlus" folder in "FindMySyncPlus" target */,
 			);
 			path = FindMySyncPlus;
+			sourceTree = "<group>";
+		};
+		FA110001FA110001FA110001 /* FindMySyncPlusTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = FindMySyncPlusTests;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -96,7 +91,7 @@
 			isa = PBXGroup;
 			children = (
 				5DA3BFEF2E5B3B8800B73B01 /* FindMySyncPlus */,
-				AABB0003AABB0003AABB0003 /* FindMySyncPlusTests */,
+				FA110001FA110001FA110001 /* FindMySyncPlusTests */,
 				5DA3BFEE2E5B3B8800B73B01 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -109,18 +104,6 @@
 				5DA3C0052E5B3B8900B73B01 /* FindMySyncPlusUITests.xctest */,
 			);
 			name = Products;
-			sourceTree = "<group>";
-		};
-		AABB0003AABB0003AABB0003 /* FindMySyncPlusTests */ = {
-			isa = PBXGroup;
-			children = (
-				AABB0001AABB0001AABB0001 /* CacheDecryptorTests.swift */,
-				CC110003CC110003CC110003 /* LocalStorageDecryptorTests.swift */,
-				DD220001DD220001DD220001 /* ModelTests.swift */,
-				EE330001EE330001EE330001 /* SyncEngineGroupingTests.swift */,
-				CC110001CC110001CC110001 /* TextSanitizationTests.swift */,
-			);
-			path = FindMySyncPlusTests;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -162,6 +145,9 @@
 			);
 			dependencies = (
 				5DA3BFFD2E5B3B8900B73B01 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				FA110001FA110001FA110001 /* FindMySyncPlusTests */,
 			);
 			name = FindMySyncPlusTests;
 			packageProductDependencies = (
@@ -274,11 +260,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				AABB0002AABB0002AABB0002 /* CacheDecryptorTests.swift in Sources */,
-				CC110004CC110004CC110004 /* LocalStorageDecryptorTests.swift in Sources */,
-				DD220002DD220002DD220002 /* ModelTests.swift in Sources */,
-				EE330002EE330002EE330002 /* SyncEngineGroupingTests.swift in Sources */,
-				CC110002CC110002CC110002 /* TextSanitizationTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
