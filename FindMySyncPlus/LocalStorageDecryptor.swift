@@ -91,15 +91,27 @@ actor LocalStorageDecryptor {
         // Parse WAL if present
         let walPages = parseWAL(walURL)
 
-        // Build encrypted page array, merging WAL overrides
+        // Build encrypted page array, merging WAL overrides.
+        // LocalStorage.db is often a single page with the real content in the WAL —
+        // extend the page array when WAL frames reference pages beyond EOF
+        // (same approach as findmy-key-extractor's decrypt_localstorage.py).
         var encPages: [Data] = (0..<pageCount).map { i in
             let start = i * Self.pageSize
             return Data(dbData[start..<start + Self.pageSize])
         }
-        for (idx, pageData) in walPages {
-            if idx < encPages.count {
-                encPages[idx] = pageData
+        // `parseWAL` reads `pgno` as an unvalidated UInt32, so a garbage frame could
+        // drive the growth loop toward appending terabytes of pages. A WAL cannot
+        // legitimately add more pages than it has frames, so that is a safe ceiling;
+        // out-of-range frames are dropped and the caller surfaces `.dbCorrupted`.
+        // Sorting keeps growth strictly append-forward — `Dictionary` iteration order
+        // is nondeterministic, which would otherwise make failures unreproducible.
+        let maxPages = pageCount + walPages.count
+        for (idx, pageData) in walPages.sorted(by: { $0.key < $1.key }) {
+            guard idx >= 0, idx < maxPages else { continue }
+            while idx >= encPages.count {
+                encPages.append(Data(count: Self.pageSize))
             }
+            encPages[idx] = pageData
         }
 
         // Verify key by decrypting page 0
