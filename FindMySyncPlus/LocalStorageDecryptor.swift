@@ -91,28 +91,12 @@ actor LocalStorageDecryptor {
         // Parse WAL if present
         let walPages = parseWAL(walURL)
 
-        // Build encrypted page array, merging WAL overrides.
-        // LocalStorage.db is often a single page with the real content in the WAL —
-        // extend the page array when WAL frames reference pages beyond EOF
-        // (same approach as findmy-key-extractor's decrypt_localstorage.py).
-        var encPages: [Data] = (0..<pageCount).map { i in
+        // Build encrypted page array, merging WAL overrides on top.
+        let basePages: [Data] = (0..<pageCount).map { i in
             let start = i * Self.pageSize
             return Data(dbData[start..<start + Self.pageSize])
         }
-        // `parseWAL` reads `pgno` as an unvalidated UInt32, so a garbage frame could
-        // drive the growth loop toward appending terabytes of pages. A WAL cannot
-        // legitimately add more pages than it has frames, so that is a safe ceiling;
-        // out-of-range frames are dropped and the caller surfaces `.dbCorrupted`.
-        // Sorting keeps growth strictly append-forward — `Dictionary` iteration order
-        // is nondeterministic, which would otherwise make failures unreproducible.
-        let maxPages = pageCount + walPages.count
-        for (idx, pageData) in walPages.sorted(by: { $0.key < $1.key }) {
-            guard idx >= 0, idx < maxPages else { continue }
-            while idx >= encPages.count {
-                encPages.append(Data(count: Self.pageSize))
-            }
-            encPages[idx] = pageData
-        }
+        let encPages = mergeWALPages(basePages: basePages, walPages: walPages)
 
         // Verify key by decrypting page 0
         let page0 = decryptPage(encPages[0], pageIndex: 0, key: key)
@@ -204,30 +188,91 @@ actor LocalStorageDecryptor {
 
     // MARK: - WAL parsing
 
-    /// Parse WAL file and return {0-based page index: encrypted page data}, keeping latest frame per page.
-    private nonisolated func parseWAL(_ walURL: URL) -> [Int: Data] {
-        guard let walData = try? Data(contentsOf: walURL) else { return [:] }
+    /// Parse WAL bytes and return {0-based page index: encrypted page data}.
+    ///
+    /// Only frames up to and including the last commit frame are returned. SQLite may leave
+    /// frames from an in-flight transaction at the tail of the WAL; replaying them would
+    /// reconstruct a torn state that was never committed.
+    nonisolated func parseWALFrames(_ walData: Data) -> [Int: Data] {
         let walHeaderSize = 32
         let frameHeaderSize = 24
         let frameSize = frameHeaderSize + Self.pageSize
         guard walData.count > walHeaderSize else { return [:] }
 
+        let base = walData.startIndex
         let frameCount = (walData.count - walHeaderSize) / frameSize
-        var pages: [Int: Data] = [:]
+
+        // Salts identify the WAL generation. A checkpoint restarts the WAL with new salts
+        // but leaves old frames in place, so frames that don't match belong to a dead
+        // generation and must not be replayed.
+        let headerSalt1 = readBE32(walData, at: base + 16)
+        let headerSalt2 = readBE32(walData, at: base + 20)
+
+        var pending: [Int: Data] = [:]
+        var committed: [Int: Data] = [:]
 
         for i in 0..<frameCount {
             let offset = walHeaderSize + i * frameSize
-            guard offset + 4 <= walData.count else { break }
-            // Page number is 1-indexed, big-endian in WAL header
-            let pgno = walData.withUnsafeBytes { buf in
-                buf.load(fromByteOffset: offset, as: UInt32.self).bigEndian
-            }
-            let dataStart = offset + frameHeaderSize
+            let dataStart = base + offset + frameHeaderSize
             let dataEnd = dataStart + Self.pageSize
-            guard dataEnd <= walData.count else { break }
-            pages[Int(pgno) - 1] = Data(walData[dataStart..<dataEnd])  // convert to 0-indexed
+            guard dataEnd <= walData.endIndex else { break }
+
+            let pgno = readBE32(walData, at: base + offset)
+            let dbSizeAfterCommit = readBE32(walData, at: base + offset + 4)
+            let frameSalt1 = readBE32(walData, at: base + offset + 8)
+            let frameSalt2 = readBE32(walData, at: base + offset + 12)
+
+            // Halt rather than skip: the valid region is a contiguous run from the header,
+            // so nothing after a mismatch can be trusted to belong to this generation.
+            guard frameSalt1 == headerSalt1, frameSalt2 == headerSalt2 else { break }
+
+            // Page numbers are 1-based; 0 is invalid and would yield index -1.
+            guard pgno > 0 else { continue }
+
+            pending[Int(pgno) - 1] = Data(walData[dataStart..<dataEnd])
+
+            // A non-zero db-size-after-commit marks a commit frame: everything up to
+            // and including it is durable. Snapshot it as the last known good state.
+            if dbSizeAfterCommit != 0 {
+                committed = pending
+            }
+        }
+
+        return committed
+    }
+
+    private nonisolated func readBE32(_ data: Data, at offset: Int) -> UInt32 {
+        data.withUnsafeBytes { buf in
+            buf.loadUnaligned(fromByteOffset: offset - data.startIndex, as: UInt32.self).bigEndian
+        }
+    }
+
+    /// Overlay WAL pages onto the base page array, extending it when frames land past EOF.
+    ///
+    /// LocalStorage.db is often a single page with the live content still in the WAL, so the
+    /// array must grow. The ceiling keeps that growth bounded: a WAL cannot legitimately add
+    /// more pages than it has frames, so a garbage `pgno` is dropped rather than driving the
+    /// append loop toward terabytes. Sorting keeps growth strictly append-forward, since
+    /// `Dictionary` iteration order is nondeterministic.
+    nonisolated func mergeWALPages(basePages: [Data], walPages: [Int: Data]) -> [Data] {
+        var pages = basePages
+        let maxPages = basePages.count + walPages.count
+
+        for (idx, pageData) in walPages.sorted(by: { $0.key < $1.key }) {
+            guard idx >= 0, idx < maxPages else { continue }
+            while idx >= pages.count {
+                pages.append(Data(count: Self.pageSize))
+            }
+            pages[idx] = pageData
         }
         return pages
+    }
+
+    /// Read the WAL file and return {0-based page index: encrypted page data}.
+    /// A missing WAL is normal — the DB may simply be fully checkpointed.
+    nonisolated func parseWAL(_ walURL: URL) -> [Int: Data] {
+        guard let walData = try? Data(contentsOf: walURL) else { return [:] }
+        return parseWALFrames(walData)
     }
 
     // MARK: - DB reconstruction
