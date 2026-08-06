@@ -77,7 +77,7 @@ struct LocalStorageWALTests {
             WALFrame(pgno: 2, dbSizeAfterCommit: 0, salt1: 0xAAAA_1111, salt2: 0xBBBB_2222, fill: 0xB2)
         ])
 
-        let pages = LocalStorageDecryptor().parseWALFrames(wal)
+        let pages = LocalStorageDecryptor().parseWALFrames(wal).pages
 
         #expect(pages[0]?.first == 0xA1)
         #expect(pages[1] == nil, "frame 2 is uncommitted and must not be replayed")
@@ -93,7 +93,7 @@ struct LocalStorageWALTests {
             WALFrame(pgno: 2, dbSizeAfterCommit: 2, salt1: 0xDEAD_0000, salt2: 0xBEEF_0000, fill: 0xB2)
         ])
 
-        let pages = LocalStorageDecryptor().parseWALFrames(wal)
+        let pages = LocalStorageDecryptor().parseWALFrames(wal).pages
 
         #expect(pages[0]?.first == 0xA1)
         #expect(pages[1] == nil, "salt mismatch marks a stale generation; the frame must be ignored")
@@ -111,7 +111,7 @@ struct LocalStorageWALTests {
             WALFrame(pgno: 3, dbSizeAfterCommit: 3, salt1: 0xAAAA_1111, salt2: 0xBBBB_2222, fill: 0xC3)
         ])
 
-        let pages = LocalStorageDecryptor().parseWALFrames(wal)
+        let pages = LocalStorageDecryptor().parseWALFrames(wal).pages
 
         #expect(pages[0]?.first == 0xA1)
         #expect(pages[2] == nil, "frames beyond the first salt mismatch must not be replayed")
@@ -126,7 +126,7 @@ struct LocalStorageWALTests {
             WALFrame(pgno: 1, dbSizeAfterCommit: 1, salt1: 0xAAAA_1111, salt2: 0xBBBB_2222, fill: 0xB2)
         ])
 
-        let pages = LocalStorageDecryptor().parseWALFrames(wal)
+        let pages = LocalStorageDecryptor().parseWALFrames(wal).pages
 
         #expect(pages[-1] == nil, "pgno 0 must never produce a negative page index")
         #expect(pages[0]?.first == 0xB2, "valid frames after an invalid one are still parsed")
@@ -138,7 +138,7 @@ struct LocalStorageWALTests {
             WALFrame(pgno: 3, dbSizeAfterCommit: 3, salt1: 0xAAAA_1111, salt2: 0xBBBB_2222, fill: 0xC3)
         ])
 
-        let pages = LocalStorageDecryptor().parseWALFrames(wal)
+        let pages = LocalStorageDecryptor().parseWALFrames(wal).pages
 
         #expect(pages[2]?.first == 0xC3)
         #expect(pages[3] == nil)
@@ -151,7 +151,7 @@ struct LocalStorageWALTests {
             WALFrame(pgno: 1, dbSizeAfterCommit: 1, salt1: 0xAAAA_1111, salt2: 0xBBBB_2222, fill: 0x22)
         ])
 
-        let pages = LocalStorageDecryptor().parseWALFrames(wal)
+        let pages = LocalStorageDecryptor().parseWALFrames(wal).pages
 
         #expect(pages[0]?.first == 0x22, "the later frame supersedes the earlier one")
     }
@@ -161,7 +161,7 @@ struct LocalStorageWALTests {
     func yieldsNothingForHeaderOnlyInput(byteCount: Int) {
         let wal = Data(repeating: 0, count: byteCount)
 
-        #expect(LocalStorageDecryptor().parseWALFrames(wal).isEmpty)
+        #expect(LocalStorageDecryptor().parseWALFrames(wal).pages.isEmpty)
     }
 
     /// A crash mid-append leaves a partial frame at the tail. It was never committed.
@@ -172,7 +172,7 @@ struct LocalStorageWALTests {
             WALFrame(pgno: 2, dbSizeAfterCommit: 2, salt1: 0xAAAA_1111, salt2: 0xBBBB_2222, fill: 0xB2)
         ], truncateBy: 100)
 
-        let pages = LocalStorageDecryptor().parseWALFrames(wal)
+        let pages = LocalStorageDecryptor().parseWALFrames(wal).pages
 
         #expect(pages[0]?.first == 0xA1)
         #expect(pages[1] == nil, "the torn frame must not be replayed")
@@ -191,7 +191,7 @@ struct LocalStorageWALTests {
         try wal.write(to: url)
         defer { try? FileManager.default.removeItem(at: url) }
 
-        let pages = LocalStorageDecryptor().parseWAL(url)
+        let pages = LocalStorageDecryptor().parseWAL(url).pages
 
         #expect(pages[0]?.first == 0xA1)
         #expect(pages[1] == nil, "uncommitted frame must be dropped on the disk path too")
@@ -202,7 +202,7 @@ struct LocalStorageWALTests {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("fms_wal_does_not_exist_\(UUID().uuidString).wal")
 
-        #expect(LocalStorageDecryptor().parseWAL(url).isEmpty)
+        #expect(LocalStorageDecryptor().parseWAL(url).pages.isEmpty)
     }
 }
 
@@ -220,7 +220,7 @@ struct LocalStorageWALMergeTests {
         let merged = LocalStorageDecryptor().mergeWALPages(
             basePages: [page(0x00)],
             walPages: [0: page(0xA1), 2: page(0xC3)]
-        )
+        ).pages
 
         // `#require` rather than `#expect`: `#expect` records the failure but keeps
         // running, so a short array would trap on the subscripts below and crash the
@@ -238,7 +238,7 @@ struct LocalStorageWALMergeTests {
         let merged = LocalStorageDecryptor().mergeWALPages(
             basePages: [page(0x00)],
             walPages: [0: page(0xA1), 999_999: page(0xFF)]
-        )
+        ).pages
 
         // The in-range frame overwrites page 0 in place and the garbage frame is dropped,
         // so the array never grows. Without the ceiling the append loop would run toward
@@ -252,8 +252,89 @@ struct LocalStorageWALMergeTests {
         let merged = LocalStorageDecryptor().mergeWALPages(
             basePages: [page(0x11), page(0x22)],
             walPages: [:]
-        )
+        ).pages
 
         #expect(merged.map(\.first) == [0x11, 0x22])
+    }
+}
+
+// MARK: - Diagnostics
+
+/// The guards drop frames silently by design — dropping is the correct behavior. But a
+/// silent drop that goes too far surfaces to the user as "LocalStorage key is incorrect",
+/// which is actively misleading. These counts are what makes that distinguishable in the log.
+@Suite("WAL diagnostics")
+struct LocalStorageWALDiagnosticsTests {
+
+    private let salt1: UInt32 = 0xAAAA_1111
+    private let salt2: UInt32 = 0xBBBB_2222
+
+    @Test("reports a clean WAL as having no anomalies")
+    func cleanWALHasNoAnomalies() {
+        let wal = makeWAL(frames: [
+            WALFrame(pgno: 1, dbSizeAfterCommit: 1, salt1: salt1, salt2: salt2, fill: 0xA1)
+        ])
+
+        let result = LocalStorageDecryptor().parseWALFrames(wal)
+
+        #expect(result.frameCount == 1)
+        #expect(result.haltedAtSaltMismatch == nil)
+        #expect(result.droppedAfterLastCommit == 0)
+        #expect(result.invalidPageNumbers == 0)
+        #expect(result.hasAnomalies == false)
+    }
+
+    @Test("reports the frame index where a salt mismatch halted parsing")
+    func reportsSaltMismatchIndex() {
+        let wal = makeWAL(frames: [
+            WALFrame(pgno: 1, dbSizeAfterCommit: 1, salt1: salt1, salt2: salt2, fill: 0xA1),
+            WALFrame(pgno: 2, dbSizeAfterCommit: 2, salt1: 0xDEAD_0000, salt2: 0xBEEF_0000, fill: 0xB2),
+            WALFrame(pgno: 3, dbSizeAfterCommit: 3, salt1: 0xDEAD_0000, salt2: 0xBEEF_0000, fill: 0xC3)
+        ])
+
+        let result = LocalStorageDecryptor().parseWALFrames(wal)
+
+        #expect(result.frameCount == 3)
+        #expect(result.haltedAtSaltMismatch == 1, "halted at frame index 1")
+        #expect(result.hasAnomalies)
+    }
+
+    @Test("counts frames discarded past the last commit frame")
+    func countsFramesAfterLastCommit() {
+        let wal = makeWAL(frames: [
+            WALFrame(pgno: 1, dbSizeAfterCommit: 1, salt1: salt1, salt2: salt2, fill: 0xA1),
+            WALFrame(pgno: 2, dbSizeAfterCommit: 0, salt1: salt1, salt2: salt2, fill: 0xB2),
+            WALFrame(pgno: 3, dbSizeAfterCommit: 0, salt1: salt1, salt2: salt2, fill: 0xC3)
+        ])
+
+        let result = LocalStorageDecryptor().parseWALFrames(wal)
+
+        #expect(result.droppedAfterLastCommit == 2)
+        #expect(result.hasAnomalies)
+    }
+
+    @Test("counts frames carrying an invalid page number")
+    func countsInvalidPageNumbers() {
+        let wal = makeWAL(frames: [
+            WALFrame(pgno: 0, dbSizeAfterCommit: 0, salt1: salt1, salt2: salt2, fill: 0xA1),
+            WALFrame(pgno: 1, dbSizeAfterCommit: 1, salt1: salt1, salt2: salt2, fill: 0xB2)
+        ])
+
+        let result = LocalStorageDecryptor().parseWALFrames(wal)
+
+        #expect(result.invalidPageNumbers == 1)
+        #expect(result.hasAnomalies)
+    }
+
+    @Test("reports how many WAL pages fell outside the page ceiling")
+    func reportsOutOfRangeMergeDrops() {
+        let page = Data(repeating: 0xEE, count: walPageSize)
+
+        let merged = LocalStorageDecryptor().mergeWALPages(
+            basePages: [Data(repeating: 0, count: walPageSize)],
+            walPages: [0: page, 999_999: page]
+        )
+
+        #expect(merged.droppedOutOfRange == 1)
     }
 }

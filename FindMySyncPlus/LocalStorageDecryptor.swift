@@ -89,14 +89,36 @@ actor LocalStorageDecryptor {
         guard pageCount > 0 else { return .failure(.dbCorrupted("DB file is empty")) }
 
         // Parse WAL if present
-        let walPages = parseWAL(walURL)
+        let wal = parseWAL(walURL)
 
         // Build encrypted page array, merging WAL overrides on top.
         let basePages: [Data] = (0..<pageCount).map { i in
             let start = i * Self.pageSize
             return Data(dbData[start..<start + Self.pageSize])
         }
-        let encPages = mergeWALPages(basePages: basePages, walPages: walPages)
+        let (encPages, droppedOutOfRange) = mergeWALPages(basePages: basePages, walPages: wal.pages)
+
+        // Report anything the frame guards discarded. Without this the guards are invisible:
+        // a drop that goes too far reaches the user as ".incorrectKey", which is misleading.
+        if wal.hasAnomalies || droppedOutOfRange > 0 {
+            var reasons: [String] = []
+            if let frame = wal.haltedAtSaltMismatch {
+                reasons.append("halted at frame \(frame) of \(wal.frameCount) on a salt mismatch (stale WAL generation)")
+            }
+            if wal.droppedAfterLastCommit > 0 {
+                reasons.append("\(wal.droppedAfterLastCommit) page(s) dropped as uncommitted")
+            }
+            if wal.invalidPageNumbers > 0 {
+                reasons.append("\(wal.invalidPageNumbers) frame(s) with an invalid page number")
+            }
+            if droppedOutOfRange > 0 {
+                reasons.append("\(droppedOutOfRange) page(s) beyond the page ceiling")
+            }
+            let detail = reasons.joined(separator: "; ")
+            Task { @MainActor in
+                logger.warn("Friends: WAL validation discarded data — \(detail). Friend locations may be stale or incomplete this cycle.")
+            }
+        }
 
         // Verify key by decrypting page 0
         let page0 = decryptPage(encPages[0], pageIndex: 0, key: key)
@@ -188,19 +210,46 @@ actor LocalStorageDecryptor {
 
     // MARK: - WAL parsing
 
-    /// Parse WAL bytes and return {0-based page index: encrypted page data}.
+    /// Outcome of parsing a WAL, including why frames were discarded.
+    ///
+    /// The counts matter because discarding is silent by design. If the guards discard too
+    /// much, the reconstructed DB fails its magic-byte check and the user is told the
+    /// LocalStorage key is incorrect — which is wrong and unactionable. These let the caller
+    /// say what actually happened.
+    struct WALParseResult {
+        var pages: [Int: Data] = [:]
+        /// Total complete frames present in the file, before any validation.
+        var frameCount = 0
+        /// Frame index where a salt mismatch halted parsing, if any.
+        var haltedAtSaltMismatch: Int?
+        /// Pages discarded because the frame that last wrote them was never committed.
+        var droppedAfterLastCommit = 0
+        /// Frames whose page number was 0 (invalid — page numbers are 1-based).
+        var invalidPageNumbers = 0
+
+        var hasAnomalies: Bool {
+            haltedAtSaltMismatch != nil || droppedAfterLastCommit > 0 || invalidPageNumbers > 0
+        }
+    }
+
+    /// Parse WAL bytes and return {0-based page index: encrypted page data} plus diagnostics.
     ///
     /// Only frames up to and including the last commit frame are returned. SQLite may leave
     /// frames from an in-flight transaction at the tail of the WAL; replaying them would
     /// reconstruct a torn state that was never committed.
-    nonisolated func parseWALFrames(_ walData: Data) -> [Int: Data] {
+    ///
+    /// Two passes: the first reads only 24-byte frame headers to decide which frames win,
+    /// the second copies just those pages. A single pass would copy a 4 KB page per frame —
+    /// on a real WAL that is hundreds of copies to keep two of them.
+    nonisolated func parseWALFrames(_ walData: Data) -> WALParseResult {
         let walHeaderSize = 32
         let frameHeaderSize = 24
         let frameSize = frameHeaderSize + Self.pageSize
-        guard walData.count > walHeaderSize else { return [:] }
+        guard walData.count > walHeaderSize else { return WALParseResult() }
 
         let base = walData.startIndex
-        let frameCount = (walData.count - walHeaderSize) / frameSize
+        var result = WALParseResult()
+        result.frameCount = (walData.count - walHeaderSize) / frameSize
 
         // Salts identify the WAL generation. A checkpoint restarts the WAL with new salts
         // but leaves old frames in place, so frames that don't match belong to a dead
@@ -208,14 +257,13 @@ actor LocalStorageDecryptor {
         let headerSalt1 = readBE32(walData, at: base + 16)
         let headerSalt2 = readBE32(walData, at: base + 20)
 
-        var pending: [Int: Data] = [:]
-        var committed: [Int: Data] = [:]
+        // Pass 1 — headers only: which frame last wrote each page, and where the last commit is.
+        var winningFrame: [Int: Int] = [:]
+        var lastCommitFrame = -1
 
-        for i in 0..<frameCount {
+        for i in 0..<result.frameCount {
             let offset = walHeaderSize + i * frameSize
-            let dataStart = base + offset + frameHeaderSize
-            let dataEnd = dataStart + Self.pageSize
-            guard dataEnd <= walData.endIndex else { break }
+            guard base + offset + frameSize <= walData.endIndex else { break }
 
             let pgno = readBE32(walData, at: base + offset)
             let dbSizeAfterCommit = readBE32(walData, at: base + offset + 4)
@@ -224,21 +272,35 @@ actor LocalStorageDecryptor {
 
             // Halt rather than skip: the valid region is a contiguous run from the header,
             // so nothing after a mismatch can be trusted to belong to this generation.
-            guard frameSalt1 == headerSalt1, frameSalt2 == headerSalt2 else { break }
+            guard frameSalt1 == headerSalt1, frameSalt2 == headerSalt2 else {
+                result.haltedAtSaltMismatch = i
+                break
+            }
 
             // Page numbers are 1-based; 0 is invalid and would yield index -1.
-            guard pgno > 0 else { continue }
-
-            pending[Int(pgno) - 1] = Data(walData[dataStart..<dataEnd])
-
-            // A non-zero db-size-after-commit marks a commit frame: everything up to
-            // and including it is durable. Snapshot it as the last known good state.
-            if dbSizeAfterCommit != 0 {
-                committed = pending
+            guard pgno > 0 else {
+                result.invalidPageNumbers += 1
+                continue
             }
+
+            winningFrame[Int(pgno) - 1] = i
+
+            // A non-zero db-size-after-commit marks a commit frame: everything up to and
+            // including it is durable.
+            if dbSizeAfterCommit != 0 { lastCommitFrame = i }
         }
 
-        return committed
+        // Pass 2 — copy only the pages whose winning frame is committed.
+        for (pageIndex, frameIndex) in winningFrame {
+            guard frameIndex <= lastCommitFrame else {
+                result.droppedAfterLastCommit += 1
+                continue
+            }
+            let dataStart = base + walHeaderSize + frameIndex * frameSize + frameHeaderSize
+            result.pages[pageIndex] = Data(walData[dataStart..<dataStart + Self.pageSize])
+        }
+
+        return result
     }
 
     private nonisolated func readBE32(_ data: Data, at offset: Int) -> UInt32 {
@@ -254,24 +316,31 @@ actor LocalStorageDecryptor {
     /// more pages than it has frames, so a garbage `pgno` is dropped rather than driving the
     /// append loop toward terabytes. Sorting keeps growth strictly append-forward, since
     /// `Dictionary` iteration order is nondeterministic.
-    nonisolated func mergeWALPages(basePages: [Data], walPages: [Int: Data]) -> [Data] {
+    nonisolated func mergeWALPages(
+        basePages: [Data],
+        walPages: [Int: Data]
+    ) -> (pages: [Data], droppedOutOfRange: Int) {
         var pages = basePages
         let maxPages = basePages.count + walPages.count
+        var droppedOutOfRange = 0
 
         for (idx, pageData) in walPages.sorted(by: { $0.key < $1.key }) {
-            guard idx >= 0, idx < maxPages else { continue }
+            guard idx >= 0, idx < maxPages else {
+                droppedOutOfRange += 1
+                continue
+            }
             while idx >= pages.count {
                 pages.append(Data(count: Self.pageSize))
             }
             pages[idx] = pageData
         }
-        return pages
+        return (pages, droppedOutOfRange)
     }
 
-    /// Read the WAL file and return {0-based page index: encrypted page data}.
-    /// A missing WAL is normal — the DB may simply be fully checkpointed.
-    nonisolated func parseWAL(_ walURL: URL) -> [Int: Data] {
-        guard let walData = try? Data(contentsOf: walURL) else { return [:] }
+    /// Read the WAL file and parse it. A missing WAL is normal — the DB may simply be
+    /// fully checkpointed, so that case is not an anomaly.
+    nonisolated func parseWAL(_ walURL: URL) -> WALParseResult {
+        guard let walData = try? Data(contentsOf: walURL) else { return WALParseResult() }
         return parseWALFrames(walData)
     }
 
