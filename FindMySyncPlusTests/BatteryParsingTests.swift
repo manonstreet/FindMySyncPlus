@@ -248,32 +248,31 @@ struct MotionStateTests {
 /// the counter never advanced: every retry was attempt 1, at the shortest delay,
 /// forever — the attempt cap was unreachable and the backoff never backed off.
 @Suite("MQTT reconnect backoff")
-@MainActor
 struct ReconnectBackoffTests {
 
-    private func client() -> (MQTTClient, SettingsStore) {
-        let c = MQTTClient()
-        let s = SettingsStore()
-        s.mqttHost = ""     // connect() returns early, so no socket is opened
-        return (c, s)
-    }
+    // NOTE: deliberately does not construct SettingsStore. Its @AppStorage properties
+    // write to UserDefaults.standard, and the test target is hosted by the app bundle —
+    // so assigning to one clobbers the user's real configuration. The reset logic lives
+    // in disconnect(resetBackoff:), which needs no settings.
 
-    @Test("a reconnect attempt does not reset the counter")
+    @Test("a reconnect teardown does not reset the counter")
+    @MainActor
     func reconnectPreservesAttempts() {
-        let (c, s) = client()
+        let c = MQTTClient()
         c.setReconnectAttemptsForTesting(5)
 
-        c.connect(settings: s, resetBackoff: false)
+        c.disconnect(resetBackoff: false)
 
         #expect(c.reconnectAttempts == 5, "a retry must not restart the backoff schedule")
     }
 
     @Test("an externally requested connection does reset the counter")
+    @MainActor
     func freshConnectResetsAttempts() {
-        let (c, s) = client()
+        let c = MQTTClient()
         c.setReconnectAttemptsForTesting(5)
 
-        c.connect(settings: s)
+        c.disconnect()
 
         #expect(c.reconnectAttempts == 0, "a new connection starts a fresh schedule")
     }
