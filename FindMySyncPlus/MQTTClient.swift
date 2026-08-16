@@ -13,7 +13,7 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
 
     private var client: CocoaMQTT?
     private var reconnectTask: Task<Void, Never>?
-    private var reconnectAttempts = 0
+    private(set) var reconnectAttempts = 0
     private var publishedDiscoveryIds: Set<String> = []
 
     private weak var logger: LogStore?
@@ -36,10 +36,19 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
         self.settings = settings
     }
 
+    #if DEBUG
+    /// Seeds the retry counter so backoff behaviour can be tested without opening a
+    /// socket. Mirrors `CacheDecryptor.loadKeyForTesting`.
+    func setReconnectAttemptsForTesting(_ value: Int) { reconnectAttempts = value }
+    #endif
+
     // MARK: - Connection lifecycle
 
-    func connect(settings: SettingsStore) {
-        disconnect()
+    /// - Parameter resetBackoff: `true` for a connection the app asks for (startup,
+    ///   pre-flight, the connection test), which starts a fresh retry schedule. `false`
+    ///   for a scheduled reconnect, which must keep advancing the existing one.
+    func connect(settings: SettingsStore, resetBackoff: Bool = true) {
+        disconnect(resetBackoff: resetBackoff)
         intentionalDisconnect = false
         guard !settings.mqttHost.isEmpty else {
             logger?.warn("MQTT: host not configured")
@@ -74,11 +83,14 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
         _ = mqtt.connect()
     }
 
-    func disconnect() {
+    func disconnect(resetBackoff: Bool = true) {
         intentionalDisconnect = true
         reconnectTask?.cancel()
         reconnectTask = nil
-        reconnectAttempts = 0
+        // Only a fresh, externally requested connection restarts the schedule. A retry
+        // tears the client down too, and resetting here would pin every attempt at the
+        // first delay — an endless fast loop that never backs off or gives up.
+        if resetBackoff { reconnectAttempts = 0 }
         client?.disconnect()
         client = nil
         activeClientToken = nil
@@ -262,6 +274,17 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
         client.publish(msg)
     }
 
+    /// Exponential from 250ms: 0.25, 0.5, 1, 2, 4, 8, 16, 32, 60…
+    ///
+    /// The faults this recovers from are short. macOS denies local network access with
+    /// EHOSTUNREACH while it establishes a grant for a newly-signed binary — which
+    /// happens on first launch after every update — and the window measured ~320ms. A
+    /// 5s first retry turned that into a 5s outage plus a discarded sync run, because
+    /// the pre-flight gave up at exactly the moment the backoff was due to fire.
+    nonisolated static func backoffDelay(forAttempt attempt: Int) -> TimeInterval {
+        min(0.25 * pow(2.0, Double(max(1, attempt) - 1)), 60.0)
+    }
+
     private func scheduleReconnect(settings: SettingsStore) {
         reconnectTask?.cancel()
         reconnectAttempts += 1
@@ -282,7 +305,7 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
         reconnectTask = Task { @MainActor [weak self] in
             try? await Task.sleep(for: .seconds(delay))
             guard !Task.isCancelled else { return }
-            self?.connect(settings: settingsRef)
+            self?.connect(settings: settingsRef, resetBackoff: false)
         }
     }
 }

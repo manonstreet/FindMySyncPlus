@@ -240,3 +240,51 @@ struct MotionStateTests {
         #expect(attrs(motion: nil).motionStateDescription == "Unknown")
     }
 }
+
+// MARK: - Reconnect backoff
+
+/// `connect()` begins by tearing down the current client, and the teardown used to
+/// reset the attempt counter. Since every scheduled reconnect goes through `connect()`,
+/// the counter never advanced: every retry was attempt 1, at the shortest delay,
+/// forever — the attempt cap was unreachable and the backoff never backed off.
+@Suite("MQTT reconnect backoff")
+@MainActor
+struct ReconnectBackoffTests {
+
+    private func client() -> (MQTTClient, SettingsStore) {
+        let c = MQTTClient()
+        let s = SettingsStore()
+        s.mqttHost = ""     // connect() returns early, so no socket is opened
+        return (c, s)
+    }
+
+    @Test("a reconnect attempt does not reset the counter")
+    func reconnectPreservesAttempts() {
+        let (c, s) = client()
+        c.setReconnectAttemptsForTesting(5)
+
+        c.connect(settings: s, resetBackoff: false)
+
+        #expect(c.reconnectAttempts == 5, "a retry must not restart the backoff schedule")
+    }
+
+    @Test("an externally requested connection does reset the counter")
+    func freshConnectResetsAttempts() {
+        let (c, s) = client()
+        c.setReconnectAttemptsForTesting(5)
+
+        c.connect(settings: s)
+
+        #expect(c.reconnectAttempts == 0, "a new connection starts a fresh schedule")
+    }
+
+    @Test("delay grows with each attempt and is capped")
+    func delayGrows() {
+        let delays = (1...12).map { MQTTClient.backoffDelay(forAttempt: $0) }
+
+        #expect(delays[0] == 0.25, "first retry is fast — the fault it recovers from is short")
+        #expect(delays == delays.sorted(), "each retry waits at least as long as the last")
+        #expect(delays.allSatisfy { $0 <= 60 }, "capped so it never stops trying entirely")
+        #expect(delays.last! == 60, "reaches the cap within the attempt limit")
+    }
+}
