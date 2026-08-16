@@ -17,7 +17,13 @@ struct RichLocationAttributes: Sendable {
         case 3: return "Running"
         case 4: return "Automotive"
         case 5: return "Cycling"
-        default: return "Unknown"
+        case .none: return "Unknown"
+        case .some(let raw):
+            // Apple has added activity types before. Folding an unmapped value into
+            // "Unknown" makes it indistinguishable from a genuine 0 and impossible to
+            // notice, so the raw value stays visible — the same reasoning as
+            // `decodeLocationLabel` passing unrecognised input through unchanged.
+            return "Unmapped(\(raw))"
         }
     }
 

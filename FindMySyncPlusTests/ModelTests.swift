@@ -81,8 +81,11 @@ final class RichLocationAttributesTests: XCTestCase {
             (3, "Running"),
             (4, "Automotive"),
             (5, "Cycling"),
-            (6, "Unknown"),
-            (99, "Unknown"),
+            // An unmapped value stays visible rather than collapsing into "Unknown",
+            // which would be indistinguishable from a genuine 0 and would hide a new
+            // Apple activity type entirely.
+            (6, "Unmapped(6)"),
+            (99, "Unmapped(99)"),
             (nil, "Unknown"),
         ]
         for (state, expected) in cases {

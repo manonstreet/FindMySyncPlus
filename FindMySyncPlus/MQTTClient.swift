@@ -211,15 +211,29 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
 
     // MARK: - Attribute building
 
-    private func buildAttributes(for device: DevicePoint, iso: ISO8601DateFormatter) -> [String: Any] {
+    func buildAttributes(for device: DevicePoint, iso: ISO8601DateFormatter) -> [String: Any] {
         var attrs: [String: Any] = [
             "latitude": device.latitude,
             "longitude": device.longitude,
             "gps_accuracy": device.accuracy,
             "last_update": iso.string(from: Date())
         ]
-        if let b = device.battery {
-            attrs["battery"] = Int((b * 100).rounded())
+        // Four attributes, split by meaning rather than by Apple's key name. A single
+        // raw value would be ambiguous: `batteryLevel` is a 0–1 fraction and
+        // `batteryStatus` a small ordinal, so 1 could mean 100% or the ordinal "full".
+        if let level = device.battery {
+            attrs["battery"] = Int((level * 100).rounded())
+            attrs["battery_level_raw"] = level
+        }
+        if let code = device.batteryStatusCode {
+            // Deliberately not normalised into a percentage. The same ordinal means
+            // different things across manufacturers — observed values 0, 1, 2, 4, 5 and
+            // 100 from Apple, Sitecom and World Tag hardware, on scales that cannot be
+            // reconciled. Passing it through lets a user map their own.
+            attrs["battery_status_raw"] = code
+        }
+        if let charging = device.chargingState {
+            attrs["charging_state"] = charging
         }
         if let rich = device.richAttributes {
             if let alt = rich.altitude { attrs["altitude"] = alt }

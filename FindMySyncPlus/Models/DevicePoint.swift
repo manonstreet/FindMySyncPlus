@@ -7,18 +7,25 @@ struct DevicePoint: Sendable {
     let longitude: Double
     let accuracy: Double
     let battery: Double?
+    /// `Items.data` battery ordinal, passed through unmodified. Its meaning varies by
+    /// manufacturer and is deliberately not normalised — see `BatteryParsingTests`.
+    let batteryStatusCode: Int?
+    /// `Devices.data` charging state ("Charging" / "NotCharging" / "Unknown").
+    let chargingState: String?
     let prsId: String?     // person ID (base64 DSID); "owner" for self, DSID for family devices
     let richAttributes: RichLocationAttributes?
     let parentID: String?  // non-nil for grouped children (e.g. AirPods bud → its case/group baUUID)
 
     // swiftlint:disable:next line_length
-    init(id: String, name: String, latitude: Double, longitude: Double, accuracy: Double, battery: Double?, prsId: String? = nil, richAttributes: RichLocationAttributes? = nil, parentID: String? = nil) {
+    init(id: String, name: String, latitude: Double, longitude: Double, accuracy: Double, battery: Double?, batteryStatusCode: Int? = nil, chargingState: String? = nil, prsId: String? = nil, richAttributes: RichLocationAttributes? = nil, parentID: String? = nil) {
         self.id = id
         self.name = name
         self.latitude = latitude
         self.longitude = longitude
         self.accuracy = accuracy
         self.battery = battery
+        self.batteryStatusCode = batteryStatusCode
+        self.chargingState = chargingState
         self.prsId = prsId
         self.richAttributes = richAttributes
         self.parentID = parentID
@@ -28,6 +35,7 @@ struct DevicePoint: Sendable {
         DevicePoint(id: id, name: name ?? self.name,
                     latitude: latitude, longitude: longitude,
                     accuracy: accuracy, battery: battery,
+                    batteryStatusCode: batteryStatusCode, chargingState: chargingState,
                     prsId: prsId, richAttributes: richAttributes ?? self.richAttributes,
                     parentID: parentID)
     }

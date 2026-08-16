@@ -256,7 +256,7 @@ actor CacheDecryptor {
                 continue // skip no-location here (we'll log it in SyncEngine)
             }
 
-            let battery = (device["batteryLevel"] as? Double) ?? batteryFromStatus(device["batteryStatus"])
+            let batteryReading = Self.parseBattery(device)
             let prsId = (device["prsId"] as? String).nonNullish
 
             var parentID: String? = nil
@@ -270,7 +270,9 @@ actor CacheDecryptor {
                                        latitude: lat,
                                        longitude: lon,
                                        accuracy: acc,
-                                       battery: battery,
+                                       battery: batteryReading.level,
+                                       batteryStatusCode: batteryReading.statusCode,
+                                       chargingState: batteryReading.chargingState,
                                        prsId: prsId,
                                        parentID: parentID))
         }
@@ -285,37 +287,75 @@ actor CacheDecryptor {
     #endif
 }
 
-private func batteryFromStatus(_ any: Any?) -> Double? {
-    // Accept a few common shapes for Items:
-    // - String statuses like "full", "normal", "medium", "low", "verylow", "critical"
-    // - Numeric percentages (0-100)
-    // - Fractions (0.0-1.0)
-    if let d = any as? Double {
-        if d.isNaN || d.isInfinite { return nil }
-        return d > 1.0 ? max(0.0, min(1.0, d / 100.0)) : max(0.0, min(1.0, d))
+extension CacheDecryptor {
+    /// Battery as Apple actually stores it, kept separated by meaning rather than by
+    /// key name. See `BatteryParsingTests` for why the two files can't share a field.
+    struct BatteryReading: Equatable, Sendable {
+        /// Genuine 0–1 charge level. Only ever from `batteryLevel`, never inferred.
+        var level: Double?
+        /// `Items.data` ordinal, passed through unmodified — its meaning varies by
+        /// manufacturer and is not ours to guess.
+        var statusCode: Int?
+        /// `Devices.data` charging state string ("Charging" / "NotCharging" / "Unknown").
+        var chargingState: String?
     }
-    if let i = any as? Int {
-        return max(0.0, min(1.0, Double(i) / 100.0))
+
+    nonisolated static func namedBatteryLevel(_ raw: String) -> Double? {
+        namedBatteryLevelImpl(raw)
     }
-    if let s = (any as? String)?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
-        switch s {
-        case "full", "max", "high":
-            return 1.0
-        case "normal", "good":
-            return 0.75
-        case "medium", "fair":
-            return 0.5
-        case "low":
-            return 0.25
-        case "verylow", "critical", "very low":
-            return 0.1
-        default:
-            // Try to parse numeric-in-string (either percent or fraction)
-            if let asNum = Double(s) {
-                return asNum > 1.0 ? max(0.0, min(1.0, asNum / 100.0)) : max(0.0, min(1.0, asNum))
+
+    nonisolated static func parseBattery(_ device: [String: Any]) -> BatteryReading {
+        var reading = BatteryReading()
+
+        // `batteryStatus` is a String on devices (a charging state) and an Int on items
+        // (a battery ordinal). Split by type, because the key name doesn't tell you which.
+        let status = device["batteryStatus"]
+
+        if let code = status as? Int {
+            // Items report an ordinal here. Passed through unmodified: its meaning
+            // varies by manufacturer and is not ours to guess.
+            reading.statusCode = code
+        } else if let text = (status as? String).nonNullish {
+            // Devices report a *charging state* here, but Apple has also been seen to
+            // use named battery levels. The two vocabularies don't overlap, so the word
+            // itself says which it is.
+            if let named = Self.namedBatteryLevel(text) {
+                reading.level = named
+            } else {
+                reading.chargingState = text
             }
-            return nil
         }
+
+        if let level = device["batteryLevel"] as? Double {
+            // An explicit level always wins over a named one.
+            // A device with no battery still carries `batteryLevel = 0` — a desktop Mac
+            // appears this way. Apple signals "nothing to report" by pairing that zero
+            // with an Unknown charging state, so only then is it not a reading. A device
+            // genuinely flat still reports Charging/NotCharging and keeps its 0.
+            let noData = (level == 0 && reading.chargingState == "Unknown")
+            if !noData {
+                reading.level = max(0.0, min(1.0, level))
+            }
+        }
+
+        return reading
     }
-    return nil
+}
+
+/// Apple's named battery levels. Returns nil for anything outside that vocabulary —
+/// notably charging states, which use an entirely separate set of words.
+private func namedBatteryLevelImpl(_ raw: String) -> Double? {
+    switch raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+    case "full", "max", "high":            return 1.0
+    case "normal", "good":                 return 0.75
+    case "medium", "fair":                 return 0.5
+    case "low":                            return 0.25
+    case "verylow", "critical", "very low": return 0.1
+    default:
+        // A numeric string is a level too — percentage or fraction.
+        if let n = Double(raw) {
+            return n > 1.0 ? max(0.0, min(1.0, n / 100.0)) : max(0.0, min(1.0, n))
+        }
+        return nil
+    }
 }
