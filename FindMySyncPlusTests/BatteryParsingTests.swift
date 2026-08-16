@@ -278,13 +278,69 @@ struct ReconnectBackoffTests {
         #expect(c.reconnectAttempts == 0, "a new connection starts a fresh schedule")
     }
 
-    @Test("delay grows with each attempt and is capped")
+    @Test("delay grows with each attempt")
     func delayGrows() {
-        let delays = (1...12).map { MQTTClient.backoffDelay(forAttempt: $0) }
+        let delays = (1...MQTTClient.maxReconnectAttempts).map { MQTTClient.backoffDelay(forAttempt: $0) }
 
         #expect(delays[0] == 0.25, "first retry is fast — the fault it recovers from is short")
         #expect(delays == delays.sorted(), "each retry waits at least as long as the last")
-        #expect(delays.allSatisfy { $0 <= 60 }, "capped so it never stops trying entirely")
-        #expect(delays.last! == 60, "reaches the cap within the attempt limit")
+    }
+
+    /// The whole retry chain must finish before the next scheduled sync, or the two
+    /// overlap: the pre-flight starts a connection while a retry is queued, cancelling
+    /// it and restarting the schedule, so it never reaches its limit. Keeping the chain
+    /// shorter than the *minimum* interval makes that impossible at any configuration.
+    @Test("the entire chain finishes within one scheduler interval")
+    func chainFitsInsideASchedulerInterval() {
+        let total = (1...MQTTClient.maxReconnectAttempts)
+            .map { MQTTClient.backoffDelay(forAttempt: $0) }
+            .reduce(0, +)
+
+        #expect(total < 60, "minimum sync interval is 60s; the chain must end before then")
+    }
+}
+
+/// Reconnection has two possible drivers — the backoff chain and the scheduler's
+/// pre-flight — and they must not both drive it. If the pre-flight starts a connection
+/// while a retry is already pending, it cancels that retry and resets the counter, so
+/// the schedule restarts every sync cycle and never reaches its limit.
+@Suite("Who owns reconnection")
+struct ConnectionOwnershipTests {
+
+    private let t0 = Date(timeIntervalSince1970: 1_000_000)
+
+    @Test("does nothing when already connected")
+    func connectedNeedsNothing() {
+        #expect(MQTTClient.shouldStartNewConnection(
+            state: .connected, retryPending: false, connectingSince: nil, now: t0) == false)
+    }
+
+    @Test("leaves a pending retry alone")
+    func pendingRetryOwnsIt() {
+        #expect(MQTTClient.shouldStartNewConnection(
+            state: .connecting, retryPending: true, connectingSince: t0, now: t0) == false,
+            "starting one here cancels the retry and resets its schedule")
+    }
+
+    @Test("takes over once the retry chain has given up")
+    func exhaustedChainHandsBack() {
+        #expect(MQTTClient.shouldStartNewConnection(
+            state: .disconnected, retryPending: false, connectingSince: nil, now: t0) == true,
+            "nothing else is trying, so the sync run must start it")
+    }
+
+    @Test("waits for an attempt that is genuinely in flight")
+    func inFlightAttemptIsLeftAlone() {
+        #expect(MQTTClient.shouldStartNewConnection(
+            state: .connecting, retryPending: false,
+            connectingSince: t0, now: t0.addingTimeInterval(2)) == false)
+    }
+
+    @Test("replaces an attempt that has stalled")
+    func stalledAttemptIsReplaced() {
+        #expect(MQTTClient.shouldStartNewConnection(
+            state: .connecting, retryPending: false,
+            connectingSince: t0, now: t0.addingTimeInterval(30)) == true,
+            "a wedged .connecting must not block reconnection forever")
     }
 }

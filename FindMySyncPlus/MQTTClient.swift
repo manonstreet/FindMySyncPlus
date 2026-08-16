@@ -29,7 +29,13 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
     /// When the in-flight attempt started, so a stalled one is replaced rather than
     /// leaving the client wedged in `.connecting`.
     private var connectingSince: Date?
-    private static let connectingTimeout: TimeInterval = 15
+    nonisolated static let connectingTimeout: TimeInterval = 15
+
+    /// Sized so the whole retry chain (0.25 + 0.5 + 1 + 2 + 4 + 8 + 16 ≈ 32s) finishes
+    /// inside one scheduler interval — the minimum is 60s. The sync run is then the
+    /// outer retry loop, and the two never overlap: a pre-flight firing while a retry
+    /// is queued would cancel it and restart the schedule, so it could never end.
+    nonisolated static let maxReconnectAttempts = 7
 
     func bind(logger: LogStore, settings: SettingsStore) {
         self.logger = logger
@@ -281,6 +287,28 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
     /// happens on first launch after every update — and the window measured ~320ms. A
     /// 5s first retry turned that into a 5s outage plus a discarded sync run, because
     /// the pre-flight gave up at exactly the moment the backoff was due to fire.
+    /// Decides whether a sync run should start a connection, or leave it to whatever is
+    /// already trying.
+    ///
+    /// Reconnection has two possible drivers — the retry chain and the scheduler's
+    /// pre-flight — and only one may own it at a time. `connect()` tears down the
+    /// current client and cancels any pending retry, so a pre-flight that fires while a
+    /// retry is queued silently restarts the backoff schedule. Left unguarded, the
+    /// schedule resets every sync cycle and never reaches its attempt limit.
+    nonisolated static func shouldStartNewConnection(state: MQTTConnectionState,
+                                                     retryPending: Bool,
+                                                     connectingSince: Date?,
+                                                     now: Date = Date()) -> Bool {
+        if state == .connected { return false }
+        // A queued retry owns reconnection until its chain is exhausted.
+        if retryPending { return false }
+        if state == .connecting, let since = connectingSince,
+           now.timeIntervalSince(since) <= connectingTimeout {
+            return false        // an attempt is genuinely in flight
+        }
+        return true
+    }
+
     nonisolated static func backoffDelay(forAttempt attempt: Int) -> TimeInterval {
         min(0.25 * pow(2.0, Double(max(1, attempt) - 1)), 60.0)
     }
@@ -288,8 +316,11 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
     private func scheduleReconnect(settings: SettingsStore) {
         reconnectTask?.cancel()
         reconnectAttempts += 1
-        guard reconnectAttempts <= 14 else {
+        guard reconnectAttempts <= Self.maxReconnectAttempts else {
             logger?.warn("MQTT: max reconnect attempts reached")
+            // Hand ownership back: with no retry queued, the next sync run's pre-flight
+            // starts a fresh schedule rather than leaving the client dead forever.
+            reconnectTask = nil
             return
         }
         // Exponential from 250ms: 0.25, 0.5, 1, 2, 4, 8, 16, 32, 60…
