@@ -20,6 +20,17 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
     private weak var settings: SettingsStore?
     private var intentionalDisconnect = false
 
+    /// Identity of the client this object currently owns. CocoaMQTT's delegate
+    /// callbacks arrive asynchronously and are then hopped to the main actor, so a
+    /// client we have already torn down can report state long after it stopped being
+    /// the active connection. Compared as a token because `CocoaMQTT` is not `Sendable`.
+    private var activeClientToken: ObjectIdentifier?
+
+    /// When the in-flight attempt started, so a stalled one is replaced rather than
+    /// leaving the client wedged in `.connecting`.
+    private var connectingSince: Date?
+    private static let connectingTimeout: TimeInterval = 15
+
     func bind(logger: LogStore, settings: SettingsStore) {
         self.logger = logger
         self.settings = settings
@@ -55,8 +66,10 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
         }
         mqtt.delegate = self
         client = mqtt
+        activeClientToken = ObjectIdentifier(mqtt)
 
         connectionState = .connecting
+        connectingSince = Date()
         logger?.info("MQTT connecting to \(settings.mqttHost):\(settings.mqttPort)")
         _ = mqtt.connect()
     }
@@ -68,13 +81,21 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
         reconnectAttempts = 0
         client?.disconnect()
         client = nil
+        activeClientToken = nil
         connectionState = .disconnected
+        connectingSince = nil
         publishedDiscoveryIds.removeAll()
     }
 
     func ensureConnected(settings: SettingsStore) async -> Bool {
         if connectionState == .connected { return true }
-        connect(settings: settings)
+
+        // Don't restart an attempt that is already in flight: `connect()` begins by
+        // tearing the current client down, which surfaces as an unexpected disconnect.
+        let stalled = connectingSince.map { Date().timeIntervalSince($0) > Self.connectingTimeout } ?? true
+        if connectionState != .connecting || stalled {
+            connect(settings: settings)
+        }
         // Wait up to 5 seconds for connection
         for _ in 0..<50 {
             try? await Task.sleep(for: .milliseconds(100))
@@ -230,13 +251,19 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
     private func scheduleReconnect(settings: SettingsStore) {
         reconnectTask?.cancel()
         reconnectAttempts += 1
-        guard reconnectAttempts <= 10 else {
+        guard reconnectAttempts <= 14 else {
             logger?.warn("MQTT: max reconnect attempts reached")
             return
         }
-        let delay = min(Double(reconnectAttempts) * 5.0, 60.0)
+        // Exponential from 250ms: 0.25, 0.5, 1, 2, 4, 8, 16, 32, 60…
+        // The faults this recovers from are short. A measured case: the process got
+        // ENETDOWN for ~320ms while the system network path reported satisfied. A raw
+        // NWConnection rode it out and was ready 320ms later; CocoaMQTT treated it as
+        // fatal, and a 5s first retry turned that into a 5s outage plus a discarded
+        // sync run — the pre-flight gave up at the moment the backoff was due to fire.
+        let delay = min(0.25 * pow(2.0, Double(reconnectAttempts - 1)), 60.0)
         connectionState = .connecting
-        logger?.warn("MQTT reconnecting (attempt \(reconnectAttempts), \(Int(delay))s)")
+        logger?.warn(String(format: "MQTT reconnecting (attempt %d, %.2fs)", reconnectAttempts, delay))
         let settingsRef = settings
         reconnectTask = Task { @MainActor [weak self] in
             try? await Task.sleep(for: .seconds(delay))
@@ -252,9 +279,12 @@ extension MQTTClient: CocoaMQTTDelegate {
     nonisolated func mqtt(_ mqtt: CocoaMQTT, didConnectAck ack: CocoaMQTTConnAck) {
         let accepted = (ack == .accept)
         let ackDesc = "\(ack)"
+        let token = ObjectIdentifier(mqtt)
         Task { @MainActor in
+            guard token == self.activeClientToken else { return }
             if accepted {
                 self.connectionState = .connected
+                self.connectingSince = nil
                 self.reconnectAttempts = 0
                 self.reconnectTask?.cancel()
                 self.publishedDiscoveryIds.removeAll()
@@ -267,8 +297,13 @@ extension MQTTClient: CocoaMQTTDelegate {
     }
 
     nonisolated func mqttDidDisconnect(_ mqtt: CocoaMQTT, withError err: (any Error)?) {
+        let token = ObjectIdentifier(mqtt)
         Task { @MainActor in
+            // A disconnect from a client we've already replaced is our own teardown
+            // arriving late, not a connection failure.
+            guard token == self.activeClientToken else { return }
             self.connectionState = .disconnected
+            self.connectingSince = nil
             if let err {
                 self.logger?.warn("MQTT disconnected: \(err.localizedDescription)")
             }
