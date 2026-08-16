@@ -19,7 +19,7 @@ macOS Keychain.
 Based on [FindMySync](https://github.com/MartinPham/FindMySync) and the decryption research by
 [Pnut-GGG](https://github.com/Pnut-GGG/findmy-cache-decryptor).
 
-> If you're coming from FindMySync — this is the version that ***works on macOS 15+***.
+> If you're coming from FindMySync — this is the version that ***works on macOS 15+***. See [Migrating from FindMySync](#migrating-from-findmysync).
 
 ---
 
@@ -173,6 +173,33 @@ findmy_alias1:
 ```
 
 **MQTT users:** Entities are created automatically via HA auto-discovery — no `known_devices.yaml` needed. Rich attributes (altitude, speed, motion state, etc.) are available on each entity's `json_attributes`.
+
+---
+
+## Migrating from FindMySync
+
+The original FindMySync names its Home Assistant entities after the device UUID — the keys in `known_devices.yaml` look like this:
+
+```yaml
+findmy_a1b2c3d4e5f6478899aabbccddeeff00:
+  name: "Backpack"
+  mac: FINDMY_A1B2C3D4-E5F6-4788-99AA-BBCCDDEEFF00
+  track: true
+```
+
+FindMySyncPlus names entities after the alias you choose, as `findmy_<alias>`. That leaves two options.
+
+**Keep your existing entity IDs.** Set each alias to the device's UUID with the hyphens removed — the UUID is shown in the Assign dialog and can be copied from there. `findmy_<that hex>` will match what you have now, and existing automations keep working untouched.
+
+Delete the old entities in Home Assistant first by commenting out or deleting the entries in your `known_devices.yaml` and restarting. Home Assistant won't reuse an entity ID that is still in use, and skipping this leaves you with `_2` suffixes.
+
+**Or use readable aliases and rename once.** The alias exists as an abstraction over the UUID, because Apple rotates the UUIDs of its own devices — iPhones, Apple Watches and AirTags all get new ones periodically. FindMySyncPlus notices and re-links them to the alias automatically, so tracking survives. An entity ID pinned to a UUID does not: when the UUID changes, the old entity stops updating.
+
+I haven't tested whether third-party trackers rotate their UUIDs, so if that's all you use, the first option may work fine — but I can't promise it.
+
+The trade-off: keeping your IDs means no changes on the Home Assistant side, but leaves you exposed if a UUID ever rotates. Fresh aliases mean renaming entities once, and staying stable afterwards.
+
+**Note:** `icon` and `picture` from `known_devices.yaml` aren't supported by FindMySyncPlus. Set them on the entity in Home Assistant instead.
 
 ---
 
