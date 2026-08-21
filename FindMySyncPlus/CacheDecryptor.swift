@@ -27,6 +27,21 @@ enum DecryptorError: LocalizedError {
     }
 }
 
+/// Where the Find My files are read from.
+///
+/// Normally the user's home directory. `demoRoot` points it at a fixture tree
+/// instead, so screenshots can be taken against curated data without redacting
+/// a real household. Inert unless the key is set, and it only ever changes where
+/// files are *read* from — nothing is written through it.
+enum ReadRoot {
+    static var url: URL {
+        if let path = UserDefaults.standard.string(forKey: "demoRoot"), !path.isEmpty {
+            return URL(fileURLWithPath: path)
+        }
+        return FileManager.default.homeDirectoryForCurrentUser
+    }
+}
+
 enum FMIPCacheFile {
     case devices
     case items
@@ -87,7 +102,7 @@ actor CacheDecryptor {
     func readFMFContactNames(logger: LogStore) -> [String: String]? {
         guard let key = fmfKey else { return nil }
 
-        let home = FileManager.default.homeDirectoryForCurrentUser
+        let home = ReadRoot.url
         let fileURL = home.appendingPathComponent(FMIPCacheFile.friendCache.relativePath)
 
         let outerData: Data
@@ -168,7 +183,7 @@ actor CacheDecryptor {
     }
 
     func readEncryptedPayload(from file: FMIPCacheFile, logger: LogStore) -> Result<Data, DecryptorError> {
-        let home = FileManager.default.homeDirectoryForCurrentUser
+        let home = ReadRoot.url
         let fileURL = home.appendingPathComponent(file.relativePath)
 
         let outerData: Data

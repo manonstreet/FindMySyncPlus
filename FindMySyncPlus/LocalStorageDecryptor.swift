@@ -66,7 +66,7 @@ actor LocalStorageDecryptor {
     func readFriendLocations(logger: LogStore) -> Result<[DevicePoint], LocalStorageDecryptorError> {
         guard let key else { return .failure(.keyNotLoaded) }
 
-        let home = FileManager.default.homeDirectoryForCurrentUser
+        let home = ReadRoot.url
         let dbURL = home.appendingPathComponent(Self.dbRelativePath)
         let walURL = home.appendingPathComponent(Self.walRelativePath)
 
