@@ -58,17 +58,100 @@ actor LocalStorageDecryptor {
     private static let reservedSize = 12
     private static let sqliteMagic = Data("SQLite format 3\0".utf8)
 
-    private static let dbRelativePath = "Library/Group Containers/group.com.apple.findmy.findmylocateagent/Library/Application Support/LocalStorage.db"
-    private static let walRelativePath = dbRelativePath + "-wal"
+    /// The original location, and still the live one on many machines.
+    private static let groupContainerRelativePath =
+        "Library/Group Containers/group.com.apple.findmy.findmylocateagent/Library/Application Support/LocalStorage.db"
+
+    /// Path component under the per-user confinement directory.
+    private static let confinementSubPath = "com.apple.findmy.findmylocateagent/LocalStorage.db"
+
+    /// `findmylocateagent` keeps its SQLite stores in one of two places, and
+    /// which one a machine uses is decided when the store is first created. It
+    /// does not migrate afterwards, so both have to be checked — a version test
+    /// cannot work.
+    ///
+    /// Measured 2026-08-20: a Mac on 26.5.2 uses the Group Container, a Mac on
+    /// 15.7.2 uses the confinement directory, and *both* were running macOS 15
+    /// when their store was first created. Apple appears to have changed the
+    /// default somewhere between July and November 2025; stores created before
+    /// that keep the old location indefinitely, including across an upgrade.
+    ///
+    /// Do not search the filesystem for the file. A scan turns up a 4 KB stub
+    /// owned by `_mbsetupuser` under another account's confinement directory.
+    /// `confstr(_CS_DARWIN_USER_DIR)` is scoped to the calling user and cannot
+    /// reach it.
+    nonisolated static func candidateDBURLs() -> [URL] {
+        var urls: [URL] = []
+        // Skipped in demo mode: the confinement path is absolute, so it would
+        // otherwise reach the real database while the rest of the app is
+        // reading fixtures.
+        if !ReadRoot.isDemo, let confinement = darwinUserDir() {
+            urls.append(confinement.appendingPathComponent(confinementSubPath))
+        }
+        urls.append(ReadRoot.url.appendingPathComponent(groupContainerRelativePath))
+        return urls
+    }
+
+    /// `$(getconf DARWIN_USER_DIR)` for the calling user. Stable across reboots
+    /// — it is reset by an OS reinstall, not by restarting.
+    nonisolated private static func darwinUserDir() -> URL? {
+        var buffer = [CChar](repeating: 0, count: 1024)
+        let length = confstr(_CS_DARWIN_USER_DIR, &buffer, buffer.count)
+        guard length > 0, length <= buffer.count else { return nil }
+        let path = String(cString: buffer)
+        guard !path.isEmpty else { return nil }
+        return URL(fileURLWithPath: path, isDirectory: true)
+    }
 
     // MARK: - Public API
+
+    /// Pick the database to read from among the known locations.
+    ///
+    /// Existence is not enough to choose by: a machine upgraded between the two
+    /// layouts can hold both files, one of them abandoned, and reading the stale
+    /// one yields old friend locations with no error. Size is not a usable
+    /// signal either — a live database can be 4096 bytes with everything in its
+    /// `-wal`. So each candidate is judged by whether page 0 actually decrypts
+    /// to a SQLite header with this key, and the freshest of those wins.
+    private func resolveDBURL(logger: LogStore) -> URL? {
+        guard let key else { return nil }
+        var valid: [(url: URL, modified: Date)] = []
+        var tried: [String] = []
+
+        for url in Self.candidateDBURLs() {
+            tried.append(url.path)
+            guard let data = try? Data(contentsOf: url), data.count >= Self.pageSize else { continue }
+            let page0 = decryptPage(data.prefix(Self.pageSize), pageIndex: 0, key: key)
+            guard page0.prefix(16) == Self.sqliteMagic else {
+                logger.debug("Friends: \(url.path) did not decrypt to a SQLite header; ignoring it.")
+                continue
+            }
+            let modified = (try? url.resourceValues(forKeys: [.contentModificationDateKey])
+                .contentModificationDate) ?? .distantPast
+            valid.append((url, modified))
+        }
+
+        guard let chosen = valid.max(by: { $0.modified < $1.modified })?.url else {
+            // Loudly, and naming every path checked: this failing silently is
+            // what made it invisible for months.
+            logger.warn("Friends: no readable LocalStorage.db. Checked: \(tried.joined(separator: ", "))")
+            return nil
+        }
+        if valid.count > 1 {
+            logger.warn("Friends: more than one readable LocalStorage.db; using the most recently modified (\(chosen.path)).")
+        } else {
+            logger.debug("Friends: using \(chosen.path)")
+        }
+        return chosen
+    }
 
     func readFriendLocations(logger: LogStore) -> Result<[DevicePoint], LocalStorageDecryptorError> {
         guard let key else { return .failure(.keyNotLoaded) }
 
-        let home = ReadRoot.url
-        let dbURL = home.appendingPathComponent(Self.dbRelativePath)
-        let walURL = home.appendingPathComponent(Self.walRelativePath)
+        guard let dbURL = resolveDBURL(logger: logger) else {
+            return .failure(.dbNotFound)
+        }
+        let walURL = URL(fileURLWithPath: dbURL.path + "-wal")
 
         // Read encrypted DB
         let dbData: Data

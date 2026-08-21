@@ -261,7 +261,10 @@ final class SyncEngine {
             settings.localStorageKeyStatus = .invalid
             logger.error("Friends: LocalStorage key is incorrect.")
         case .failure(.dbNotFound):
-            logger.debug("Friends: LocalStorage.db not found; skipping.")
+            // Was .debug, which meant a machine using the other database
+            // location silently produced no friends at the default log level.
+            // The resolver logs which paths it checked.
+            logger.warn("Friends: no readable LocalStorage.db; skipping friends this run.")
         case .failure(.fdaRequired):
             logger.error("Friends: Full Disk Access required to read LocalStorage.db.")
         case .failure(let e):

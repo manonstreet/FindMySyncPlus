@@ -34,6 +34,13 @@ enum DecryptorError: LocalizedError {
 /// a real household. Inert unless the key is set, and it only ever changes where
 /// files are *read* from — nothing is written through it.
 enum ReadRoot {
+    /// True when the app has been pointed at fixture data. The friend database
+    /// is resolved by absolute path, so it has to be skipped explicitly in demo
+    /// mode or it would reach the real one.
+    static var isDemo: Bool {
+        !(UserDefaults.standard.string(forKey: "demoRoot") ?? "").isEmpty
+    }
+
     static var url: URL {
         if let path = UserDefaults.standard.string(forKey: "demoRoot"), !path.isEmpty {
             return URL(fileURLWithPath: path)
