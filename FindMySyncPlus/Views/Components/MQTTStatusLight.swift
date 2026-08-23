@@ -31,23 +31,19 @@ struct MQTTStatusLight: View {
 
     var body: some View {
         Button(action: onTap) {
-            Label {
-                // Caption, not the nav rows' body size. Matching their *column* is
-                // what makes this belong; matching their type scale does not, because
-                // every nav label is under eight characters and "MQTT Disconnected"
-                // is seventeen — at body size it ellipsizes at the sidebar minimum.
-                Text(connected ? "MQTT Connected" : "MQTT Disconnected")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .padding(.leading, 4)
-                    .lineLimit(1)
-            } icon: {
+            // Not a Label with the nav rows' icon column: a 7pt dot in the slot a
+            // .title2 symbol needs leaves it stranded in a gap, and this is footer
+            // chrome rather than a navigation row — it does not owe them that
+            // alignment. The dot starts where their icons do; the text follows it
+            // closely, which is what makes the pair read as one status line.
+            HStack(spacing: 6) {
                 Circle()
                     .fill(tint)
                     .frame(width: 7, height: 7)
-                    // Occupies the same width a `.title2` symbol does in
-                    // `SidebarRow`, so the text starts in the same column.
-                    .frame(width: 22, alignment: .center)
+                Text(connected ? "MQTT Connected" : "MQTT Disconnected")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 8)

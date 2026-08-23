@@ -61,11 +61,7 @@ struct Sidebar: View {
     @EnvironmentObject var app: AppModel
     @State private var pillWidth: CGFloat = 0
 
-    /// 140 is what the navigation itself needs. The MQTT footer needs a little
-    /// more — "MQTT Disconnected" plus the icon column and padding comes to about
-    /// 142 — so the minimum rises only when that footer is present, the same way
-    /// the Full Disk Access pill widens the sidebar while it is showing.
-    private var baseMin: CGFloat { settings.transportMode == .mqtt ? 152 : 140 }
+    private var baseMin: CGFloat { 140 }
     private var baseIdeal: CGFloat { 160 }
     private var baseMax: CGFloat { 300 }
 
