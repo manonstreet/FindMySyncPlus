@@ -1,6 +1,6 @@
 # FindMySyncPlus
 
-![macOS 15+](https://img.shields.io/badge/macOS-15%2B-blue)
+![macOS 14.4+](https://img.shields.io/badge/macOS-14.4%2B-blue)
 ![License: MIT](https://img.shields.io/badge/License-MIT-green)
 ![Swift](https://img.shields.io/badge/Swift-native-orange)
 
@@ -19,7 +19,7 @@ macOS Keychain.
 Based on [FindMySync](https://github.com/MartinPham/FindMySync) and the decryption research by
 [Pnut-GGG](https://github.com/Pnut-GGG/findmy-cache-decryptor).
 
-> If you're coming from FindMySync — this is the version that ***works on macOS 15+***. See [Migrating from FindMySync](#migrating-from-findmysync).
+> If you're coming from FindMySync — this is the version that ***works on macOS 14.4 and later***. See [Migrating from FindMySync](#migrating-from-findmysync).
 
 ---
 
@@ -27,7 +27,7 @@ Based on [FindMySync](https://github.com/MartinPham/FindMySync) and the decrypti
 
 |  | FindMySyncPlus | FindMySync (original) | iCloud3 |
 |--|:-:|:-:|:-:|
-| macOS 15+ (Sequoia) support | ✅ | ❌ | ➖ |
+| macOS 14.4+ (encrypted caches) support | ✅ | ❌ | ➖ |
 | AirTag / Items support | ✅ | ✅ | ❌ |
 | Friend location tracking | ✅ | ❌ | ❌ |
 | Auto-refresh Find My (no AppleScript) | ✅ | ❌ | ➖ |
@@ -97,7 +97,7 @@ device entry, giving family members the best of both sources.
 
 ## Requirements
 
-- macOS 15 (Sequoia) or higher
+- macOS 14.4 (Sonoma) or later — 14.4 is where Apple began encrypting the Find My caches, which is what this app decrypts
 - A running Home Assistant instance — either the `device_tracker.see` REST API or an MQTT broker (e.g. Mosquitto add-on)
 - Find My encryption keys extracted from Keychain (see Phase 1 below)
 
