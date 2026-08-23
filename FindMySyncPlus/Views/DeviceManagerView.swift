@@ -188,6 +188,9 @@ struct DeviceManagerView: View {
     @State private var renameText: String = ""
     @State private var showRenameSheet = false
 
+    @State private var reRegisterAliasKey: String? = nil
+    @State private var showReRegisterConfirm = false
+
     @State private var deleteAliasKey: String? = nil
     @State private var showDeleteConfirm = false
 
@@ -457,6 +460,19 @@ struct DeviceManagerView: View {
                 Text("This does not remove any Home Assistant entity. The alias “\(key)” and its UUID mappings will be removed from this app.")
             }
         }
+        .alert("Re-create Home Assistant entity?",
+               isPresented: $showReRegisterConfirm,
+               presenting: reRegisterAliasKey) { key in
+            Button("Re-create", role: .destructive) {
+                Task { _ = await app.reRegisterEntity(alias: key) }
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: { key in
+            // Names the specific before and after, which is the whole reason this is
+            // per-alias rather than one global button: a sweep could not say either.
+            // swiftlint:disable:next line_length
+            Text("The entity will be removed and re-created as “\(DeviceAlias.haEntityID(for: key))”. Any rename, icon or area you set for it in Home Assistant will be cleared, and recorded history stays under the old entity ID.")
+        }
         .alert("Remove last UUID?", isPresented: Binding(
             get: { pendingUUIDDelete != nil },
             set: { if !$0 { pendingUUIDDelete = nil } }
@@ -665,6 +681,7 @@ struct DeviceManagerView: View {
                                     sourceBadge: singleSource,
                                     nameLabel: "Name:",
                                     transportMode: settings.transportMode,
+                                    mqttConnected: app.syncEngine.mqtt.connectionState == .connected,
                                     onToggleTracked: { (newValue: Bool) in
                                         settings.setAlias(rec.alias, tracked: newValue)
                                     },
@@ -676,6 +693,10 @@ struct DeviceManagerView: View {
                                     onDelete: {
                                         deleteAliasKey = rec.alias
                                         showDeleteConfirm = true
+                                    },
+                                    onReRegister: {
+                                        reRegisterAliasKey = rec.alias
+                                        showReRegisterConfirm = true
                                     },
                                     onDeleteUUID: { uuid in
                                         if rec.tracked && rec.knownUUIDs.count == 1 && rec.knownUUIDs.contains(uuid) {
@@ -731,14 +752,17 @@ struct DeviceManagerView: View {
         let sourceBadge: DeviceSource?
         let nameLabel: String
         let transportMode: TransportMode
+        let mqttConnected: Bool
 
         var onToggleTracked: (Bool) -> Void
         var onRename: () -> Void
         var onDelete: () -> Void
+        var onReRegister: () -> Void
         var onDeleteUUID: (String) -> Void
 
         @State private var hoverRename = false
         @State private var hoverTrash  = false
+        @State private var hoverReRegister = false
         @State private var showCopiedEntity = false
 
         var body: some View {
@@ -763,6 +787,23 @@ struct DeviceManagerView: View {
                         .buttonStyle(.plain)
                         .onHover { hoverRename = $0 }
                         .help("Rename alias")
+
+                        // MQTT only: REST derives the entity from dev_id directly, so
+                        // there is nothing to re-register there.
+                        if transportMode == .mqtt {
+                            Button(action: onReRegister) {
+                                Image(systemName: "arrow.triangle.2.circlepath")
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundStyle(hoverReRegister ? Color.accentColor.opacity(0.9) : .secondary)
+                                    .alignmentGuide(.firstTextBaseline) { d in d[.bottom] - 1 }
+                            }
+                            .buttonStyle(.plain)
+                            .onHover { hoverReRegister = $0 }
+                            .disabled(!mqttConnected)
+                            .help(mqttConnected
+                                  ? "Re-create the Home Assistant entity so its ID matches this alias"
+                                  : "Connect to MQTT to re-create this entity")
+                        }
 
                         Button(action: onDelete) {
                             Image(systemName: "trash")

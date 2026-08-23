@@ -222,6 +222,53 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
                            transientCount: transientCount)
     }
 
+    // MARK: - Re-registration
+
+    /// Delete an entity's discovery config and immediately recreate it, so Home
+    /// Assistant registers it afresh and applies `default_entity_id`.
+    ///
+    /// This is the only way to fix an entity whose ID was assigned before HA
+    /// removed `object_id` in Core 2026.4. `default_entity_id` is consulted only
+    /// at first registration — `entity_platform` resolves a known `unique_id` to
+    /// its existing entry and keeps that entry's ID — so the registry entry has to
+    /// go before a correct ID can be assigned.
+    ///
+    /// **Destructive by design.** Removing the discovery config removes the
+    /// registry entry, taking any rename, icon or area the user set with it. Only
+    /// ever call this from an explicit, confirmed user action.
+    func reRegister(devId: String,
+                    displayName: String,
+                    settings: SettingsStore,
+                    logger: LogStore) async -> Bool {
+        guard connectionState == .connected, let client else {
+            logger.warn("MQTT: not connected — cannot re-register \(devId)")
+            return false
+        }
+
+        let prefix = settings.mqttTopicPrefix
+        clearRetainedTopics(client: client, devId: devId, prefix: prefix)
+
+        // HA has to process the removal before the new config lands. Published back
+        // to back on one topic, it treats the pair as an update, the registry entry
+        // survives, and the stale entity ID with it — the exact thing this fixes.
+        try? await Task.sleep(for: .milliseconds(500))
+
+        guard connectionState == .connected, let live = self.client else {
+            logger.warn("MQTT: connection lost while re-registering \(devId); entity was removed but not recreated")
+            return false
+        }
+
+        publishJSON(client: live,
+                    topic: Self.discoveryTopic(forDevId: devId),
+                    payload: Self.discoveryPayload(devId: devId,
+                                                   displayName: displayName,
+                                                   topicPrefix: prefix),
+                    retain: true)
+        publishedDiscoveryIds.insert(devId)
+        logger.info("MQTT: re-registered \(devId) as \(DeviceAlias.haEntityID(forDevId: devId))")
+        return true
+    }
+
     // MARK: - Attribute building
 
     func buildAttributes(for device: DevicePoint, iso: ISO8601DateFormatter) -> [String: Any] {
