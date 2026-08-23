@@ -197,9 +197,13 @@ final class AppModel: NSObject, ObservableObject {
     ///
     /// Otherwise the old entity lingers in Home Assistant until the next sync — up
     /// to a full interval after the user changed it, which reads as a bug.
-    func publishPendingRetirements() async {
-        guard let settings, settings.transportMode == .mqtt else { return }
-        guard !settings.retiredDevIds.isEmpty else { return }
+    /// - Returns: `false` only when there was work to do and the broker could not
+    ///   be reached. Nothing pending is a success, not a failure — the caller must
+    ///   not raise an alert for an action that needed no publishing.
+    @discardableResult
+    func publishPendingRetirements() async -> Bool {
+        guard let settings, settings.transportMode == .mqtt else { return true }
+        guard !settings.retiredDevIds.isEmpty else { return true }
         guard await connectForUserAction() else {
             // A warning, not info: nothing was lost and the change stands, but the
             // user is looking at Home Assistant wondering why the old entity is
@@ -207,7 +211,7 @@ final class AppModel: NSObject, ObservableObject {
             let pending = settings.retiredDevIds.joined(separator: ", ")
             logger?.warn("MQTT: broker not reachable — \(pending) will be removed from "
                          + "Home Assistant on the next successful sync")
-            return
+            return false
         }
 
         // Live means "still configured", not "seen this cycle" — an alias that simply
@@ -224,6 +228,7 @@ final class AppModel: NSObject, ObservableObject {
             settings.retiredDevIds = settings.retiredDevIds.filter { !done.contains($0) }
         }
         scheduleIdleDisconnect()
+        return true
     }
 
     /// Recreate one alias's Home Assistant entity so its ID follows the alias.

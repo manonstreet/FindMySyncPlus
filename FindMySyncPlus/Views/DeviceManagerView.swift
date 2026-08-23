@@ -191,6 +191,7 @@ struct DeviceManagerView: View {
     @State private var reRegisterAliasKey: String? = nil
     @State private var showReRegisterConfirm = false
     @State private var reRegisterFailed = false
+    @State private var retirementFailed = false
 
     @State private var deleteAliasKey: String? = nil
     @State private var showDeleteConfirm = false
@@ -430,14 +431,13 @@ struct DeviceManagerView: View {
         .sheet(isPresented: $showRenameSheet) {
             RenameAliasSheet(aliasKey: $renameAliasKey,
                              renameText: $renameText,
-                             mqttDisconnected: settings.transportMode == .mqtt && !app.mqttConnected,
                              onConfirm: { key, newName in
                 let cleaned = slugifyAlias(newName)
                 settings.renameAlias(from: key, to: cleaned)
                 logger.info("Alias \"\(key)\" renamed to \"\(cleaned)\" (entity id will change).")
                 // Clear the old entity now rather than at the next sync — waiting a
                 // whole interval for it to vanish from HA reads as a bug.
-                Task { await app.publishPendingRetirements() }
+                Task { if await app.publishPendingRetirements() == false { retirementFailed = true } }
             })
         }
         .alert("Delete Alias?",
@@ -445,7 +445,7 @@ struct DeviceManagerView: View {
                presenting: deleteAliasKey) { key in
             Button("Delete", role: .destructive) {
                 settings.deleteAlias(key)
-                Task { await app.publishPendingRetirements() }
+                Task { if await app.publishPendingRetirements() == false { retirementFailed = true } }
                 if settings.transportMode == .mqtt {
                     logger.warn("Alias \"\(key)\" deleted. Its retained MQTT topics clear on the next sync.")
                 } else {
@@ -484,6 +484,14 @@ struct DeviceManagerView: View {
             // per-alias rather than one global button: a sweep could not say either.
             // swiftlint:disable:next line_length
             Text("The entity will be removed and re-created as “\(DeviceAlias.haEntityID(for: key))”. Any rename, icon or area you set for it in Home Assistant will be cleared, and recorded history stays under the old entity ID.")
+        }
+        .alert("Couldn't reach the broker", isPresented: $retirementFailed) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            // The alias change itself always succeeds — it is local. Only the Home
+            // Assistant side is outstanding, and saying so is the difference between
+            // a useful message and one that implies the change was lost.
+            Text("The change was saved, but Home Assistant could not be updated. It will catch up on the next successful sync.")
         }
         .alert("Couldn't reach the broker", isPresented: $reRegisterFailed) {
             Button("OK", role: .cancel) { }
@@ -701,7 +709,7 @@ struct DeviceManagerView: View {
                                     onToggleTracked: { (newValue: Bool) in
                                         settings.setAlias(rec.alias, tracked: newValue)
                                         if !newValue {
-                                            Task { await app.publishPendingRetirements() }
+                                            Task { if await app.publishPendingRetirements() == false { retirementFailed = true } }
                                         }
                                     },
                                     onRename: {
@@ -1012,10 +1020,6 @@ private struct RenameAliasSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Binding var aliasKey: String?
     @Binding var renameText: String
-    /// True only on MQTT and only while disconnected. Renaming still succeeds —
-    /// the alias changes either way — but the Home Assistant side is deferred, and
-    /// the user should know that before they commit rather than after.
-    let mqttDisconnected: Bool
     var onConfirm: (_ aliasKey: String, _ newAlias: String) -> Void
 
     var body: some View {
@@ -1029,17 +1033,6 @@ private struct RenameAliasSheet: View {
             TextField("alias", text: $renameText)
                 .textFieldStyle(.roundedBorder)
                 .frame(width: 320)
-
-            if mqttDisconnected {
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.orange)
-                    Text("MQTT is disconnected — the Home Assistant entity updates when it reconnects.")
-                        .foregroundStyle(.secondary)
-                }
-                .font(.caption)
-                .frame(width: 320, alignment: .leading)
-            }
 
             HStack {
                 Spacer()
