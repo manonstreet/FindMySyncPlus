@@ -303,6 +303,13 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
             if let ts = rich.timestamp {
                 attrs["location_timestamp"] = iso.string(from: ts)
             }
+            // Apple's own flag for whether the fix is stale, passed through rather
+            // than turned into a staleness rule of ours — the threshold is the
+            // user's to pick, which is what issue #17 asked for. Absent stays
+            // absent: a fabricated false would claim Apple called the fix current.
+            if let isOld = rich.isOld {
+                attrs["is_old"] = isOld
+            }
             if rich.motionActivityState != nil {
                 attrs["motion_state"] = rich.motionStateDescription.lowercased()
             }
