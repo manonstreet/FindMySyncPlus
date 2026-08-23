@@ -102,7 +102,12 @@ struct Sidebar: View {
             // A real footer below the list rather than an overlay on it, so the
             // divider separates it from the navigation instead of floating over it.
             if settings.transportMode == .mqtt {
+                // Inset to match the sidebar's own group dividers. Full width was
+                // the only edge-to-edge line in the panel, which read as "separate
+                // region below" rather than "another group" — most likely what made
+                // the footer look like a recessed well.
                 Divider()
+                    .padding(.horizontal, 10)
                 MQTTStatusLight(connected: app.mqttConnected,
                                 host: settings.mqttHost,
                                 port: settings.mqttPort,
