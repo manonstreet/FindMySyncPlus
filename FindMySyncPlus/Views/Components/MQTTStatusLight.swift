@@ -32,14 +32,19 @@ struct MQTTStatusLight: View {
     var body: some View {
         Button(action: onTap) {
             Label {
+                // Caption, not the nav rows' body size. Matching their *column* is
+                // what makes this belong; matching their type scale does not, because
+                // every nav label is under eight characters and "MQTT Disconnected"
+                // is seventeen — at body size it ellipsizes at the sidebar minimum.
                 Text(connected ? "MQTT Connected" : "MQTT Disconnected")
+                    .font(.caption)
                     .foregroundStyle(.secondary)
                     .padding(.leading, 4)
                     .lineLimit(1)
             } icon: {
                 Circle()
                     .fill(tint)
-                    .frame(width: 8, height: 8)
+                    .frame(width: 7, height: 7)
                     // Occupies the same width a `.title2` symbol does in
                     // `SidebarRow`, so the text starts in the same column.
                     .frame(width: 22, alignment: .center)
