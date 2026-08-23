@@ -305,43 +305,20 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
         "\(prefix)\(devId)/attributes"
     }
 
-    /// The devId a discovery topic belongs to, or nil if the topic is not one of
-    /// HA's device_tracker configs.
-    nonisolated static func devId(fromDiscoveryTopic topic: String) -> String? {
-        let parts = topic.split(separator: "/", omittingEmptySubsequences: false)
-        guard parts.count == 4,
-              parts[0] == "homeassistant",
-              parts[1] == "device_tracker",
-              parts[3] == "config",
-              !parts[2].isEmpty else { return nil }
-        return String(parts[2])
-    }
-
-    /// Ownership is claimed on our device identifier, never on the topic name:
-    /// the topic derives from an alias the user may since have changed, and the
-    /// discovery namespace is shared with every other integration on the broker.
-    nonisolated static func isOurConfig(_ payload: [String: Any]) -> Bool {
-        guard let device = payload["device"] as? [String: Any],
-              let ids = device["identifiers"] as? [String] else { return false }
-        return ids.contains("findmysyncplus")
-    }
-
-    /// Retained discovery configs of ours that no live alias accounts for.
+    /// Which retired devIds still need their retained topics cleared.
     ///
-    /// Safe against a short collect window by construction: `liveDevIds` comes
-    /// from local settings, not the broker, so seeing fewer retained configs can
-    /// only find fewer orphans — it can never invent one. Returns nothing when
-    /// `liveDevIds` is empty, since settings that have not loaded yet, or a user
-    /// mid-setup, must never be read as "delete everything".
-    nonisolated static func orphanedDevIds(retainedConfigs: [String: [String: Any]],
-                                           liveDevIds: Set<String>) -> [String] {
-        guard !liveDevIds.isEmpty else { return [] }
-        return retainedConfigs.compactMap { topic, payload -> String? in
-            guard isOurConfig(payload),
-                  let id = devId(fromDiscoveryTopic: topic),
-                  !liveDevIds.contains(id) else { return nil }
-            return id
-        }.sorted()
+    /// Filtered against the live set because an alias can be renamed away and
+    /// back (a -> b -> a); clearing a devId that is in use again would delete a
+    /// working entity. No broker read and no ownership guess is involved — the
+    /// app retires these itself at the moment the alias changes, so it knows
+    /// exactly which topics are its own.
+    nonisolated static func tombstonesToPublish(retired: [String],
+                                                liveDevIds: Set<String>) -> [String] {
+        var seen: Set<String> = []
+        return retired.filter { id in
+            guard !liveDevIds.contains(id) else { return false }
+            return seen.insert(id).inserted
+        }
     }
 
     private func publishJSON(client: CocoaMQTT, topic: String, payload: [String: Any], retain: Bool) {
