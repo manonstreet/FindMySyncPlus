@@ -93,6 +93,28 @@ struct Sidebar: View {
     }
 
     var body: some View {
+        VStack(spacing: 0) {
+            sidebarList
+            // A real footer below the list rather than an overlay on it, so the
+            // divider separates it from the navigation instead of floating over it.
+            if settings.transportMode == .mqtt {
+                Divider()
+                MQTTStatusLight(connected: app.mqttConnected,
+                                host: settings.mqttHost,
+                                port: settings.mqttPort,
+                                onTap: { selection = .access })
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 4)
+            }
+        }
+        .navigationSplitViewColumnWidth(
+            min: computedMinWidth,
+            ideal: computedIdealWidth,
+            max: computedMaxWidth
+        )
+    }
+
+    private var sidebarList: some View {
         List(selection: $selection) {
             Text("SYNCHRONIZATION")
                 .font(.caption)
@@ -120,31 +142,19 @@ struct Sidebar: View {
             SidebarRow(destination: .about, title: "About", systemImage: "info.circle")
         }
         .listStyle(.sidebar)
-        .navigationSplitViewColumnWidth(
-            min: computedMinWidth,
-            ideal: computedIdealWidth,
-            max: computedMaxWidth
-        )
         .overlay(alignment: .bottom) {
-            VStack(spacing: 6) {
-                if logger.needsFullDiskAccess {
-                    FullDiskAccessPill()
-                        .fixedSize()
-                        .background(
-                            GeometryReader { geo in
-                                Color.clear.preference(key: PillWidthPreferenceKey.self, value: geo.size.width)
-                            }
-                        )
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
-                }
-                if settings.transportMode == .mqtt {
-                    MQTTStatusLight(connected: app.mqttConnected,
-                                    host: settings.mqttHost,
-                                    port: settings.mqttPort)
-                }
+            if logger.needsFullDiskAccess {
+                FullDiskAccessPill()
+                    .fixedSize()
+                    .background(
+                        GeometryReader { geo in
+                            Color.clear.preference(key: PillWidthPreferenceKey.self, value: geo.size.width)
+                        }
+                    )
+                    .padding(.bottom, 8)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .zIndex(1)
             }
-            .padding(.bottom, 8)
-            .zIndex(1)
         }
         .animation(.spring(response: 0.28, dampingFraction: 0.9), value: logger.needsFullDiskAccess)
         .animation(.spring(response: 0.28, dampingFraction: 0.9), value: pillWidth)
