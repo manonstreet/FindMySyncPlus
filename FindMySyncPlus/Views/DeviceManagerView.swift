@@ -430,6 +430,7 @@ struct DeviceManagerView: View {
         .sheet(isPresented: $showRenameSheet) {
             RenameAliasSheet(aliasKey: $renameAliasKey,
                              renameText: $renameText,
+                             mqttDisconnected: settings.transportMode == .mqtt && !app.mqttConnected,
                              onConfirm: { key, newName in
                 let cleaned = slugifyAlias(newName)
                 settings.renameAlias(from: key, to: cleaned)
@@ -1011,6 +1012,10 @@ private struct RenameAliasSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Binding var aliasKey: String?
     @Binding var renameText: String
+    /// True only on MQTT and only while disconnected. Renaming still succeeds —
+    /// the alias changes either way — but the Home Assistant side is deferred, and
+    /// the user should know that before they commit rather than after.
+    let mqttDisconnected: Bool
     var onConfirm: (_ aliasKey: String, _ newAlias: String) -> Void
 
     var body: some View {
@@ -1024,6 +1029,17 @@ private struct RenameAliasSheet: View {
             TextField("alias", text: $renameText)
                 .textFieldStyle(.roundedBorder)
                 .frame(width: 320)
+
+            if mqttDisconnected {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                    Text("MQTT is disconnected — the Home Assistant entity updates when it reconnects.")
+                        .foregroundStyle(.secondary)
+                }
+                .font(.caption)
+                .frame(width: 320, alignment: .leading)
+            }
 
             HStack {
                 Spacer()

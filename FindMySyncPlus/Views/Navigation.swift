@@ -57,6 +57,8 @@ struct SidebarRow: View {
 struct Sidebar: View {
     @Binding var selection: Dest?
     @EnvironmentObject var logger: LogStore
+    @EnvironmentObject var settings: SettingsStore
+    @EnvironmentObject var app: AppModel
     @State private var pillWidth: CGFloat = 0
 
     private var baseMin: CGFloat { 140 }
@@ -124,18 +126,25 @@ struct Sidebar: View {
             max: computedMaxWidth
         )
         .overlay(alignment: .bottom) {
-            if logger.needsFullDiskAccess {
-                FullDiskAccessPill()
-                    .fixedSize()
-                    .background(
-                        GeometryReader { geo in
-                            Color.clear.preference(key: PillWidthPreferenceKey.self, value: geo.size.width)
-                        }
-                    )
-                    .padding(.bottom, 8)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                    .zIndex(1)
+            VStack(spacing: 6) {
+                if logger.needsFullDiskAccess {
+                    FullDiskAccessPill()
+                        .fixedSize()
+                        .background(
+                            GeometryReader { geo in
+                                Color.clear.preference(key: PillWidthPreferenceKey.self, value: geo.size.width)
+                            }
+                        )
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+                if settings.transportMode == .mqtt {
+                    MQTTStatusLight(connected: app.mqttConnected,
+                                    host: settings.mqttHost,
+                                    port: settings.mqttPort)
+                }
             }
+            .padding(.bottom, 8)
+            .zIndex(1)
         }
         .animation(.spring(response: 0.28, dampingFraction: 0.9), value: logger.needsFullDiskAccess)
         .animation(.spring(response: 0.28, dampingFraction: 0.9), value: pillWidth)
