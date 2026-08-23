@@ -29,6 +29,17 @@ final class AppModel: NSObject, ObservableObject {
     @Published var lastLocatedDevices: [DevicePoint] = []
     @Published var lastLocatedEntries: [LocatedEntry] = []
 
+    /// Mirrors `syncEngine.mqtt.connectionState` so views can observe it.
+    ///
+    /// `connectionState` is `@Published` on the MQTT client, but that is a *nested*
+    /// ObservableObject: SwiftUI observes `AppModel`, and a nested object's changes
+    /// do not propagate to the parent. A view reading
+    /// `app.syncEngine.mqtt.connectionState` therefore re-evaluates only when
+    /// something unrelated republishes AppModel, and shows a stale value in the
+    /// meantime — which is why Device Manager's re-register button could sit
+    /// greyed out while MQTT was connected.
+    @Published private(set) var mqttConnected: Bool = false
+
     let syncEngine = SyncEngine()
     private var timerTask: Task<Void, Never>?
     private weak var settings: SettingsStore?
@@ -55,6 +66,15 @@ final class AppModel: NSObject, ObservableObject {
             .store(in: &cancellables)
         settings.$logLevel
             .sink { [weak self] level in self?.logger?.minimumLevel = level }
+            .store(in: &cancellables)
+        // Republish the MQTT client's connection state as our own, so views can
+        // observe it. Without this a view reading it through `syncEngine.mqtt`
+        // never re-renders when the connection comes up or drops.
+        syncEngine.mqtt.$connectionState
+            .map { $0 == .connected }
+            .removeDuplicates()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] connected in self?.mqttConnected = connected }
             .store(in: &cancellables)
         logger.errorSignal
             .receive(on: RunLoop.main)

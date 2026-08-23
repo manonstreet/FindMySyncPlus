@@ -681,7 +681,7 @@ struct DeviceManagerView: View {
                                     sourceBadge: singleSource,
                                     nameLabel: "Name:",
                                     transportMode: settings.transportMode,
-                                    mqttConnected: app.syncEngine.mqtt.connectionState == .connected,
+                                    mqttConnected: app.mqttConnected,
                                     onToggleTracked: { (newValue: Bool) in
                                         settings.setAlias(rec.alias, tracked: newValue)
                                     },
