@@ -169,11 +169,13 @@ final class AppModel: NSObject, ObservableObject {
     /// do nothing. A deliberate action may also preempt a pending backoff: the
     /// single-owner rule exists to stop two *automatic* drivers fighting, and a
     /// person waiting on a button is not one of those.
+    /// Deliberately silent on failure: what "not reachable" *means* differs by
+    /// caller. A re-registration did not happen; a rename did happen and only its
+    /// cleanup is deferred. Reporting "action not applied" for both told renaming
+    /// users their rename had failed, which was untrue.
     private func connectForUserAction() async -> Bool {
         guard let settings, settings.transportMode == .mqtt else { return false }
-        if await syncEngine.mqtt.ensureConnected(settings: settings) { return true }
-        logger?.warn("MQTT: broker not reachable — action not applied")
-        return false
+        return await syncEngine.mqtt.ensureConnected(settings: settings)
     }
 
     /// Release a connection opened for a user action, once it has been idle.
@@ -199,7 +201,12 @@ final class AppModel: NSObject, ObservableObject {
         guard let settings, settings.transportMode == .mqtt else { return }
         guard !settings.retiredDevIds.isEmpty else { return }
         guard await connectForUserAction() else {
-            logger?.info("MQTT: retired entities will be cleared on the next sync instead")
+            // A warning, not info: nothing was lost and the change stands, but the
+            // user is looking at Home Assistant wondering why the old entity is
+            // still there, and this is the only thing that answers them.
+            let pending = settings.retiredDevIds.joined(separator: ", ")
+            logger?.warn("MQTT: broker not reachable — \(pending) will be removed from "
+                         + "Home Assistant on the next successful sync")
             return
         }
 
@@ -225,7 +232,10 @@ final class AppModel: NSObject, ObservableObject {
     /// icon or area set in HA. Call only from a confirmed user action.
     func reRegisterEntity(alias: String) async -> Bool {
         guard let settings, let logger else { return false }
-        guard await connectForUserAction() else { return false }
+        guard await connectForUserAction() else {
+            logger.warn("MQTT: broker not reachable — \(alias) was not re-created")
+            return false
+        }
 
         let devId = DeviceAlias.entityID(for: alias)
         let displayName = settings.aliases.first(where: { $0.alias == alias })?.lastSeenName ?? alias
