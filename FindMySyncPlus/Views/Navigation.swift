@@ -103,8 +103,13 @@ struct Sidebar: View {
                                 host: settings.mqttHost,
                                 port: settings.mqttPort,
                                 onTap: { selection = .access })
-                    .padding(.horizontal, 4)
-                    .padding(.vertical, 4)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 6)
+                    // No background of our own: the footer sits outside the List
+                    // and so does not inherit its material. Painting anything here
+                    // makes the strip read as a recessed well rather than a last
+                    // row of the sidebar.
+                    .background(Color.clear)
             }
         }
         .navigationSplitViewColumnWidth(
