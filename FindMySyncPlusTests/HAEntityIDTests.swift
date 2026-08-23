@@ -68,3 +68,38 @@ struct HASlugTests {
         #expect(haSlug("") == "device")
     }
 }
+
+/// The entity ID an alias resolves to in Home Assistant.
+///
+/// Device Manager shows this on the alias row and copies it, and the discovery
+/// payload publishes it as `default_entity_id`. Those two must be the same
+/// string: a row that displays an entity ID the app does not actually publish
+/// would be a more convincing lie than showing nothing, which is roughly what
+/// issue #22 was — the user had to subscribe to the MQTT topic to find out what
+/// we were really sending.
+@Suite("Alias to HA entity ID")
+struct AliasEntityIDTests {
+
+    @Test("resolves an alias to its full entity ID")
+    func resolvesFullEntityID() {
+        #expect(DeviceAlias.haEntityID(for: "ohrapfel-case")
+                == "device_tracker.findmy_ohrapfel_case")
+    }
+
+    @Test("keeps the findmy_ prefix")
+    func keepsPrefix() {
+        #expect(DeviceAlias.haEntityID(for: "airpods") == "device_tracker.findmy_airpods")
+    }
+
+    /// Single source of truth: what the row shows is what the payload publishes.
+    @Test("matches the default_entity_id in the discovery payload")
+    func matchesPublishedPayload() {
+        let alias = "ohrapfel-case"
+        let devId = DeviceAlias.entityID(for: alias)
+        let payload = MQTTClient.discoveryPayload(devId: devId,
+                                                  displayName: "Case",
+                                                  topicPrefix: "findmysyncplus/")
+
+        #expect(payload["default_entity_id"] as? String == DeviceAlias.haEntityID(for: alias))
+    }
+}

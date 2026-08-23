@@ -725,7 +725,7 @@ struct DeviceManagerView: View {
 
         @State private var hoverRename = false
         @State private var hoverTrash  = false
-        @State private var showCopiedName = false
+        @State private var showCopiedEntity = false
 
         var body: some View {
             VStack(alignment: .leading, spacing: 8) {
@@ -784,28 +784,6 @@ struct DeviceManagerView: View {
                                 .font(.system(size: 12))
                                 .foregroundStyle(.secondary)
                                 .textSelection(.enabled)
-                            if let name = lastSeenName, !name.isEmpty {
-                                Button(action: {
-                                    let pb = NSPasteboard.general
-                                    pb.clearContents()
-                                    pb.setString(name, forType: .string)
-                                    withAnimation(.easeInOut(duration: 0.15)) { showCopiedName = true }
-                                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
-                                        withAnimation(.easeInOut(duration: 0.2)) { showCopiedName = false }
-                                    }
-                                }) {
-                                    Image(systemName: "doc.on.doc")
-                                        .font(.system(size: 12, weight: .semibold))
-                                        .foregroundStyle(.secondary)
-                                }
-                                .buttonStyle(.plain)
-                                .help("Copy device name for known_devices.yaml")
-
-                                Text("Copied")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                                    .opacity(showCopiedName ? 1 : 0)
-                            }
                         }
                         Spacer()
                     }
@@ -813,9 +791,38 @@ struct DeviceManagerView: View {
                         Text("Entity ID:")
                             .font(.system(size: 12, weight: .semibold))
                             .foregroundStyle(.secondary)
-                        Text(DeviceAlias.entityID(for: aliasKey))
-                            .font(.system(size: 12, design: .monospaced))
-                            .foregroundStyle(.secondary)
+                        // The entity ID Home Assistant actually creates, not the
+                        // dev_id. This row used to show `findmy_<alias>` under an
+                        // "Entity ID" label, which is the topic key and unique_id —
+                        // missing the domain and keeping hyphens HA converts. Issue
+                        // #22's reporter reasonably expected what this label said.
+                        HStack(spacing: 6) {
+                            Text(DeviceAlias.haEntityID(for: aliasKey))
+                                .font(.system(size: 12, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                                .textSelection(.enabled)
+
+                            Button(action: {
+                                let pb = NSPasteboard.general
+                                pb.clearContents()
+                                pb.setString(DeviceAlias.haEntityID(for: aliasKey), forType: .string)
+                                withAnimation(.easeInOut(duration: 0.15)) { showCopiedEntity = true }
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                                    withAnimation(.easeInOut(duration: 0.2)) { showCopiedEntity = false }
+                                }
+                            }) {
+                                Image(systemName: "doc.on.doc")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundStyle(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                            .help("Copy entity ID")
+
+                            Text("Copied")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                                .opacity(showCopiedEntity ? 1 : 0)
+                        }
                         Spacer()
                     }
                     if transportMode == .rest {

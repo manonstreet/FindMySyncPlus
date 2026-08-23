@@ -289,7 +289,7 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
             // off and slugifies the remainder. We slug it ourselves so the value we
             // publish is the entity ID HA will actually create, which is what makes
             // the resolved ID we log truthful.
-            "default_entity_id": "device_tracker.\(haSlug(devId))",
+            "default_entity_id": DeviceAlias.haEntityID(forDevId: devId),
             "json_attributes_topic": "\(topicPrefix)\(devId)/attributes",
             "source_type": "gps",
             "device": [
