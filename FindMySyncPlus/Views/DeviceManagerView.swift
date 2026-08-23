@@ -435,9 +435,12 @@ struct DeviceManagerView: View {
                 let cleaned = slugifyAlias(newName)
                 settings.renameAlias(from: key, to: cleaned)
                 logger.info("Alias \"\(key)\" renamed to \"\(cleaned)\" (entity id will change).")
-                // Clear the old entity now rather than at the next sync — waiting a
-                // whole interval for it to vanish from HA reads as a bug.
-                Task { if await app.publishPendingRetirements() == false { retirementFailed = true } }
+                // A rename needs both halves: the old entity cleared and the new one
+                // published. A sync does both — its drain clears the tombstone and
+                // its normal discovery publishes the new entity with current data.
+                // Clearing alone would leave the device with no entity at all until
+                // the next scheduled run.
+                _ = app.runNowIfIdle()
             })
         }
         .alert("Delete Alias?",
@@ -1033,6 +1036,19 @@ private struct RenameAliasSheet: View {
             TextField("alias", text: $renameText)
                 .textFieldStyle(.roundedBorder)
                 .frame(width: 320)
+
+            // Informational, not a warning: this is what renaming does, every time,
+            // not something that might go wrong. A sync is what replaces the old
+            // entity with the new one, so saying so sets the expectation that the
+            // change lands in a moment rather than instantly.
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Image(systemName: "info.circle")
+                    .foregroundStyle(.secondary)
+                Text("A sync runs after renaming, so Home Assistant picks up the new entity.")
+                    .foregroundStyle(.secondary)
+            }
+            .font(.caption)
+            .frame(width: 320, alignment: .leading)
 
             HStack {
                 Spacer()
