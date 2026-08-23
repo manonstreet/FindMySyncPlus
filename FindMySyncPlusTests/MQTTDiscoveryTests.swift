@@ -149,3 +149,71 @@ struct DiscoveryTombstoneTests {
                 == "findmysyncplus/findmy_a-b/attributes")
     }
 }
+
+/// Battery reaches HA only as an attribute today, so it cannot drive the battery
+/// card or the low-battery blueprints — the one outstanding public commitment on
+/// issue #16. A companion sensor reads the attributes topic that is already
+/// published, so there is no new publishing path.
+@Suite("MQTT battery sensor payload")
+struct BatterySensorPayloadTests {
+
+    private func payload() -> [String: Any] {
+        MQTTClient.batterySensorPayload(devId: "findmy_ohrapfel-case",
+                                        displayName: "Case",
+                                        topicPrefix: "findmysyncplus/")
+    }
+
+    /// The audit found `object_id` is unsupported for sensor.mqtt as well, so the
+    /// spec's original payload would have reproduced the exact bug this release
+    /// exists to fix, in a brand-new entity, on the same day we fixed it.
+    /// Note the domain is `sensor.`, not `device_tracker.`.
+    @Test("uses default_entity_id with the sensor domain, slugged")
+    func usesDefaultEntityID() {
+        #expect(payload()["default_entity_id"] as? String
+                == "sensor.findmy_ohrapfel_case_battery")
+    }
+
+    @Test("unique_id keeps the hyphen and takes the battery suffix")
+    func uniqueID() {
+        #expect(payload()["unique_id"] as? String == "findmy_ohrapfel-case_battery")
+    }
+
+    /// Reuses the attributes topic the tracker already publishes — one extra
+    /// discovery message per device, no extra publishing.
+    @Test("reads the existing attributes topic")
+    func reusesAttributesTopic() {
+        #expect(payload()["state_topic"] as? String
+                == "findmysyncplus/findmy_ohrapfel-case/attributes")
+        #expect(payload()["value_template"] as? String == "{{ value_json.battery }}")
+    }
+
+    @Test("declares the battery device class and percent unit")
+    func declaresBatteryClass() {
+        #expect(payload()["device_class"] as? String == "battery")
+        #expect(payload()["unit_of_measurement"] as? String == "%")
+    }
+
+    @Test("groups under the same device card as the tracker")
+    func sharesDeviceBlock() throws {
+        let device = try #require(payload()["device"] as? [String: Any])
+
+        #expect(device["identifiers"] as? [String] == ["findmysyncplus"])
+        #expect(device["name"] as? String == "FindMySync+")
+    }
+
+    @Test("names the sensor after the device")
+    func namesTheSensor() {
+        #expect(payload()["name"] as? String == "Case Battery")
+    }
+
+    @Test("builds its discovery topic under the sensor namespace")
+    func discoveryTopic() {
+        #expect(MQTTClient.batterySensorTopic(forDevId: "findmy_ohrapfel-case")
+                == "homeassistant/sensor/findmy_ohrapfel-case_battery/config")
+    }
+
+    @Test("the payload serialises to JSON")
+    func serialisable() {
+        #expect(JSONSerialization.isValidJSONObject(payload()))
+    }
+}

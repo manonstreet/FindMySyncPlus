@@ -15,6 +15,9 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
     private var reconnectTask: Task<Void, Never>?
     private(set) var reconnectAttempts = 0
     private var publishedDiscoveryIds: Set<String> = []
+    /// Separate from `publishedDiscoveryIds` on purpose — see
+    /// `publishBatterySensorIfNeeded`.
+    private var publishedBatterySensorIds: Set<String> = []
 
     private weak var logger: LogStore?
     private weak var settings: SettingsStore?
@@ -103,6 +106,7 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
         connectionState = .disconnected
         connectingSince = nil
         publishedDiscoveryIds.removeAll()
+        publishedBatterySensorIds.removeAll()
     }
 
     func ensureConnected(settings: SettingsStore) async -> Bool {
@@ -209,6 +213,10 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
                 publishedDiscoveryIds.insert(devId)
                 logger.info("MQTT discovery published for \(devId) as device_tracker.\(haSlug(devId))")
             }
+
+            publishBatterySensorIfNeeded(client: client, device: d, devId: devId,
+                                         displayName: d.name.isEmpty ? alias : d.name,
+                                         prefix: prefix)
 
             // Build and publish attributes
             let attrs = buildAttributes(for: d, iso: iso)
@@ -322,62 +330,6 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
 
     // MARK: - Helpers
 
-    /// HA's discovery namespace. Fixed — this prefix is not user-configurable.
-    nonisolated static func discoveryTopic(forDevId devId: String) -> String {
-        "homeassistant/device_tracker/\(devId)/config"
-    }
-
-    /// The auto-discovery config. Extracted from `post()` so it can be asserted on
-    /// without a broker: HA removed `object_id` in Core 2026.4 and now silently
-    /// ignores it, which was invisible here for four months because this payload
-    /// was a dictionary literal behind a connected-socket guard.
-    ///
-    /// `unique_id` and `default_entity_id` differ on purpose — see the tests.
-    nonisolated static func discoveryPayload(devId: String,
-                                             displayName: String,
-                                             topicPrefix: String) -> [String: Any] {
-        [
-            "name": displayName,
-            "unique_id": devId,
-            // Ignored on HA >= 2026.4, still honoured below 2025.10, and documented
-            // as unable to break discovery either way.
-            "object_id": devId,
-            // Replaces object_id, and carries the domain prefix — HA partitions it
-            // off and slugifies the remainder. We slug it ourselves so the value we
-            // publish is the entity ID HA will actually create, which is what makes
-            // the resolved ID we log truthful.
-            "default_entity_id": DeviceAlias.haEntityID(forDevId: devId),
-            "json_attributes_topic": "\(topicPrefix)\(devId)/attributes",
-            "source_type": "gps",
-            "device": [
-                "identifiers": ["findmysyncplus"],
-                "name": "FindMySync+",
-                "manufacturer": "Apple",
-                "model": "Find My"
-            ]
-        ]
-    }
-
-    nonisolated static func attributesTopic(forDevId devId: String, prefix: String) -> String {
-        "\(prefix)\(devId)/attributes"
-    }
-
-    /// Which retired devIds still need their retained topics cleared.
-    ///
-    /// Filtered against the live set because an alias can be renamed away and
-    /// back (a -> b -> a); clearing a devId that is in use again would delete a
-    /// working entity. No broker read and no ownership guess is involved — the
-    /// app retires these itself at the moment the alias changes, so it knows
-    /// exactly which topics are its own.
-    nonisolated static func tombstonesToPublish(retired: [String],
-                                                liveDevIds: Set<String>) -> [String] {
-        var seen: Set<String> = []
-        return retired.filter { id in
-            guard !liveDevIds.contains(id) else { return false }
-            return seen.insert(id).inserted
-        }
-    }
-
     /// Clear the retained topics of aliases that were renamed, deleted or
     /// untracked, then drop them from the retired list.
     ///
@@ -416,9 +368,38 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
     /// a name the user removed.
     private func clearRetainedTopics(client: CocoaMQTT, devId: String, prefix: String) {
         for topic in [Self.discoveryTopic(forDevId: devId),
+                      Self.batterySensorTopic(forDevId: devId),
                       Self.attributesTopic(forDevId: devId, prefix: prefix)] {
             client.publish(CocoaMQTTMessage(topic: topic, string: "", qos: .qos1, retained: true))
         }
+        // Allow the sensor to be republished: it is gated per session, and without
+        // this a re-registered device would come back without its battery sensor.
+        publishedBatterySensorIds.remove(devId)
+    }
+
+    /// Publish the battery sensor's discovery config, once per session per device.
+    ///
+    /// Gated on its own set rather than `publishedDiscoveryIds`: tracker discovery
+    /// fires on the first sync, but a device's battery can be absent then and
+    /// present on a later one, and a shared set would mean the sensor never
+    /// appeared for it.
+    private func publishBatterySensorIfNeeded(client: CocoaMQTT,
+                                              device: DevicePoint,
+                                              devId: String,
+                                              displayName: String,
+                                              prefix: String) {
+        // No reading means no sensor: one published with no value shows as `unknown`
+        // in HA and clutters the device card.
+        guard device.battery != nil, !publishedBatterySensorIds.contains(devId) else { return }
+
+        publishJSON(client: client,
+                    topic: Self.batterySensorTopic(forDevId: devId),
+                    payload: Self.batterySensorPayload(devId: devId,
+                                                       displayName: displayName,
+                                                       topicPrefix: prefix),
+                    retain: true)
+        publishedBatterySensorIds.insert(devId)
+        logger?.info("MQTT battery sensor published for \(devId)")
     }
 
     private func publishJSON(client: CocoaMQTT, topic: String, payload: [String: Any], retain: Bool) {
@@ -504,6 +485,7 @@ extension MQTTClient: CocoaMQTTDelegate {
                 self.reconnectAttempts = 0
                 self.reconnectTask?.cancel()
                 self.publishedDiscoveryIds.removeAll()
+                self.publishedBatterySensorIds.removeAll()
                 self.logger?.info("MQTT connected (discovery will re-publish)")
             } else {
                 self.logger?.error("MQTT connection rejected: \(ackDesc)")
