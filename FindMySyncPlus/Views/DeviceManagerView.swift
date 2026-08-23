@@ -188,6 +188,9 @@ struct DeviceManagerView: View {
     @State private var renameText: String = ""
     @State private var showRenameSheet = false
 
+    @State private var reRegisterAliasKey: String? = nil
+    @State private var showReRegisterConfirm = false
+
     @State private var deleteAliasKey: String? = nil
     @State private var showDeleteConfirm = false
 
@@ -437,11 +440,38 @@ struct DeviceManagerView: View {
                presenting: deleteAliasKey) { key in
             Button("Delete", role: .destructive) {
                 settings.deleteAlias(key)
-                logger.warn("Alias \"\(key)\" deleted. Clean up the HA entity if desired.")
+                if settings.transportMode == .mqtt {
+                    logger.warn("Alias \"\(key)\" deleted. Its retained MQTT topics clear on the next sync.")
+                } else {
+                    logger.warn("Alias \"\(key)\" deleted. Clean up the HA entity if desired.")
+                }
             }
             Button("Cancel", role: .cancel) { }
         } message: { key in
-            Text("This does not remove any Home Assistant entity. The alias “\(key)” and its UUID mappings will be removed from this app.")
+            // Was "This does not remove any Home Assistant entity" — true until the
+            // app started clearing retained topics for retired dev_ids. On MQTT it
+            // now does exactly that, and telling users the opposite is worse than
+            // saying nothing.
+            if settings.transportMode == .mqtt {
+                // swiftlint:disable:next line_length
+                Text("The alias “\(key)” and its UUID mappings will be removed from this app. Its Home Assistant entity and last known location are cleared from the broker on the next sync.")
+            } else {
+                // swiftlint:disable:next line_length
+                Text("This does not remove any Home Assistant entity. The alias “\(key)” and its UUID mappings will be removed from this app.")
+            }
+        }
+        .alert("Re-create Home Assistant entity?",
+               isPresented: $showReRegisterConfirm,
+               presenting: reRegisterAliasKey) { key in
+            Button("Re-create", role: .destructive) {
+                Task { _ = await app.reRegisterEntity(alias: key) }
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: { key in
+            // Names the specific before and after, which is the whole reason this is
+            // per-alias rather than one global button: a sweep could not say either.
+            // swiftlint:disable:next line_length
+            Text("The entity will be removed and re-created as “\(DeviceAlias.haEntityID(for: key))”. Any rename, icon or area you set for it in Home Assistant will be cleared, and recorded history stays under the old entity ID.")
         }
         .alert("Remove last UUID?", isPresented: Binding(
             get: { pendingUUIDDelete != nil },
@@ -651,6 +681,7 @@ struct DeviceManagerView: View {
                                     sourceBadge: singleSource,
                                     nameLabel: "Name:",
                                     transportMode: settings.transportMode,
+                                    mqttConnected: app.syncEngine.mqtt.connectionState == .connected,
                                     onToggleTracked: { (newValue: Bool) in
                                         settings.setAlias(rec.alias, tracked: newValue)
                                     },
@@ -662,6 +693,10 @@ struct DeviceManagerView: View {
                                     onDelete: {
                                         deleteAliasKey = rec.alias
                                         showDeleteConfirm = true
+                                    },
+                                    onReRegister: {
+                                        reRegisterAliasKey = rec.alias
+                                        showReRegisterConfirm = true
                                     },
                                     onDeleteUUID: { uuid in
                                         if rec.tracked && rec.knownUUIDs.count == 1 && rec.knownUUIDs.contains(uuid) {
@@ -717,15 +752,18 @@ struct DeviceManagerView: View {
         let sourceBadge: DeviceSource?
         let nameLabel: String
         let transportMode: TransportMode
+        let mqttConnected: Bool
 
         var onToggleTracked: (Bool) -> Void
         var onRename: () -> Void
         var onDelete: () -> Void
+        var onReRegister: () -> Void
         var onDeleteUUID: (String) -> Void
 
         @State private var hoverRename = false
         @State private var hoverTrash  = false
-        @State private var showCopiedName = false
+        @State private var hoverReRegister = false
+        @State private var showCopiedEntity = false
 
         var body: some View {
             VStack(alignment: .leading, spacing: 8) {
@@ -749,6 +787,23 @@ struct DeviceManagerView: View {
                         .buttonStyle(.plain)
                         .onHover { hoverRename = $0 }
                         .help("Rename alias")
+
+                        // MQTT only: REST derives the entity from dev_id directly, so
+                        // there is nothing to re-register there.
+                        if transportMode == .mqtt {
+                            Button(action: onReRegister) {
+                                Image(systemName: "arrow.triangle.2.circlepath")
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundStyle(hoverReRegister ? Color.accentColor.opacity(0.9) : .secondary)
+                                    .alignmentGuide(.firstTextBaseline) { d in d[.bottom] - 1 }
+                            }
+                            .buttonStyle(.plain)
+                            .onHover { hoverReRegister = $0 }
+                            .disabled(!mqttConnected)
+                            .help(mqttConnected
+                                  ? "Re-create the Home Assistant entity so its ID matches this alias"
+                                  : "Connect to MQTT to re-create this entity")
+                        }
 
                         Button(action: onDelete) {
                             Image(systemName: "trash")
@@ -784,28 +839,6 @@ struct DeviceManagerView: View {
                                 .font(.system(size: 12))
                                 .foregroundStyle(.secondary)
                                 .textSelection(.enabled)
-                            if let name = lastSeenName, !name.isEmpty {
-                                Button(action: {
-                                    let pb = NSPasteboard.general
-                                    pb.clearContents()
-                                    pb.setString(name, forType: .string)
-                                    withAnimation(.easeInOut(duration: 0.15)) { showCopiedName = true }
-                                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
-                                        withAnimation(.easeInOut(duration: 0.2)) { showCopiedName = false }
-                                    }
-                                }) {
-                                    Image(systemName: "doc.on.doc")
-                                        .font(.system(size: 12, weight: .semibold))
-                                        .foregroundStyle(.secondary)
-                                }
-                                .buttonStyle(.plain)
-                                .help("Copy device name for known_devices.yaml")
-
-                                Text("Copied")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                                    .opacity(showCopiedName ? 1 : 0)
-                            }
                         }
                         Spacer()
                     }
@@ -813,9 +846,38 @@ struct DeviceManagerView: View {
                         Text("Entity ID:")
                             .font(.system(size: 12, weight: .semibold))
                             .foregroundStyle(.secondary)
-                        Text(DeviceAlias.entityID(for: aliasKey))
-                            .font(.system(size: 12, design: .monospaced))
-                            .foregroundStyle(.secondary)
+                        // The entity ID Home Assistant actually creates, not the
+                        // dev_id. This row used to show `findmy_<alias>` under an
+                        // "Entity ID" label, which is the topic key and unique_id —
+                        // missing the domain and keeping hyphens HA converts. Issue
+                        // #22's reporter reasonably expected what this label said.
+                        HStack(spacing: 6) {
+                            Text(DeviceAlias.haEntityID(for: aliasKey))
+                                .font(.system(size: 12, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                                .textSelection(.enabled)
+
+                            Button(action: {
+                                let pb = NSPasteboard.general
+                                pb.clearContents()
+                                pb.setString(DeviceAlias.haEntityID(for: aliasKey), forType: .string)
+                                withAnimation(.easeInOut(duration: 0.15)) { showCopiedEntity = true }
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                                    withAnimation(.easeInOut(duration: 0.2)) { showCopiedEntity = false }
+                                }
+                            }) {
+                                Image(systemName: "doc.on.doc")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundStyle(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                            .help("Copy entity ID")
+
+                            Text("Copied")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                                .opacity(showCopiedEntity ? 1 : 0)
+                        }
                         Spacer()
                     }
                     if transportMode == .rest {

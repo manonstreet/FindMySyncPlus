@@ -178,6 +178,9 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
         let prefix = settings.mqttTopicPrefix
         let iso = ISO8601DateFormatter()
 
+        drainRetiredDevIds(client: client, aliasByUUID: aliasByUUID,
+                           settings: settings, logger: logger, prefix: prefix)
+
         for d in devices {
             let uuid = d.id.normalized()
             guard let alias = aliasByUUID[uuid] else {
@@ -196,23 +199,15 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
             // publishing state messages on every sync caused home → not_home
             // → home flapping that reset zone-duration counters (commit 4c28f0d).
             if !publishedDiscoveryIds.contains(devId) {
-                let configTopic = "homeassistant/device_tracker/\(devId)/config"
-                let configPayload: [String: Any] = [
-                    "name": d.name.isEmpty ? alias : d.name,
-                    "unique_id": devId,
-                    "object_id": devId,
-                    "json_attributes_topic": "\(prefix)\(devId)/attributes",
-                    "source_type": "gps",
-                    "device": [
-                        "identifiers": ["findmysyncplus"],
-                        "name": "FindMySync+",
-                        "manufacturer": "Apple",
-                        "model": "Find My"
-                    ]
-                ]
+                let configTopic = Self.discoveryTopic(forDevId: devId)
+                let configPayload = Self.discoveryPayload(
+                    devId: devId,
+                    displayName: d.name.isEmpty ? alias : d.name,
+                    topicPrefix: prefix
+                )
                 publishJSON(client: client, topic: configTopic, payload: configPayload, retain: true)
                 publishedDiscoveryIds.insert(devId)
-                logger.info("MQTT discovery published for \(devId)")
+                logger.info("MQTT discovery published for \(devId) as device_tracker.\(haSlug(devId))")
             }
 
             // Build and publish attributes
@@ -225,6 +220,53 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
         return PostSummary(successCount: successCount,
                            authRejectedCount: 0,
                            transientCount: transientCount)
+    }
+
+    // MARK: - Re-registration
+
+    /// Delete an entity's discovery config and immediately recreate it, so Home
+    /// Assistant registers it afresh and applies `default_entity_id`.
+    ///
+    /// This is the only way to fix an entity whose ID was assigned before HA
+    /// removed `object_id` in Core 2026.4. `default_entity_id` is consulted only
+    /// at first registration — `entity_platform` resolves a known `unique_id` to
+    /// its existing entry and keeps that entry's ID — so the registry entry has to
+    /// go before a correct ID can be assigned.
+    ///
+    /// **Destructive by design.** Removing the discovery config removes the
+    /// registry entry, taking any rename, icon or area the user set with it. Only
+    /// ever call this from an explicit, confirmed user action.
+    func reRegister(devId: String,
+                    displayName: String,
+                    settings: SettingsStore,
+                    logger: LogStore) async -> Bool {
+        guard connectionState == .connected, let client else {
+            logger.warn("MQTT: not connected — cannot re-register \(devId)")
+            return false
+        }
+
+        let prefix = settings.mqttTopicPrefix
+        clearRetainedTopics(client: client, devId: devId, prefix: prefix)
+
+        // HA has to process the removal before the new config lands. Published back
+        // to back on one topic, it treats the pair as an update, the registry entry
+        // survives, and the stale entity ID with it — the exact thing this fixes.
+        try? await Task.sleep(for: .milliseconds(500))
+
+        guard connectionState == .connected, let live = self.client else {
+            logger.warn("MQTT: connection lost while re-registering \(devId); entity was removed but not recreated")
+            return false
+        }
+
+        publishJSON(client: live,
+                    topic: Self.discoveryTopic(forDevId: devId),
+                    payload: Self.discoveryPayload(devId: devId,
+                                                   displayName: displayName,
+                                                   topicPrefix: prefix),
+                    retain: true)
+        publishedDiscoveryIds.insert(devId)
+        logger.info("MQTT: re-registered \(devId) as \(DeviceAlias.haEntityID(forDevId: devId))")
+        return true
     }
 
     // MARK: - Attribute building
@@ -272,6 +314,105 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
     }
 
     // MARK: - Helpers
+
+    /// HA's discovery namespace. Fixed — this prefix is not user-configurable.
+    nonisolated static func discoveryTopic(forDevId devId: String) -> String {
+        "homeassistant/device_tracker/\(devId)/config"
+    }
+
+    /// The auto-discovery config. Extracted from `post()` so it can be asserted on
+    /// without a broker: HA removed `object_id` in Core 2026.4 and now silently
+    /// ignores it, which was invisible here for four months because this payload
+    /// was a dictionary literal behind a connected-socket guard.
+    ///
+    /// `unique_id` and `default_entity_id` differ on purpose — see the tests.
+    nonisolated static func discoveryPayload(devId: String,
+                                             displayName: String,
+                                             topicPrefix: String) -> [String: Any] {
+        [
+            "name": displayName,
+            "unique_id": devId,
+            // Ignored on HA >= 2026.4, still honoured below 2025.10, and documented
+            // as unable to break discovery either way.
+            "object_id": devId,
+            // Replaces object_id, and carries the domain prefix — HA partitions it
+            // off and slugifies the remainder. We slug it ourselves so the value we
+            // publish is the entity ID HA will actually create, which is what makes
+            // the resolved ID we log truthful.
+            "default_entity_id": DeviceAlias.haEntityID(forDevId: devId),
+            "json_attributes_topic": "\(topicPrefix)\(devId)/attributes",
+            "source_type": "gps",
+            "device": [
+                "identifiers": ["findmysyncplus"],
+                "name": "FindMySync+",
+                "manufacturer": "Apple",
+                "model": "Find My"
+            ]
+        ]
+    }
+
+    nonisolated static func attributesTopic(forDevId devId: String, prefix: String) -> String {
+        "\(prefix)\(devId)/attributes"
+    }
+
+    /// Which retired devIds still need their retained topics cleared.
+    ///
+    /// Filtered against the live set because an alias can be renamed away and
+    /// back (a -> b -> a); clearing a devId that is in use again would delete a
+    /// working entity. No broker read and no ownership guess is involved — the
+    /// app retires these itself at the moment the alias changes, so it knows
+    /// exactly which topics are its own.
+    nonisolated static func tombstonesToPublish(retired: [String],
+                                                liveDevIds: Set<String>) -> [String] {
+        var seen: Set<String> = []
+        return retired.filter { id in
+            guard !liveDevIds.contains(id) else { return false }
+            return seen.insert(id).inserted
+        }
+    }
+
+    /// Clear the retained topics of aliases that were renamed, deleted or
+    /// untracked, then drop them from the retired list.
+    ///
+    /// Filtered against the devIds being published this cycle, so an alias renamed
+    /// away and back is never cleared while it is in use.
+    private func drainRetiredDevIds(client: CocoaMQTT,
+                                    aliasByUUID: [String: String],
+                                    settings: SettingsStore,
+                                    logger: LogStore,
+                                    prefix: String) {
+        let liveDevIds = Set(aliasByUUID.values.map { DeviceAlias.entityID(for: $0) })
+        let tombstones = Self.tombstonesToPublish(retired: settings.retiredDevIds,
+                                                  liveDevIds: liveDevIds)
+        for devId in tombstones {
+            clearRetainedTopics(client: client, devId: devId, prefix: prefix)
+            logger.info("MQTT: cleared retained topics for retired \(devId)")
+        }
+        if !tombstones.isEmpty {
+            let cleared = Set(tombstones)
+            settings.retiredDevIds = settings.retiredDevIds.filter { !cleared.contains($0) }
+        }
+        // A retired dev_id that is live again is a decision, not a no-op — say so
+        // rather than leaving it to look like nothing happened.
+        let stillLive = settings.retiredDevIds.count
+        if stillLive > 0 {
+            logger.info("MQTT: \(stillLive) retired dev_id(s) still in use, not cleared")
+        }
+    }
+
+    /// Clear both retained topics for a dev_id.
+    ///
+    /// A zero-length retained payload is HA's signal to drop a discovered entity,
+    /// and removes the retained message from the broker. Order matters: the
+    /// discovery config goes first so HA drops the entity, then the attributes
+    /// topic, so the device's last latitude/longitude does not linger behind under
+    /// a name the user removed.
+    private func clearRetainedTopics(client: CocoaMQTT, devId: String, prefix: String) {
+        for topic in [Self.discoveryTopic(forDevId: devId),
+                      Self.attributesTopic(forDevId: devId, prefix: prefix)] {
+            client.publish(CocoaMQTTMessage(topic: topic, string: "", qos: .qos1, retained: true))
+        }
+    }
 
     private func publishJSON(client: CocoaMQTT, topic: String, payload: [String: Any], retain: Bool) {
         guard let data = try? JSONSerialization.data(withJSONObject: payload),

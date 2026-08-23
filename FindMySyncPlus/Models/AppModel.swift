@@ -134,6 +134,20 @@ final class AppModel: NSObject, ObservableObject {
 
     // MARK: - MQTT test
 
+    /// Recreate one alias's Home Assistant entity so its ID follows the alias.
+    ///
+    /// Destructive: the existing registry entry is removed, along with any rename,
+    /// icon or area set in HA. Call only from a confirmed user action.
+    func reRegisterEntity(alias: String) async -> Bool {
+        guard let settings, let logger else { return false }
+        let devId = DeviceAlias.entityID(for: alias)
+        let displayName = settings.aliases.first(where: { $0.alias == alias })?.lastSeenName ?? alias
+        return await syncEngine.mqtt.reRegister(devId: devId,
+                                                displayName: displayName,
+                                                settings: settings,
+                                                logger: logger)
+    }
+
     func triggerManualMQTTTestAsync() async -> (Bool, String) {
         guard !isPerformingRun else { return (false, "Busy") }
         guard let settings, let logger else { return (false, "Unavailable") }

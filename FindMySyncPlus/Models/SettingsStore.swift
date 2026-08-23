@@ -326,26 +326,63 @@ final class SettingsStore: ObservableObject {
         return evicted
     }
 
+    // MARK: - Retired dev_ids
+
+    /// dev_ids whose retained MQTT topics still need clearing.
+    ///
+    /// Persisted, because an alias can be renamed or deleted while the app is
+    /// disconnected, and the retained discovery config and attributes topic would
+    /// otherwise sit on the broker forever — the latter holding the device's last
+    /// latitude/longitude under a name the user deliberately removed.
+    ///
+    /// Recorded here rather than discovered from the broker: the app knows exactly
+    /// which topics it published, so no ownership guess is involved. If this list
+    /// is ever lost the cost is one uncleaned orphan, never a wrong deletion.
+    @AppStorage("retiredDevIds") private var retiredDevIdsRaw: String = "[]"
+
+    var retiredDevIds: [String] {
+        get { (try? JSONDecoder().decode([String].self, from: Data(retiredDevIdsRaw.utf8))) ?? [] }
+        set {
+            let data = (try? JSONEncoder().encode(newValue)) ?? Data("[]".utf8)
+            retiredDevIdsRaw = String(data: data, encoding: .utf8) ?? "[]"
+        }
+    }
+
+    func retireDevId(_ devId: String) {
+        var current = retiredDevIds
+        guard !current.contains(devId) else { return }
+        current.append(devId)
+        retiredDevIds = current
+    }
+
     /// Toggle tracking for an alias.
     func setAlias(_ aliasKey: String, tracked: Bool) {
         guard let idx = aliases.firstIndex(where: { $0.alias == aliasKey }) else { return }
         var a = aliases[idx]
         a.tracked = tracked
         aliases[idx] = a // triggers save
+        // Untracking stops publishing but leaves both retained topics behind, exactly
+        // as a delete does. Re-tracking filters the tombstone out again, since the
+        // devId is live in the next publish cycle.
+        if !tracked { retireDevId(DeviceAlias.entityID(for: aliasKey)) }
     }
 
     /// Rename an alias (WARNING: changes HA entity id). Ensures uniqueness.
     func renameAlias(from oldKey: String, to newRaw: String) {
         guard let idx = aliases.firstIndex(where: { $0.alias == oldKey }) else { return }
         let newKey = uniqueAlias(from: newRaw)
+        guard newKey != oldKey else { return }
         var a = aliases[idx]
         a.alias = newKey
         aliases[idx] = a // triggers save
+        retireDevId(DeviceAlias.entityID(for: oldKey))
     }
 
-    /// Remove an alias (does not delete any HA entity; user should clean up if desired).
+    /// Remove an alias. Its retained MQTT topics are cleared on the next publish.
     func deleteAlias(_ aliasKey: String) {
+        guard aliases.contains(where: { $0.alias == aliasKey }) else { return }
         aliases.removeAll(where: { $0.alias == aliasKey })
+        retireDevId(DeviceAlias.entityID(for: aliasKey))
     }
 
     func updateEndpointAuth(_ newValue: String) {
