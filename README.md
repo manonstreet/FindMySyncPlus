@@ -1,6 +1,6 @@
 # FindMySyncPlus
 
-![macOS 15+](https://img.shields.io/badge/macOS-15%2B-blue)
+![macOS 14.4+](https://img.shields.io/badge/macOS-14.4%2B-blue)
 ![License: MIT](https://img.shields.io/badge/License-MIT-green)
 ![Swift](https://img.shields.io/badge/Swift-native-orange)
 
@@ -19,7 +19,7 @@ macOS Keychain.
 Based on [FindMySync](https://github.com/MartinPham/FindMySync) and the decryption research by
 [Pnut-GGG](https://github.com/Pnut-GGG/findmy-cache-decryptor).
 
-> If you're coming from FindMySync — this is the version that ***works on macOS 15+***. See [Migrating from FindMySync](#migrating-from-findmysync).
+> If you're coming from FindMySync — this is the version that ***works on macOS 14.4 and later***. See [Migrating from FindMySync](#migrating-from-findmysync).
 
 ---
 
@@ -27,7 +27,7 @@ Based on [FindMySync](https://github.com/MartinPham/FindMySync) and the decrypti
 
 |  | FindMySyncPlus | FindMySync (original) | iCloud3 |
 |--|:-:|:-:|:-:|
-| macOS 15+ (Sequoia) support | ✅ | ❌ | ➖ |
+| macOS 14.4+ (encrypted caches) support | ✅ | ❌ | ➖ |
 | AirTag / Items support | ✅ | ✅ | ❌ |
 | Friend location tracking | ✅ | ❌ | ❌ |
 | Auto-refresh Find My (no AppleScript) | ✅ | ❌ | ➖ |
@@ -48,7 +48,8 @@ Based on [FindMySync](https://github.com/MartinPham/FindMySync) and the decrypti
 - **MQTT rich attributes** — altitude, speed, course, motion state, location labels via `json_attributes_topic`
 - **Friend location tracking** — decrypts `LocalStorage.db` for live friend coordinates; family members already tracked via Devices are automatically deduplicated using Apple's universal person identifier (DSID)
 - **Device Manager** — assign friendly aliases to devices, items, and friends; aliases become stable HA entity IDs even as UUIDs rotate
-- **Grouped accessories** — AirPods Pro pairs (and similar) appear as a single Device Manager entry; sub-items (Case, Left Bud, Right Bud) can be revealed and aliased individually if needed
+- **Grouped accessories** — AirPods Pro pairs (and similar) appear as a single Device Manager entry; sub-items (Case, Left Bud, Right Bud) can be revealed and aliased individually if needed. This grouping is within FindMySyncPlus — in Home Assistant every entity appears under a single `FindMySync+` device
+- **Battery sensor** — devices that report a real battery level (iPhone, Apple Watch, Mac) get a `device_class: battery` sensor, so battery works with the battery card and low-battery blueprints. AirTags and third-party trackers report a small vendor-specific code rather than a percentage, so they get the raw value as an attribute instead of an invented one
 - **Auto-learn UUIDs** — automatically re-maps devices when Apple rotates their identifier
 - Configurable scheduler with selectable refresh interval and manual **Run Now** and **Dry Run** modes
 - **Four log levels** (Error / Warn / Info / Debug) with per-run statistics — posted updates, warnings, learned UUIDs
@@ -96,7 +97,7 @@ device entry, giving family members the best of both sources.
 
 ## Requirements
 
-- macOS 15 (Sequoia) or higher
+- macOS 14.4 (Sonoma) or later — 14.4 is where Apple began encrypting the Find My caches, which is what this app decrypts
 - A running Home Assistant instance — either the `device_tracker.see` REST API or an MQTT broker (e.g. Mosquitto add-on)
 - Find My encryption keys extracted from Keychain (see Phase 1 below)
 
@@ -172,7 +173,7 @@ findmy_alias1:
   track: true
 ```
 
-**MQTT users:** Entities are created automatically via HA auto-discovery — no `known_devices.yaml` needed. Rich attributes (altitude, speed, motion state, etc.) are available on each entity's `json_attributes`.
+**MQTT users:** Entities are created automatically via HA auto-discovery — no `known_devices.yaml` needed. Rich attributes (altitude, speed, motion state, etc.) are available on each entity's `json_attributes`, and devices reporting a real battery level also get a separate `device_class: battery` sensor.
 
 ---
 
