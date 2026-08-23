@@ -196,23 +196,15 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
             // publishing state messages on every sync caused home → not_home
             // → home flapping that reset zone-duration counters (commit 4c28f0d).
             if !publishedDiscoveryIds.contains(devId) {
-                let configTopic = "homeassistant/device_tracker/\(devId)/config"
-                let configPayload: [String: Any] = [
-                    "name": d.name.isEmpty ? alias : d.name,
-                    "unique_id": devId,
-                    "object_id": devId,
-                    "json_attributes_topic": "\(prefix)\(devId)/attributes",
-                    "source_type": "gps",
-                    "device": [
-                        "identifiers": ["findmysyncplus"],
-                        "name": "FindMySync+",
-                        "manufacturer": "Apple",
-                        "model": "Find My"
-                    ]
-                ]
+                let configTopic = Self.discoveryTopic(forDevId: devId)
+                let configPayload = Self.discoveryPayload(
+                    devId: devId,
+                    displayName: d.name.isEmpty ? alias : d.name,
+                    topicPrefix: prefix
+                )
                 publishJSON(client: client, topic: configTopic, payload: configPayload, retain: true)
                 publishedDiscoveryIds.insert(devId)
-                logger.info("MQTT discovery published for \(devId)")
+                logger.info("MQTT discovery published for \(devId) as device_tracker.\(haSlug(devId))")
             }
 
             // Build and publish attributes
@@ -272,6 +264,40 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
     }
 
     // MARK: - Helpers
+
+    /// HA's discovery namespace. Fixed — this prefix is not user-configurable.
+    nonisolated static func discoveryTopic(forDevId devId: String) -> String {
+        "homeassistant/device_tracker/\(devId)/config"
+    }
+
+    /// The auto-discovery config. Extracted from `post()` so it can be asserted on
+    /// without a broker: HA removed `object_id` in Core 2026.4 and now silently
+    /// ignores it, which was invisible here for four months because this payload
+    /// was a dictionary literal behind a connected-socket guard.
+    ///
+    /// `unique_id` and `default_entity_id` differ on purpose — see the tests.
+    nonisolated static func discoveryPayload(devId: String,
+                                             displayName: String,
+                                             topicPrefix: String) -> [String: Any] {
+        [
+            "name": displayName,
+            "unique_id": devId,
+            // Ignored on HA >= 2026.4, still honoured below 2025.10, and documented
+            // as unable to break discovery either way.
+            "object_id": devId,
+            // Replaces object_id. Carries the domain prefix, and must be a valid
+            // entity ID or HA rejects the whole config and the entity vanishes.
+            "default_entity_id": "device_tracker.\(haSlug(devId))",
+            "json_attributes_topic": "\(topicPrefix)\(devId)/attributes",
+            "source_type": "gps",
+            "device": [
+                "identifiers": ["findmysyncplus"],
+                "name": "FindMySync+",
+                "manufacturer": "Apple",
+                "model": "Find My"
+            ]
+        ]
+    }
 
     private func publishJSON(client: CocoaMQTT, topic: String, payload: [String: Any], retain: Bool) {
         guard let data = try? JSONSerialization.data(withJSONObject: payload),
