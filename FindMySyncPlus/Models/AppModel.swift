@@ -29,8 +29,20 @@ final class AppModel: NSObject, ObservableObject {
     @Published var lastLocatedDevices: [DevicePoint] = []
     @Published var lastLocatedEntries: [LocatedEntry] = []
 
+    /// Mirrors `syncEngine.mqtt.connectionState` so views can observe it.
+    ///
+    /// `connectionState` is `@Published` on the MQTT client, but that is a *nested*
+    /// ObservableObject: SwiftUI observes `AppModel`, and a nested object's changes
+    /// do not propagate to the parent. A view reading
+    /// `app.syncEngine.mqtt.connectionState` therefore re-evaluates only when
+    /// something unrelated republishes AppModel, and shows a stale value in the
+    /// meantime — which is why Device Manager's re-register button could sit
+    /// greyed out while MQTT was connected.
+    @Published private(set) var mqttConnected: Bool = false
+
     let syncEngine = SyncEngine()
     private var timerTask: Task<Void, Never>?
+    private var idleDisconnectTask: Task<Void, Never>?
     private weak var settings: SettingsStore?
     private weak var logger: LogStore?
 
@@ -55,6 +67,15 @@ final class AppModel: NSObject, ObservableObject {
             .store(in: &cancellables)
         settings.$logLevel
             .sink { [weak self] level in self?.logger?.minimumLevel = level }
+            .store(in: &cancellables)
+        // Republish the MQTT client's connection state as our own, so views can
+        // observe it. Without this a view reading it through `syncEngine.mqtt`
+        // never re-renders when the connection comes up or drops.
+        syncEngine.mqtt.$connectionState
+            .map { $0 == .connected }
+            .removeDuplicates()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] connected in self?.mqttConnected = connected }
             .store(in: &cancellables)
         logger.errorSignal
             .receive(on: RunLoop.main)
@@ -134,18 +155,101 @@ final class AppModel: NSObject, ObservableObject {
 
     // MARK: - MQTT test
 
+    // MARK: - On-demand MQTT for user actions
+
+    /// How long a connection opened for a user action is held once the scheduler is
+    /// not running. Only ever applies in that case: while the scheduler is on it
+    /// owns the connection and this never fires.
+    nonisolated static let idleDisconnectSeconds: TimeInterval = 300
+
+    /// Connect if we are not already, for a user-initiated action.
+    ///
+    /// The scheduler owns the steady-state connection, so with it stopped there is
+    /// nothing to publish through — which made every MQTT-dependent action silently
+    /// do nothing. A deliberate action may also preempt a pending backoff: the
+    /// single-owner rule exists to stop two *automatic* drivers fighting, and a
+    /// person waiting on a button is not one of those.
+    /// Deliberately silent on failure: what "not reachable" *means* differs by
+    /// caller. A re-registration did not happen; a rename did happen and only its
+    /// cleanup is deferred. Reporting "action not applied" for both told renaming
+    /// users their rename had failed, which was untrue.
+    private func connectForUserAction() async -> Bool {
+        guard let settings, settings.transportMode == .mqtt else { return false }
+        return await syncEngine.mqtt.ensureConnected(settings: settings)
+    }
+
+    /// Release a connection opened for a user action, once it has been idle.
+    ///
+    /// Cancelled and rescheduled on each action. Never armed while the scheduler is
+    /// running, because then the connection is not ours to close.
+    private func scheduleIdleDisconnect() {
+        idleDisconnectTask?.cancel()
+        guard !isRunning else { idleDisconnectTask = nil; return }
+        idleDisconnectTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(Self.idleDisconnectSeconds))
+            guard !Task.isCancelled, let self, !self.isRunning else { return }
+            self.syncEngine.mqtt.disconnect()
+            self.logger?.info("MQTT: disconnected after idle — scheduler is not running")
+        }
+    }
+
+    /// Clear the entities of aliases that were renamed, deleted or untracked, now.
+    ///
+    /// Otherwise the old entity lingers in Home Assistant until the next sync — up
+    /// to a full interval after the user changed it, which reads as a bug.
+    /// - Returns: `false` only when there was work to do and the broker could not
+    ///   be reached. Nothing pending is a success, not a failure — the caller must
+    ///   not raise an alert for an action that needed no publishing.
+    @discardableResult
+    func publishPendingRetirements() async -> Bool {
+        guard let settings, settings.transportMode == .mqtt else { return true }
+        guard !settings.retiredDevIds.isEmpty else { return true }
+        guard await connectForUserAction() else {
+            // A warning, not info: nothing was lost and the change stands, but the
+            // user is looking at Home Assistant wondering why the old entity is
+            // still there, and this is the only thing that answers them.
+            let pending = settings.retiredDevIds.joined(separator: ", ")
+            logger?.warn("MQTT: broker not reachable — \(pending) will be removed from "
+                         + "Home Assistant on the next successful sync")
+            return false
+        }
+
+        // Live means "still configured", not "seen this cycle" — an alias that simply
+        // was not located this run is not dead.
+        let live = Set(settings.aliases.filter(\.tracked).map { DeviceAlias.entityID(for: $0.alias) })
+        let cleared = syncEngine.mqtt.flushRetirements(retired: settings.retiredDevIds,
+                                                       liveDevIds: live,
+                                                       prefix: settings.mqttTopicPrefix)
+        for devId in cleared {
+            logger?.info("MQTT: cleared retained topics for retired \(devId)")
+        }
+        if !cleared.isEmpty {
+            let done = Set(cleared)
+            settings.retiredDevIds = settings.retiredDevIds.filter { !done.contains($0) }
+        }
+        scheduleIdleDisconnect()
+        return true
+    }
+
     /// Recreate one alias's Home Assistant entity so its ID follows the alias.
     ///
     /// Destructive: the existing registry entry is removed, along with any rename,
     /// icon or area set in HA. Call only from a confirmed user action.
     func reRegisterEntity(alias: String) async -> Bool {
         guard let settings, let logger else { return false }
+        guard await connectForUserAction() else {
+            logger.warn("MQTT: broker not reachable — \(alias) was not re-created")
+            return false
+        }
+
         let devId = DeviceAlias.entityID(for: alias)
         let displayName = settings.aliases.first(where: { $0.alias == alias })?.lastSeenName ?? alias
-        return await syncEngine.mqtt.reRegister(devId: devId,
-                                                displayName: displayName,
-                                                settings: settings,
-                                                logger: logger)
+        let ok = await syncEngine.mqtt.reRegister(devId: devId,
+                                                  displayName: displayName,
+                                                  settings: settings,
+                                                  logger: logger)
+        scheduleIdleDisconnect()
+        return ok
     }
 
     func triggerManualMQTTTestAsync() async -> (Bool, String) {

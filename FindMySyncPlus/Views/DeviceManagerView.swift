@@ -190,6 +190,8 @@ struct DeviceManagerView: View {
 
     @State private var reRegisterAliasKey: String? = nil
     @State private var showReRegisterConfirm = false
+    @State private var reRegisterFailed = false
+    @State private var retirementFailed = false
 
     @State private var deleteAliasKey: String? = nil
     @State private var showDeleteConfirm = false
@@ -433,6 +435,12 @@ struct DeviceManagerView: View {
                 let cleaned = slugifyAlias(newName)
                 settings.renameAlias(from: key, to: cleaned)
                 logger.info("Alias \"\(key)\" renamed to \"\(cleaned)\" (entity id will change).")
+                // A rename needs both halves: the old entity cleared and the new one
+                // published. A sync does both — its drain clears the tombstone and
+                // its normal discovery publishes the new entity with current data.
+                // Clearing alone would leave the device with no entity at all until
+                // the next scheduled run.
+                _ = app.runNowIfIdle()
             })
         }
         .alert("Delete Alias?",
@@ -440,6 +448,7 @@ struct DeviceManagerView: View {
                presenting: deleteAliasKey) { key in
             Button("Delete", role: .destructive) {
                 settings.deleteAlias(key)
+                Task { if await app.publishPendingRetirements() == false { retirementFailed = true } }
                 if settings.transportMode == .mqtt {
                     logger.warn("Alias \"\(key)\" deleted. Its retained MQTT topics clear on the next sync.")
                 } else {
@@ -464,7 +473,13 @@ struct DeviceManagerView: View {
                isPresented: $showReRegisterConfirm,
                presenting: reRegisterAliasKey) { key in
             Button("Re-create", role: .destructive) {
-                Task { _ = await app.reRegisterEntity(alias: key) }
+                Task {
+                    // Never silently no-ops: with the scheduler stopped this
+                    // connects on demand, and says so if it cannot.
+                    if await app.reRegisterEntity(alias: key) == false {
+                        reRegisterFailed = true
+                    }
+                }
             }
             Button("Cancel", role: .cancel) { }
         } message: { key in
@@ -472,6 +487,19 @@ struct DeviceManagerView: View {
             // per-alias rather than one global button: a sweep could not say either.
             // swiftlint:disable:next line_length
             Text("The entity will be removed and re-created as “\(DeviceAlias.haEntityID(for: key))”. Any rename, icon or area you set for it in Home Assistant will be cleared, and recorded history stays under the old entity ID.")
+        }
+        .alert("Couldn't reach the broker", isPresented: $retirementFailed) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            // The alias change itself always succeeds — it is local. Only the Home
+            // Assistant side is outstanding, and saying so is the difference between
+            // a useful message and one that implies the change was lost.
+            Text("The change was saved, but Home Assistant could not be updated. It will catch up on the next successful sync.")
+        }
+        .alert("Couldn't reach the broker", isPresented: $reRegisterFailed) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("The entity was not re-created. Check the MQTT settings under Access, and the log for details.")
         }
         .alert("Remove last UUID?", isPresented: Binding(
             get: { pendingUUIDDelete != nil },
@@ -681,9 +709,11 @@ struct DeviceManagerView: View {
                                     sourceBadge: singleSource,
                                     nameLabel: "Name:",
                                     transportMode: settings.transportMode,
-                                    mqttConnected: app.syncEngine.mqtt.connectionState == .connected,
                                     onToggleTracked: { (newValue: Bool) in
                                         settings.setAlias(rec.alias, tracked: newValue)
+                                        if !newValue {
+                                            Task { if await app.publishPendingRetirements() == false { retirementFailed = true } }
+                                        }
                                     },
                                     onRename: {
                                         renameAliasKey = rec.alias
@@ -752,7 +782,6 @@ struct DeviceManagerView: View {
         let sourceBadge: DeviceSource?
         let nameLabel: String
         let transportMode: TransportMode
-        let mqttConnected: Bool
 
         var onToggleTracked: (Bool) -> Void
         var onRename: () -> Void
@@ -799,10 +828,11 @@ struct DeviceManagerView: View {
                             }
                             .buttonStyle(.plain)
                             .onHover { hoverReRegister = $0 }
-                            .disabled(!mqttConnected)
-                            .help(mqttConnected
-                                  ? "Re-create the Home Assistant entity so its ID matches this alias"
-                                  : "Connect to MQTT to re-create this entity")
+                            // Deliberately never disabled. The action connects on
+                            // demand if the scheduler is stopped, and reports a
+                            // failure — a greyed control whose cause is invisible
+                            // (connection state is surfaced nowhere) is worse.
+                            .help("Re-create the Home Assistant entity so its ID matches this alias")
                         }
 
                         Button(action: onDelete) {
@@ -1006,6 +1036,19 @@ private struct RenameAliasSheet: View {
             TextField("alias", text: $renameText)
                 .textFieldStyle(.roundedBorder)
                 .frame(width: 320)
+
+            // Informational, not a warning: this is what renaming does, every time,
+            // not something that might go wrong. A sync is what replaces the old
+            // entity with the new one, so saying so sets the expectation that the
+            // change lands in a moment rather than instantly.
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Image(systemName: "info.circle")
+                    .foregroundStyle(.secondary)
+                Text("A sync runs after renaming, so Home Assistant picks up the new entity.")
+                    .foregroundStyle(.secondary)
+            }
+            .font(.caption)
+            .frame(width: 320, alignment: .leading)
 
             HStack {
                 Spacer()

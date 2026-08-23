@@ -57,6 +57,8 @@ struct SidebarRow: View {
 struct Sidebar: View {
     @Binding var selection: Dest?
     @EnvironmentObject var logger: LogStore
+    @EnvironmentObject var settings: SettingsStore
+    @EnvironmentObject var app: AppModel
     @State private var pillWidth: CGFloat = 0
 
     private var baseMin: CGFloat { 140 }
@@ -91,6 +93,38 @@ struct Sidebar: View {
     }
 
     var body: some View {
+        VStack(spacing: 0) {
+            sidebarList
+            // A real footer below the list rather than an overlay on it, so the
+            // divider separates it from the navigation instead of floating over it.
+            if settings.transportMode == .mqtt {
+                // Inset to match the sidebar's own group dividers. Full width was
+                // the only edge-to-edge line in the panel, which read as "separate
+                // region below" rather than "another group" — most likely what made
+                // the footer look like a recessed well.
+                Divider()
+                    .padding(.horizontal, 10)
+                MQTTStatusLight(connected: app.mqttConnected,
+                                host: settings.mqttHost,
+                                port: settings.mqttPort,
+                                onTap: { selection = .access })
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 6)
+                    // No background of our own: the footer sits outside the List
+                    // and so does not inherit its material. Painting anything here
+                    // makes the strip read as a recessed well rather than a last
+                    // row of the sidebar.
+                    .background(Color.clear)
+            }
+        }
+        .navigationSplitViewColumnWidth(
+            min: computedMinWidth,
+            ideal: computedIdealWidth,
+            max: computedMaxWidth
+        )
+    }
+
+    private var sidebarList: some View {
         List(selection: $selection) {
             Text("SYNCHRONIZATION")
                 .font(.caption)
@@ -118,11 +152,6 @@ struct Sidebar: View {
             SidebarRow(destination: .about, title: "About", systemImage: "info.circle")
         }
         .listStyle(.sidebar)
-        .navigationSplitViewColumnWidth(
-            min: computedMinWidth,
-            ideal: computedIdealWidth,
-            max: computedMaxWidth
-        )
         .overlay(alignment: .bottom) {
             if logger.needsFullDiskAccess {
                 FullDiskAccessPill()
