@@ -4,10 +4,18 @@ import Testing
 /// Home Assistant entity IDs allow only `[a-z0-9_]` in the object part, while
 /// `slugifyAlias` deliberately permits hyphens — and collapses every other
 /// disallowed character *into* a hyphen, so any alias typed with a space contains
-/// one. Publishing an unslugged value as `default_entity_id` fails HA's entity-ID
-/// validation, which rejects the whole discovery config: the entity vanishes
-/// rather than merely being misnamed. That is worse than the bug it fixes, so
-/// this conversion gets its own tests.
+/// one.
+///
+/// **This is not a safety measure.** Verified against HA's source (2026-08-23):
+/// `default_entity_id` is validated with `cv.string`, not `cv.entity_id`, and
+/// `async_generate_entity_id` slugifies its input, so HA would sanitise a hyphen
+/// itself and reach the same entity ID. An earlier draft claimed an unslugged
+/// value would make HA reject the whole config — that was wrong.
+///
+/// What it buys is honesty: we publish the value HA will actually create, so the
+/// resolved entity ID we log is the real one rather than something HA silently
+/// rewrites. It also holds if HA ever tightens that validator to `cv.entity_id`,
+/// which its own documentation already describes.
 ///
 /// It must never be applied to `unique_id`, which is the entity registry's
 /// identity key and has to stay byte-identical across releases.

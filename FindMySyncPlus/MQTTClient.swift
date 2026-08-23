@@ -285,8 +285,10 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
             // Ignored on HA >= 2026.4, still honoured below 2025.10, and documented
             // as unable to break discovery either way.
             "object_id": devId,
-            // Replaces object_id. Carries the domain prefix, and must be a valid
-            // entity ID or HA rejects the whole config and the entity vanishes.
+            // Replaces object_id, and carries the domain prefix — HA partitions it
+            // off and slugifies the remainder. We slug it ourselves so the value we
+            // publish is the entity ID HA will actually create, which is what makes
+            // the resolved ID we log truthful.
             "default_entity_id": "device_tracker.\(haSlug(devId))",
             "json_attributes_topic": "\(topicPrefix)\(devId)/attributes",
             "source_type": "gps",

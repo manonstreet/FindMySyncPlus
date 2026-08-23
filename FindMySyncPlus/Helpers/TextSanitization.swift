@@ -39,10 +39,15 @@ func slugifyAlias(_ raw: String, maxLen: Int = 48) -> String {
     return trimmed.isEmpty ? "device" : trimmed
 }
 
-// Convert an alias-derived ID into something Home Assistant will accept as the
-// object part of an entity ID. HA allows only [a-z0-9_] there, while
-// `slugifyAlias` above deliberately permits hyphens — so this is a second,
-// narrower conversion, applied ONLY to `default_entity_id`.
+// Convert an alias-derived ID into the object part of a Home Assistant entity
+// ID. HA allows only [a-z0-9_] there, while `slugifyAlias` above deliberately
+// permits hyphens — so this is a second, narrower conversion, applied ONLY to
+// `default_entity_id`.
+//
+// HA would sanitise the value anyway: `default_entity_id` is validated as a
+// plain string, and `async_generate_entity_id` slugifies its input. Doing it
+// here means the value we publish is the entity ID HA will actually create, so
+// what we log is what the user will see.
 //
 // It must never be applied to `unique_id`: that is the entity registry's
 // identity key, and changing it re-registers every existing user's entities as
