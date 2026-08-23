@@ -1,6 +1,26 @@
 import Foundation
 import CocoaMQTT
 
+/// The one thing `MQTTClient` needs from a broker connection.
+///
+/// Narrow on purpose. `MQTTClient` published straight to a concrete `CocoaMQTT`,
+/// which a test cannot construct without a socket, so the publish sequences — the
+/// tombstone drain and the clear-then-republish of a re-registration — had no
+/// coverage and could only be checked by hand against a live broker. Everything
+/// worth asserting about them is *what goes on the wire, in what order*, which
+/// this makes an ordinary unit test.
+///
+/// Named `send` rather than `publish` because `CocoaMQTT.publish` returns `Int`
+/// and so cannot satisfy a `Void` requirement directly.
+@MainActor
+protocol MQTTPublishing: AnyObject {
+    func send(_ message: CocoaMQTTMessage)
+}
+
+extension CocoaMQTT: MQTTPublishing {
+    func send(_ message: CocoaMQTTMessage) { _ = publish(message) }
+}
+
 enum MQTTConnectionState: Sendable {
     case disconnected
     case connecting
@@ -253,28 +273,45 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
             return false
         }
 
-        let prefix = settings.mqttTopicPrefix
-        clearRetainedTopics(client: client, devId: devId, prefix: prefix)
+        await performReRegister(client: client,
+                                devId: devId,
+                                displayName: displayName,
+                                topicPrefix: settings.mqttTopicPrefix)
+
+        guard connectionState == .connected else {
+            logger.warn("MQTT: connection lost while re-registering \(devId); entity was removed but not recreated")
+            return false
+        }
+        logger.info("MQTT: re-registered \(devId) as \(DeviceAlias.haEntityID(forDevId: devId))")
+        return true
+    }
+
+    /// The publish sequence itself: clear, wait, republish.
+    ///
+    /// Split from the guards above so it can be asserted on with a recording
+    /// publisher — the ordering *is* the behaviour, and nothing else can check it.
+    /// `delay` is a parameter for the same reason; production always uses 0.5s.
+    func performReRegister(client: MQTTPublishing,
+                           devId: String,
+                           displayName: String,
+                           topicPrefix: String,
+                           delay: TimeInterval = 0.5) async {
+        clearRetainedTopics(client: client, devId: devId, prefix: topicPrefix)
 
         // HA has to process the removal before the new config lands. Published back
         // to back on one topic, it treats the pair as an update, the registry entry
         // survives, and the stale entity ID with it — the exact thing this fixes.
-        try? await Task.sleep(for: .milliseconds(500))
-
-        guard connectionState == .connected, let live = self.client else {
-            logger.warn("MQTT: connection lost while re-registering \(devId); entity was removed but not recreated")
-            return false
+        if delay > 0 {
+            try? await Task.sleep(for: .seconds(delay))
         }
 
-        publishJSON(client: live,
+        publishJSON(client: client,
                     topic: Self.discoveryTopic(forDevId: devId),
                     payload: Self.discoveryPayload(devId: devId,
                                                    displayName: displayName,
-                                                   topicPrefix: prefix),
+                                                   topicPrefix: topicPrefix),
                     retain: true)
         publishedDiscoveryIds.insert(devId)
-        logger.info("MQTT: re-registered \(devId) as \(DeviceAlias.haEntityID(forDevId: devId))")
-        return true
     }
 
     // MARK: - Attribute building
@@ -335,16 +372,17 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
     ///
     /// Filtered against the devIds being published this cycle, so an alias renamed
     /// away and back is never cleared while it is in use.
-    private func drainRetiredDevIds(client: CocoaMQTT,
+    private func drainRetiredDevIds(client: MQTTPublishing,
                                     aliasByUUID: [String: String],
                                     settings: SettingsStore,
                                     logger: LogStore,
                                     prefix: String) {
         let liveDevIds = Set(aliasByUUID.values.map { DeviceAlias.entityID(for: $0) })
-        let tombstones = Self.tombstonesToPublish(retired: settings.retiredDevIds,
-                                                  liveDevIds: liveDevIds)
+        let tombstones = publishTombstones(client: client,
+                                           retired: settings.retiredDevIds,
+                                           liveDevIds: liveDevIds,
+                                           prefix: prefix)
         for devId in tombstones {
-            clearRetainedTopics(client: client, devId: devId, prefix: prefix)
             logger.info("MQTT: cleared retained topics for retired \(devId)")
         }
         if !tombstones.isEmpty {
@@ -359,18 +397,36 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
         }
     }
 
-    /// Clear both retained topics for a dev_id.
+    /// Clear the retained topics of every retired dev_id that is not live again,
+    /// and report which ones were cleared.
+    ///
+    /// Takes plain values rather than a `SettingsStore`: the test target is hosted
+    /// by the app bundle and shares the user's real UserDefaults, so a test must
+    /// never construct one. The caller reads and writes the stored list around this.
+    @discardableResult
+    func publishTombstones(client: MQTTPublishing,
+                           retired: [String],
+                           liveDevIds: Set<String>,
+                           prefix: String) -> [String] {
+        let tombstones = Self.tombstonesToPublish(retired: retired, liveDevIds: liveDevIds)
+        for devId in tombstones {
+            clearRetainedTopics(client: client, devId: devId, prefix: prefix)
+        }
+        return tombstones
+    }
+
+    /// Clear every retained topic for a dev_id.
     ///
     /// A zero-length retained payload is HA's signal to drop a discovered entity,
     /// and removes the retained message from the broker. Order matters: the
     /// discovery config goes first so HA drops the entity, then the attributes
     /// topic, so the device's last latitude/longitude does not linger behind under
     /// a name the user removed.
-    private func clearRetainedTopics(client: CocoaMQTT, devId: String, prefix: String) {
+    func clearRetainedTopics(client: MQTTPublishing, devId: String, prefix: String) {
         for topic in [Self.discoveryTopic(forDevId: devId),
                       Self.batterySensorTopic(forDevId: devId),
                       Self.attributesTopic(forDevId: devId, prefix: prefix)] {
-            client.publish(CocoaMQTTMessage(topic: topic, string: "", qos: .qos1, retained: true))
+            client.send(CocoaMQTTMessage(topic: topic, string: "", qos: .qos1, retained: true))
         }
         // Allow the sensor to be republished: it is gated per session, and without
         // this a re-registered device would come back without its battery sensor.
@@ -383,11 +439,11 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
     /// fires on the first sync, but a device's battery can be absent then and
     /// present on a later one, and a shared set would mean the sensor never
     /// appeared for it.
-    private func publishBatterySensorIfNeeded(client: CocoaMQTT,
-                                              device: DevicePoint,
-                                              devId: String,
-                                              displayName: String,
-                                              prefix: String) {
+    func publishBatterySensorIfNeeded(client: MQTTPublishing,
+                                      device: DevicePoint,
+                                      devId: String,
+                                      displayName: String,
+                                      prefix: String) {
         // No reading means no sensor: one published with no value shows as `unknown`
         // in HA and clutters the device card.
         guard device.battery != nil, !publishedBatterySensorIds.contains(devId) else { return }
@@ -402,11 +458,10 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
         logger?.info("MQTT battery sensor published for \(devId)")
     }
 
-    private func publishJSON(client: CocoaMQTT, topic: String, payload: [String: Any], retain: Bool) {
+    private func publishJSON(client: MQTTPublishing, topic: String, payload: [String: Any], retain: Bool) {
         guard let data = try? JSONSerialization.data(withJSONObject: payload),
               let json = String(data: data, encoding: .utf8) else { return }
-        let msg = CocoaMQTTMessage(topic: topic, string: json, qos: .qos1, retained: retain)
-        client.publish(msg)
+        client.send(CocoaMQTTMessage(topic: topic, string: json, qos: .qos1, retained: retain))
     }
 
     /// Exponential from 250ms: 0.25, 0.5, 1, 2, 4, 8, 16, 32, 60…
