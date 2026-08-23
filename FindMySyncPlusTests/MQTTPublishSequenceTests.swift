@@ -99,12 +99,34 @@ struct MQTTPublishSequenceTests {
                                              topicPrefix: Self.prefix,
                                              delay: 0)
 
-        #expect(recorder.messages.count == 4, "three clears, then one config")
+        #expect(recorder.messages.count == 3, "two config clears, then one config")
 
-        let last = recorder.messages[3]
+        let last = recorder.messages[2]
         #expect(last.topic == "homeassistant/device_tracker/findmy_old-name/config")
         #expect(!last.payload.isEmpty, "the republished config must carry the payload")
         #expect(last.retained)
+    }
+
+    /// Found by running it: re-registration was clearing the attributes topic too,
+    /// so the recreated entity had no position until the next sync — up to a full
+    /// sync interval of nothing.
+    ///
+    /// Clearing the discovery config is what makes HA drop the entity and its
+    /// registry entry. The retained attributes message is independent: leave it,
+    /// and HA subscribes on re-creation and restores the location immediately.
+    /// Retirement still clears it, because there the position *should* not linger.
+    @Test("re-registration leaves the attributes topic alone")
+    func reRegisterKeepsAttributes() async {
+        let recorder = RecordingPublisher()
+        await MQTTClient().performReRegister(client: recorder,
+                                             devId: Self.devId,
+                                             displayName: "Case",
+                                             topicPrefix: Self.prefix,
+                                             delay: 0)
+
+        let attributes = MQTTClient.attributesTopic(forDevId: Self.devId, prefix: Self.prefix)
+        #expect(!recorder.topics.contains(attributes),
+                "clearing it discards the retained position that would restore the entity")
     }
 
     @Test("the republished config carries the corrected entity ID")

@@ -296,7 +296,9 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
                            displayName: String,
                            topicPrefix: String,
                            delay: TimeInterval = 0.5) async {
-        clearRetainedTopics(client: client, devId: devId, prefix: topicPrefix)
+        // Configs only. The retained attributes message stays, so HA restores the
+        // position the moment it re-subscribes — see `clearDiscoveryConfigs`.
+        clearDiscoveryConfigs(client: client, devId: devId)
 
         // HA has to process the removal before the new config lands. Published back
         // to back on one topic, it treats the pair as an update, the registry entry
@@ -423,14 +425,32 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
     /// topic, so the device's last latitude/longitude does not linger behind under
     /// a name the user removed.
     func clearRetainedTopics(client: MQTTPublishing, devId: String, prefix: String) {
-        for topic in [Self.discoveryTopic(forDevId: devId),
-                      Self.batterySensorTopic(forDevId: devId),
-                      Self.attributesTopic(forDevId: devId, prefix: prefix)] {
-            client.send(CocoaMQTTMessage(topic: topic, string: "", qos: .qos1, retained: true))
-        }
+        clearDiscoveryConfigs(client: client, devId: devId)
+        // Retirement clears the attributes topic as well: the alias is gone, and
+        // its last latitude/longitude must not sit on the broker under a name the
+        // user deliberately removed. Re-registration deliberately does NOT do this.
+        send(client, empty: Self.attributesTopic(forDevId: devId, prefix: prefix))
+    }
+
+    /// Clear only the two discovery configs, leaving the attributes topic intact.
+    ///
+    /// This is what re-registration wants. Emptying the discovery config is what
+    /// makes HA drop the entity and its registry entry; the retained attributes
+    /// message is independent, and leaving it means HA subscribes on re-creation
+    /// and restores the position immediately. Clearing it too — which this used to
+    /// do — left the recreated entity with no location until the next sync.
+    private func clearDiscoveryConfigs(client: MQTTPublishing, devId: String) {
+        send(client, empty: Self.discoveryTopic(forDevId: devId))
+        send(client, empty: Self.batterySensorTopic(forDevId: devId))
         // Allow the sensor to be republished: it is gated per session, and without
         // this a re-registered device would come back without its battery sensor.
         publishedBatterySensorIds.remove(devId)
+    }
+
+    /// A zero-length retained message — HA's signal to drop a discovered entity,
+    /// and what removes the retained message from the broker.
+    private func send(_ client: MQTTPublishing, empty topic: String) {
+        client.send(CocoaMQTTMessage(topic: topic, string: "", qos: .qos1, retained: true))
     }
 
     /// Publish the battery sensor's discovery config, once per session per device.
