@@ -437,11 +437,25 @@ struct DeviceManagerView: View {
                presenting: deleteAliasKey) { key in
             Button("Delete", role: .destructive) {
                 settings.deleteAlias(key)
-                logger.warn("Alias \"\(key)\" deleted. Clean up the HA entity if desired.")
+                if settings.transportMode == .mqtt {
+                    logger.warn("Alias \"\(key)\" deleted. Its retained MQTT topics clear on the next sync.")
+                } else {
+                    logger.warn("Alias \"\(key)\" deleted. Clean up the HA entity if desired.")
+                }
             }
             Button("Cancel", role: .cancel) { }
         } message: { key in
-            Text("This does not remove any Home Assistant entity. The alias “\(key)” and its UUID mappings will be removed from this app.")
+            // Was "This does not remove any Home Assistant entity" — true until the
+            // app started clearing retained topics for retired dev_ids. On MQTT it
+            // now does exactly that, and telling users the opposite is worse than
+            // saying nothing.
+            if settings.transportMode == .mqtt {
+                // swiftlint:disable:next line_length
+                Text("The alias “\(key)” and its UUID mappings will be removed from this app. Its Home Assistant entity and last known location are cleared from the broker on the next sync.")
+            } else {
+                // swiftlint:disable:next line_length
+                Text("This does not remove any Home Assistant entity. The alias “\(key)” and its UUID mappings will be removed from this app.")
+            }
         }
         .alert("Remove last UUID?", isPresented: Binding(
             get: { pendingUUIDDelete != nil },

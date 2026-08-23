@@ -178,6 +178,9 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
         let prefix = settings.mqttTopicPrefix
         let iso = ISO8601DateFormatter()
 
+        drainRetiredDevIds(client: client, aliasByUUID: aliasByUUID,
+                           settings: settings, logger: logger, prefix: prefix)
+
         for d in devices {
             let uuid = d.id.normalized()
             guard let alias = aliasByUUID[uuid] else {
@@ -318,6 +321,49 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
         return retired.filter { id in
             guard !liveDevIds.contains(id) else { return false }
             return seen.insert(id).inserted
+        }
+    }
+
+    /// Clear the retained topics of aliases that were renamed, deleted or
+    /// untracked, then drop them from the retired list.
+    ///
+    /// Filtered against the devIds being published this cycle, so an alias renamed
+    /// away and back is never cleared while it is in use.
+    private func drainRetiredDevIds(client: CocoaMQTT,
+                                    aliasByUUID: [String: String],
+                                    settings: SettingsStore,
+                                    logger: LogStore,
+                                    prefix: String) {
+        let liveDevIds = Set(aliasByUUID.values.map { DeviceAlias.entityID(for: $0) })
+        let tombstones = Self.tombstonesToPublish(retired: settings.retiredDevIds,
+                                                  liveDevIds: liveDevIds)
+        for devId in tombstones {
+            clearRetainedTopics(client: client, devId: devId, prefix: prefix)
+            logger.info("MQTT: cleared retained topics for retired \(devId)")
+        }
+        if !tombstones.isEmpty {
+            let cleared = Set(tombstones)
+            settings.retiredDevIds = settings.retiredDevIds.filter { !cleared.contains($0) }
+        }
+        // A retired dev_id that is live again is a decision, not a no-op — say so
+        // rather than leaving it to look like nothing happened.
+        let stillLive = settings.retiredDevIds.count
+        if stillLive > 0 {
+            logger.info("MQTT: \(stillLive) retired dev_id(s) still in use, not cleared")
+        }
+    }
+
+    /// Clear both retained topics for a dev_id.
+    ///
+    /// A zero-length retained payload is HA's signal to drop a discovered entity,
+    /// and removes the retained message from the broker. Order matters: the
+    /// discovery config goes first so HA drops the entity, then the attributes
+    /// topic, so the device's last latitude/longitude does not linger behind under
+    /// a name the user removed.
+    private func clearRetainedTopics(client: CocoaMQTT, devId: String, prefix: String) {
+        for topic in [Self.discoveryTopic(forDevId: devId),
+                      Self.attributesTopic(forDevId: devId, prefix: prefix)] {
+            client.publish(CocoaMQTTMessage(topic: topic, string: "", qos: .qos1, retained: true))
         }
     }
 
