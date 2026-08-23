@@ -190,6 +190,7 @@ struct DeviceManagerView: View {
 
     @State private var reRegisterAliasKey: String? = nil
     @State private var showReRegisterConfirm = false
+    @State private var reRegisterFailed = false
 
     @State private var deleteAliasKey: String? = nil
     @State private var showDeleteConfirm = false
@@ -433,6 +434,9 @@ struct DeviceManagerView: View {
                 let cleaned = slugifyAlias(newName)
                 settings.renameAlias(from: key, to: cleaned)
                 logger.info("Alias \"\(key)\" renamed to \"\(cleaned)\" (entity id will change).")
+                // Clear the old entity now rather than at the next sync — waiting a
+                // whole interval for it to vanish from HA reads as a bug.
+                Task { await app.publishPendingRetirements() }
             })
         }
         .alert("Delete Alias?",
@@ -440,6 +444,7 @@ struct DeviceManagerView: View {
                presenting: deleteAliasKey) { key in
             Button("Delete", role: .destructive) {
                 settings.deleteAlias(key)
+                Task { await app.publishPendingRetirements() }
                 if settings.transportMode == .mqtt {
                     logger.warn("Alias \"\(key)\" deleted. Its retained MQTT topics clear on the next sync.")
                 } else {
@@ -464,7 +469,13 @@ struct DeviceManagerView: View {
                isPresented: $showReRegisterConfirm,
                presenting: reRegisterAliasKey) { key in
             Button("Re-create", role: .destructive) {
-                Task { _ = await app.reRegisterEntity(alias: key) }
+                Task {
+                    // Never silently no-ops: with the scheduler stopped this
+                    // connects on demand, and says so if it cannot.
+                    if await app.reRegisterEntity(alias: key) == false {
+                        reRegisterFailed = true
+                    }
+                }
             }
             Button("Cancel", role: .cancel) { }
         } message: { key in
@@ -472,6 +483,11 @@ struct DeviceManagerView: View {
             // per-alias rather than one global button: a sweep could not say either.
             // swiftlint:disable:next line_length
             Text("The entity will be removed and re-created as “\(DeviceAlias.haEntityID(for: key))”. Any rename, icon or area you set for it in Home Assistant will be cleared, and recorded history stays under the old entity ID.")
+        }
+        .alert("Couldn't reach the broker", isPresented: $reRegisterFailed) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("The entity was not re-created. Check the MQTT settings under Access, and the log for details.")
         }
         .alert("Remove last UUID?", isPresented: Binding(
             get: { pendingUUIDDelete != nil },
@@ -681,9 +697,11 @@ struct DeviceManagerView: View {
                                     sourceBadge: singleSource,
                                     nameLabel: "Name:",
                                     transportMode: settings.transportMode,
-                                    mqttConnected: app.mqttConnected,
                                     onToggleTracked: { (newValue: Bool) in
                                         settings.setAlias(rec.alias, tracked: newValue)
+                                        if !newValue {
+                                            Task { await app.publishPendingRetirements() }
+                                        }
                                     },
                                     onRename: {
                                         renameAliasKey = rec.alias
@@ -752,7 +770,6 @@ struct DeviceManagerView: View {
         let sourceBadge: DeviceSource?
         let nameLabel: String
         let transportMode: TransportMode
-        let mqttConnected: Bool
 
         var onToggleTracked: (Bool) -> Void
         var onRename: () -> Void
@@ -799,10 +816,11 @@ struct DeviceManagerView: View {
                             }
                             .buttonStyle(.plain)
                             .onHover { hoverReRegister = $0 }
-                            .disabled(!mqttConnected)
-                            .help(mqttConnected
-                                  ? "Re-create the Home Assistant entity so its ID matches this alias"
-                                  : "Connect to MQTT to re-create this entity")
+                            // Deliberately never disabled. The action connects on
+                            // demand if the scheduler is stopped, and reports a
+                            // failure — a greyed control whose cause is invisible
+                            // (connection state is surfaced nowhere) is worse.
+                            .help("Re-create the Home Assistant entity so its ID matches this alias")
                         }
 
                         Button(action: onDelete) {

@@ -42,6 +42,7 @@ final class AppModel: NSObject, ObservableObject {
 
     let syncEngine = SyncEngine()
     private var timerTask: Task<Void, Never>?
+    private var idleDisconnectTask: Task<Void, Never>?
     private weak var settings: SettingsStore?
     private weak var logger: LogStore?
 
@@ -154,18 +155,86 @@ final class AppModel: NSObject, ObservableObject {
 
     // MARK: - MQTT test
 
+    // MARK: - On-demand MQTT for user actions
+
+    /// How long a connection opened for a user action is held once the scheduler is
+    /// not running. Only ever applies in that case: while the scheduler is on it
+    /// owns the connection and this never fires.
+    nonisolated static let idleDisconnectSeconds: TimeInterval = 300
+
+    /// Connect if we are not already, for a user-initiated action.
+    ///
+    /// The scheduler owns the steady-state connection, so with it stopped there is
+    /// nothing to publish through — which made every MQTT-dependent action silently
+    /// do nothing. A deliberate action may also preempt a pending backoff: the
+    /// single-owner rule exists to stop two *automatic* drivers fighting, and a
+    /// person waiting on a button is not one of those.
+    private func connectForUserAction() async -> Bool {
+        guard let settings, settings.transportMode == .mqtt else { return false }
+        if await syncEngine.mqtt.ensureConnected(settings: settings) { return true }
+        logger?.warn("MQTT: broker not reachable — action not applied")
+        return false
+    }
+
+    /// Release a connection opened for a user action, once it has been idle.
+    ///
+    /// Cancelled and rescheduled on each action. Never armed while the scheduler is
+    /// running, because then the connection is not ours to close.
+    private func scheduleIdleDisconnect() {
+        idleDisconnectTask?.cancel()
+        guard !isRunning else { idleDisconnectTask = nil; return }
+        idleDisconnectTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(Self.idleDisconnectSeconds))
+            guard !Task.isCancelled, let self, !self.isRunning else { return }
+            self.syncEngine.mqtt.disconnect()
+            self.logger?.info("MQTT: disconnected after idle — scheduler is not running")
+        }
+    }
+
+    /// Clear the entities of aliases that were renamed, deleted or untracked, now.
+    ///
+    /// Otherwise the old entity lingers in Home Assistant until the next sync — up
+    /// to a full interval after the user changed it, which reads as a bug.
+    func publishPendingRetirements() async {
+        guard let settings, settings.transportMode == .mqtt else { return }
+        guard !settings.retiredDevIds.isEmpty else { return }
+        guard await connectForUserAction() else {
+            logger?.info("MQTT: retired entities will be cleared on the next sync instead")
+            return
+        }
+
+        // Live means "still configured", not "seen this cycle" — an alias that simply
+        // was not located this run is not dead.
+        let live = Set(settings.aliases.filter(\.tracked).map { DeviceAlias.entityID(for: $0.alias) })
+        let cleared = syncEngine.mqtt.flushRetirements(retired: settings.retiredDevIds,
+                                                       liveDevIds: live,
+                                                       prefix: settings.mqttTopicPrefix)
+        for devId in cleared {
+            logger?.info("MQTT: cleared retained topics for retired \(devId)")
+        }
+        if !cleared.isEmpty {
+            let done = Set(cleared)
+            settings.retiredDevIds = settings.retiredDevIds.filter { !done.contains($0) }
+        }
+        scheduleIdleDisconnect()
+    }
+
     /// Recreate one alias's Home Assistant entity so its ID follows the alias.
     ///
     /// Destructive: the existing registry entry is removed, along with any rename,
     /// icon or area set in HA. Call only from a confirmed user action.
     func reRegisterEntity(alias: String) async -> Bool {
         guard let settings, let logger else { return false }
+        guard await connectForUserAction() else { return false }
+
         let devId = DeviceAlias.entityID(for: alias)
         let displayName = settings.aliases.first(where: { $0.alias == alias })?.lastSeenName ?? alias
-        return await syncEngine.mqtt.reRegister(devId: devId,
-                                                displayName: displayName,
-                                                settings: settings,
-                                                logger: logger)
+        let ok = await syncEngine.mqtt.reRegister(devId: devId,
+                                                  displayName: displayName,
+                                                  settings: settings,
+                                                  logger: logger)
+        scheduleIdleDisconnect()
+        return ok
     }
 
     func triggerManualMQTTTestAsync() async -> (Bool, String) {

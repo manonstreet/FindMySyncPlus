@@ -1,26 +1,6 @@
 import Foundation
 import CocoaMQTT
 
-/// The one thing `MQTTClient` needs from a broker connection.
-///
-/// Narrow on purpose. `MQTTClient` published straight to a concrete `CocoaMQTT`,
-/// which a test cannot construct without a socket, so the publish sequences — the
-/// tombstone drain and the clear-then-republish of a re-registration — had no
-/// coverage and could only be checked by hand against a live broker. Everything
-/// worth asserting about them is *what goes on the wire, in what order*, which
-/// this makes an ordinary unit test.
-///
-/// Named `send` rather than `publish` because `CocoaMQTT.publish` returns `Int`
-/// and so cannot satisfy a `Void` requirement directly.
-@MainActor
-protocol MQTTPublishing: AnyObject {
-    func send(_ message: CocoaMQTTMessage)
-}
-
-extension CocoaMQTT: MQTTPublishing {
-    func send(_ message: CocoaMQTTMessage) { _ = publish(message) }
-}
-
 enum MQTTConnectionState: Sendable {
     case disconnected
     case connecting
@@ -397,6 +377,18 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
         if stillLive > 0 {
             logger.info("MQTT: \(stillLive) retired dev_id(s) still in use, not cleared")
         }
+    }
+
+    /// Clear retired entities now, outside a sync run.
+    ///
+    /// Renaming, deleting or untracking an alias is a user action, and waiting up to
+    /// a full sync interval for the old entity to disappear from Home Assistant reads
+    /// as a bug. The caller is responsible for connecting first; this returns nothing
+    /// if there is no connection, leaving the persisted list for the next sync.
+    func flushRetirements(retired: [String], liveDevIds: Set<String>, prefix: String) -> [String] {
+        guard connectionState == .connected, let client else { return [] }
+        return publishTombstones(client: client, retired: retired,
+                                 liveDevIds: liveDevIds, prefix: prefix)
     }
 
     /// Clear the retained topics of every retired dev_id that is not live again,
