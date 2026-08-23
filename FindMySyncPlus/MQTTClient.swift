@@ -1,6 +1,26 @@
 import Foundation
 import CocoaMQTT
 
+/// The one thing `MQTTClient` needs from a broker connection.
+///
+/// Narrow on purpose. `MQTTClient` published straight to a concrete `CocoaMQTT`,
+/// which a test cannot construct without a socket, so the publish sequences — the
+/// tombstone drain and the clear-then-republish of a re-registration — had no
+/// coverage and could only be checked by hand against a live broker. Everything
+/// worth asserting about them is *what goes on the wire, in what order*, which
+/// this makes an ordinary unit test.
+///
+/// Named `send` rather than `publish` because `CocoaMQTT.publish` returns `Int`
+/// and so cannot satisfy a `Void` requirement directly.
+@MainActor
+protocol MQTTPublishing: AnyObject {
+    func send(_ message: CocoaMQTTMessage)
+}
+
+extension CocoaMQTT: MQTTPublishing {
+    func send(_ message: CocoaMQTTMessage) { _ = publish(message) }
+}
+
 enum MQTTConnectionState: Sendable {
     case disconnected
     case connecting
@@ -15,6 +35,9 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
     private var reconnectTask: Task<Void, Never>?
     private(set) var reconnectAttempts = 0
     private var publishedDiscoveryIds: Set<String> = []
+    /// Separate from `publishedDiscoveryIds` on purpose — see
+    /// `publishBatterySensorIfNeeded`.
+    private var publishedBatterySensorIds: Set<String> = []
 
     private weak var logger: LogStore?
     private weak var settings: SettingsStore?
@@ -103,6 +126,7 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
         connectionState = .disconnected
         connectingSince = nil
         publishedDiscoveryIds.removeAll()
+        publishedBatterySensorIds.removeAll()
     }
 
     func ensureConnected(settings: SettingsStore) async -> Bool {
@@ -210,6 +234,10 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
                 logger.info("MQTT discovery published for \(devId) as device_tracker.\(haSlug(devId))")
             }
 
+            publishBatterySensorIfNeeded(client: client, device: d, devId: devId,
+                                         displayName: d.name.isEmpty ? alias : d.name,
+                                         prefix: prefix)
+
             // Build and publish attributes
             let attrs = buildAttributes(for: d, iso: iso)
             publishJSON(client: client, topic: "\(prefix)\(devId)/attributes", payload: attrs, retain: true)
@@ -245,28 +273,47 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
             return false
         }
 
-        let prefix = settings.mqttTopicPrefix
-        clearRetainedTopics(client: client, devId: devId, prefix: prefix)
+        await performReRegister(client: client,
+                                devId: devId,
+                                displayName: displayName,
+                                topicPrefix: settings.mqttTopicPrefix)
+
+        guard connectionState == .connected else {
+            logger.warn("MQTT: connection lost while re-registering \(devId); entity was removed but not recreated")
+            return false
+        }
+        logger.info("MQTT: re-registered \(devId) as \(DeviceAlias.haEntityID(forDevId: devId))")
+        return true
+    }
+
+    /// The publish sequence itself: clear, wait, republish.
+    ///
+    /// Split from the guards above so it can be asserted on with a recording
+    /// publisher — the ordering *is* the behaviour, and nothing else can check it.
+    /// `delay` is a parameter for the same reason; production always uses 0.5s.
+    func performReRegister(client: MQTTPublishing,
+                           devId: String,
+                           displayName: String,
+                           topicPrefix: String,
+                           delay: TimeInterval = 0.5) async {
+        // Configs only. The retained attributes message stays, so HA restores the
+        // position the moment it re-subscribes — see `clearDiscoveryConfigs`.
+        clearDiscoveryConfigs(client: client, devId: devId)
 
         // HA has to process the removal before the new config lands. Published back
         // to back on one topic, it treats the pair as an update, the registry entry
         // survives, and the stale entity ID with it — the exact thing this fixes.
-        try? await Task.sleep(for: .milliseconds(500))
-
-        guard connectionState == .connected, let live = self.client else {
-            logger.warn("MQTT: connection lost while re-registering \(devId); entity was removed but not recreated")
-            return false
+        if delay > 0 {
+            try? await Task.sleep(for: .seconds(delay))
         }
 
-        publishJSON(client: live,
+        publishJSON(client: client,
                     topic: Self.discoveryTopic(forDevId: devId),
                     payload: Self.discoveryPayload(devId: devId,
                                                    displayName: displayName,
-                                                   topicPrefix: prefix),
+                                                   topicPrefix: topicPrefix),
                     retain: true)
         publishedDiscoveryIds.insert(devId)
-        logger.info("MQTT: re-registered \(devId) as \(DeviceAlias.haEntityID(forDevId: devId))")
-        return true
     }
 
     // MARK: - Attribute building
@@ -303,6 +350,13 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
             if let ts = rich.timestamp {
                 attrs["location_timestamp"] = iso.string(from: ts)
             }
+            // Apple's own flag for whether the fix is stale, passed through rather
+            // than turned into a staleness rule of ours — the threshold is the
+            // user's to pick, which is what issue #17 asked for. Absent stays
+            // absent: a fabricated false would claim Apple called the fix current.
+            if let isOld = rich.isOld {
+                attrs["is_old"] = isOld
+            }
             if rich.motionActivityState != nil {
                 attrs["motion_state"] = rich.motionStateDescription.lowercased()
             }
@@ -315,77 +369,22 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
 
     // MARK: - Helpers
 
-    /// HA's discovery namespace. Fixed — this prefix is not user-configurable.
-    nonisolated static func discoveryTopic(forDevId devId: String) -> String {
-        "homeassistant/device_tracker/\(devId)/config"
-    }
-
-    /// The auto-discovery config. Extracted from `post()` so it can be asserted on
-    /// without a broker: HA removed `object_id` in Core 2026.4 and now silently
-    /// ignores it, which was invisible here for four months because this payload
-    /// was a dictionary literal behind a connected-socket guard.
-    ///
-    /// `unique_id` and `default_entity_id` differ on purpose — see the tests.
-    nonisolated static func discoveryPayload(devId: String,
-                                             displayName: String,
-                                             topicPrefix: String) -> [String: Any] {
-        [
-            "name": displayName,
-            "unique_id": devId,
-            // Ignored on HA >= 2026.4, still honoured below 2025.10, and documented
-            // as unable to break discovery either way.
-            "object_id": devId,
-            // Replaces object_id, and carries the domain prefix — HA partitions it
-            // off and slugifies the remainder. We slug it ourselves so the value we
-            // publish is the entity ID HA will actually create, which is what makes
-            // the resolved ID we log truthful.
-            "default_entity_id": DeviceAlias.haEntityID(forDevId: devId),
-            "json_attributes_topic": "\(topicPrefix)\(devId)/attributes",
-            "source_type": "gps",
-            "device": [
-                "identifiers": ["findmysyncplus"],
-                "name": "FindMySync+",
-                "manufacturer": "Apple",
-                "model": "Find My"
-            ]
-        ]
-    }
-
-    nonisolated static func attributesTopic(forDevId devId: String, prefix: String) -> String {
-        "\(prefix)\(devId)/attributes"
-    }
-
-    /// Which retired devIds still need their retained topics cleared.
-    ///
-    /// Filtered against the live set because an alias can be renamed away and
-    /// back (a -> b -> a); clearing a devId that is in use again would delete a
-    /// working entity. No broker read and no ownership guess is involved — the
-    /// app retires these itself at the moment the alias changes, so it knows
-    /// exactly which topics are its own.
-    nonisolated static func tombstonesToPublish(retired: [String],
-                                                liveDevIds: Set<String>) -> [String] {
-        var seen: Set<String> = []
-        return retired.filter { id in
-            guard !liveDevIds.contains(id) else { return false }
-            return seen.insert(id).inserted
-        }
-    }
-
     /// Clear the retained topics of aliases that were renamed, deleted or
     /// untracked, then drop them from the retired list.
     ///
     /// Filtered against the devIds being published this cycle, so an alias renamed
     /// away and back is never cleared while it is in use.
-    private func drainRetiredDevIds(client: CocoaMQTT,
+    private func drainRetiredDevIds(client: MQTTPublishing,
                                     aliasByUUID: [String: String],
                                     settings: SettingsStore,
                                     logger: LogStore,
                                     prefix: String) {
         let liveDevIds = Set(aliasByUUID.values.map { DeviceAlias.entityID(for: $0) })
-        let tombstones = Self.tombstonesToPublish(retired: settings.retiredDevIds,
-                                                  liveDevIds: liveDevIds)
+        let tombstones = publishTombstones(client: client,
+                                           retired: settings.retiredDevIds,
+                                           liveDevIds: liveDevIds,
+                                           prefix: prefix)
         for devId in tombstones {
-            clearRetainedTopics(client: client, devId: devId, prefix: prefix)
             logger.info("MQTT: cleared retained topics for retired \(devId)")
         }
         if !tombstones.isEmpty {
@@ -400,25 +399,89 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
         }
     }
 
-    /// Clear both retained topics for a dev_id.
+    /// Clear the retained topics of every retired dev_id that is not live again,
+    /// and report which ones were cleared.
+    ///
+    /// Takes plain values rather than a `SettingsStore`: the test target is hosted
+    /// by the app bundle and shares the user's real UserDefaults, so a test must
+    /// never construct one. The caller reads and writes the stored list around this.
+    @discardableResult
+    func publishTombstones(client: MQTTPublishing,
+                           retired: [String],
+                           liveDevIds: Set<String>,
+                           prefix: String) -> [String] {
+        let tombstones = Self.tombstonesToPublish(retired: retired, liveDevIds: liveDevIds)
+        for devId in tombstones {
+            clearRetainedTopics(client: client, devId: devId, prefix: prefix)
+        }
+        return tombstones
+    }
+
+    /// Clear every retained topic for a dev_id.
     ///
     /// A zero-length retained payload is HA's signal to drop a discovered entity,
     /// and removes the retained message from the broker. Order matters: the
     /// discovery config goes first so HA drops the entity, then the attributes
     /// topic, so the device's last latitude/longitude does not linger behind under
     /// a name the user removed.
-    private func clearRetainedTopics(client: CocoaMQTT, devId: String, prefix: String) {
-        for topic in [Self.discoveryTopic(forDevId: devId),
-                      Self.attributesTopic(forDevId: devId, prefix: prefix)] {
-            client.publish(CocoaMQTTMessage(topic: topic, string: "", qos: .qos1, retained: true))
-        }
+    func clearRetainedTopics(client: MQTTPublishing, devId: String, prefix: String) {
+        clearDiscoveryConfigs(client: client, devId: devId)
+        // Retirement clears the attributes topic as well: the alias is gone, and
+        // its last latitude/longitude must not sit on the broker under a name the
+        // user deliberately removed. Re-registration deliberately does NOT do this.
+        send(client, empty: Self.attributesTopic(forDevId: devId, prefix: prefix))
     }
 
-    private func publishJSON(client: CocoaMQTT, topic: String, payload: [String: Any], retain: Bool) {
+    /// Clear only the two discovery configs, leaving the attributes topic intact.
+    ///
+    /// This is what re-registration wants. Emptying the discovery config is what
+    /// makes HA drop the entity and its registry entry; the retained attributes
+    /// message is independent, and leaving it means HA subscribes on re-creation
+    /// and restores the position immediately. Clearing it too — which this used to
+    /// do — left the recreated entity with no location until the next sync.
+    private func clearDiscoveryConfigs(client: MQTTPublishing, devId: String) {
+        send(client, empty: Self.discoveryTopic(forDevId: devId))
+        send(client, empty: Self.batterySensorTopic(forDevId: devId))
+        // Allow the sensor to be republished: it is gated per session, and without
+        // this a re-registered device would come back without its battery sensor.
+        publishedBatterySensorIds.remove(devId)
+    }
+
+    /// A zero-length retained message — HA's signal to drop a discovered entity,
+    /// and what removes the retained message from the broker.
+    private func send(_ client: MQTTPublishing, empty topic: String) {
+        client.send(CocoaMQTTMessage(topic: topic, string: "", qos: .qos1, retained: true))
+    }
+
+    /// Publish the battery sensor's discovery config, once per session per device.
+    ///
+    /// Gated on its own set rather than `publishedDiscoveryIds`: tracker discovery
+    /// fires on the first sync, but a device's battery can be absent then and
+    /// present on a later one, and a shared set would mean the sensor never
+    /// appeared for it.
+    func publishBatterySensorIfNeeded(client: MQTTPublishing,
+                                      device: DevicePoint,
+                                      devId: String,
+                                      displayName: String,
+                                      prefix: String) {
+        // No reading means no sensor: one published with no value shows as `unknown`
+        // in HA and clutters the device card.
+        guard device.battery != nil, !publishedBatterySensorIds.contains(devId) else { return }
+
+        publishJSON(client: client,
+                    topic: Self.batterySensorTopic(forDevId: devId),
+                    payload: Self.batterySensorPayload(devId: devId,
+                                                       displayName: displayName,
+                                                       topicPrefix: prefix),
+                    retain: true)
+        publishedBatterySensorIds.insert(devId)
+        logger?.info("MQTT battery sensor published for \(devId)")
+    }
+
+    private func publishJSON(client: MQTTPublishing, topic: String, payload: [String: Any], retain: Bool) {
         guard let data = try? JSONSerialization.data(withJSONObject: payload),
               let json = String(data: data, encoding: .utf8) else { return }
-        let msg = CocoaMQTTMessage(topic: topic, string: json, qos: .qos1, retained: retain)
-        client.publish(msg)
+        client.send(CocoaMQTTMessage(topic: topic, string: json, qos: .qos1, retained: retain))
     }
 
     /// Exponential from 250ms: 0.25, 0.5, 1, 2, 4, 8, 16, 32, 60…
@@ -497,6 +560,7 @@ extension MQTTClient: CocoaMQTTDelegate {
                 self.reconnectAttempts = 0
                 self.reconnectTask?.cancel()
                 self.publishedDiscoveryIds.removeAll()
+                self.publishedBatterySensorIds.removeAll()
                 self.logger?.info("MQTT connected (discovery will re-publish)")
             } else {
                 self.logger?.error("MQTT connection rejected: \(ackDesc)")

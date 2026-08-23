@@ -672,10 +672,14 @@ final class SyncEngine {
         for d in allDevices {
             // Merge rich attributes from LocalStorage friend data onto family FMIP devices
             var d = d
+            // FMIP devices now always carry rich attributes (timestamp and isOld),
+            // so the old `richAttributes == nil` guard could never fire and family
+            // devices would silently lose every friend-derived field. Merge instead:
+            // the friend record wins where it has a value, ours fill the gaps.
             if let prs = d.prsId, prs != "owner",
-               let friendRich = friendRichByDSID[prs.normalized()],
-               d.richAttributes == nil {
-                d = d.with(richAttributes: friendRich)
+               let friendRich = friendRichByDSID[prs.normalized()] {
+                let merged = d.richAttributes?.mergedPreferring(friendRich) ?? friendRich
+                d = d.with(richAttributes: merged)
             }
             let uuid = d.id.normalized()
             let srcLabel = label(for: sourceMap[uuid])

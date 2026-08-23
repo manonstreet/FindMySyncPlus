@@ -287,6 +287,22 @@ actor CacheDecryptor {
                 parentID = groupParentIDs[gid]
             }
 
+            // FMIP carries freshness on every located device and item. It was read
+            // only for the grouped-parent backfill in SyncEngine and then discarded,
+            // so Items — which have no friend record to merge rich attributes from —
+            // reached Home Assistant with no location timestamp at all (issue #17).
+            let timestamp = (loc["timeStamp"] as? Double).map {
+                Date(timeIntervalSince1970: $0 / 1000)
+            }
+            let rich = RichLocationAttributes(verticalAccuracy: nil,
+                                              altitude: nil,
+                                              speed: nil,
+                                              course: nil,
+                                              timestamp: timestamp,
+                                              motionActivityState: nil,
+                                              locationLabel: nil,
+                                              isOld: loc["isOld"] as? Bool)
+
             results.append(DevicePoint(id: id,
                                        name: name,
                                        latitude: lat,
@@ -296,6 +312,7 @@ actor CacheDecryptor {
                                        batteryStatusCode: batteryReading.statusCode,
                                        chargingState: batteryReading.chargingState,
                                        prsId: prsId,
+                                       richAttributes: rich,
                                        parentID: parentID))
         }
 
