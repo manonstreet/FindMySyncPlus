@@ -345,6 +345,11 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
             if rich.motionActivityState != nil {
                 attrs["motion_state"] = rich.motionStateDescription.lowercased()
             }
+            // Names how the fix was obtained, so a crowdsourced fallback is visible
+            // rather than silently substituted for a live position.
+            if let type = rich.positionType {
+                attrs["position_type"] = type
+            }
             if let label = rich.locationLabel {
                 attrs["location_label"] = label
             }

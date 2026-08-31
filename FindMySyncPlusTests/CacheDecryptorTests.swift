@@ -38,6 +38,110 @@ final class CacheDecryptorTests: XCTestCase {
         XCTAssertEqual(result.count, 0)
     }
 
+    // MARK: - crowdSourcedLocation fallback
+
+    /// Find My shows a device at a place with an age — "Home · 9 hr. ago" — while
+    /// FindMySyncPlus published nothing at all, because only `location` was read.
+    ///
+    /// The fallback is guarded on `isOld == false`, which separates the two cases
+    /// cleanly: every crowdsourced record sitting behind a working primary location
+    /// reads old (19–244 h, sometimes hundreds of km away), while the one record with
+    /// no primary reads fresh. Publishing an old sighting would move the Home
+    /// Assistant entity into the wrong zone, since HA derives zone state from the
+    /// coordinates and ignores `is_old`.
+    private func record(location: Any?, crowdSourced: Any?) -> [String: Any] {
+        var d: [String: Any] = ["baUUID": "fallback-uuid", "name": "Test Device"]
+        if let location { d["location"] = location }
+        if let crowdSourced { d["crowdSourcedLocation"] = crowdSourced }
+        return d
+    }
+
+    /// The eleven keys Apple actually writes, measured off a live `Devices.data` and
+    /// matching the shape posted on #19. `timeStamp` is an **Int** of milliseconds,
+    /// not a Double — it bridges through NSNumber either way, which is precisely why
+    /// a fixture using the wrong type would never reveal a problem.
+    private func crowdDict(isOld: Bool?, positionType: String = "crowdsourced") -> [String: Any] {
+        var d: [String: Any] = [
+            "latitude": 51.5, "longitude": -0.12,
+            "horizontalAccuracy": 75.6, "verticalAccuracy": 37.8,
+            "altitude": 32.0, "floorLevel": 0.0,
+            "isInaccurate": false, "locationFinished": true,
+            "positionType": positionType,
+            // `NSNumber`, not a native `Int`, because that is what
+            // `PropertyListSerialization` hands back and the parse reads it as
+            // `as? Double`. A native Int does *not* satisfy that cast, so writing one
+            // here fails the test while real data works — unfaithful in the opposite
+            // direction from the Double this used to be.
+            "timeStamp": NSNumber(value: 1_700_000_000_000 as Int64)
+        ]
+        if let isOld { d["isOld"] = isOld }
+        return d
+    }
+
+    func testFallback_usedWhenLocationIsNullAndSightingIsFresh() throws {
+        let points = CacheDecryptor().parseDeviceArray(
+            [record(location: "$null", crowdSourced: crowdDict(isOld: false))])
+
+        let p = try XCTUnwrap(points.first)
+        XCTAssertEqual(p.latitude, 51.5)
+        XCTAssertEqual(p.longitude, -0.12)
+        XCTAssertEqual(p.accuracy, 75.6)
+        // Freshness must come from the dict actually used, not from the absent one.
+        XCTAssertEqual(p.richAttributes?.isOld, false)
+        XCTAssertNotNil(p.richAttributes?.timestamp)
+        XCTAssertEqual(p.richAttributes?.positionType, "crowdsourced")
+    }
+
+    /// The case that would put a phone at Home while its owner stands at the office.
+    func testFallback_notUsedWhenSightingIsOld() {
+        let points = CacheDecryptor().parseDeviceArray(
+            [record(location: "$null", crowdSourced: crowdDict(isOld: true))])
+
+        XCTAssertTrue(points.isEmpty, "an old sighting must not be published")
+    }
+
+    /// Absent is not false. Apple saying nothing about staleness is a different
+    /// statement from Apple calling the fix current, and only the latter rescues.
+    func testFallback_notUsedWhenStalenessIsUnstated() {
+        let points = CacheDecryptor().parseDeviceArray(
+            [record(location: "$null", crowdSourced: crowdDict(isOld: nil))])
+
+        XCTAssertTrue(points.isEmpty)
+    }
+
+    func testFallback_notUsedWhenNeitherIsUsable() {
+        let points = CacheDecryptor().parseDeviceArray(
+            [record(location: "$null", crowdSourced: nil)])
+
+        XCTAssertTrue(points.isEmpty)
+    }
+
+    /// `location` is the fresher of the two whenever it exists, so it always wins —
+    /// including over a sighting that claims to be fresh.
+    func testFallback_realLocationAlwaysWins() throws {
+        let live: [String: Any] = [
+            "latitude": 10.0, "longitude": 20.0, "horizontalAccuracy": 5.0,
+            "positionType": "Wifi", "isOld": false
+        ]
+        let points = CacheDecryptor().parseDeviceArray(
+            [record(location: live, crowdSourced: crowdDict(isOld: false))])
+
+        let p = try XCTUnwrap(points.first)
+        XCTAssertEqual(p.latitude, 10.0)
+        XCTAssertEqual(p.accuracy, 5.0)
+        XCTAssertEqual(p.richAttributes?.positionType, "Wifi")
+    }
+
+    /// An unmapped Apple value must stay visible rather than be folded into a
+    /// plausible default — `GPS` and `ownedDeviceLocation` both appear in the wild.
+    func testPositionType_passesThroughUnmappedValues() throws {
+        let points = CacheDecryptor().parseDeviceArray(
+            [record(location: "$null", crowdSourced: crowdDict(isOld: false, positionType: "GPS"))])
+
+        let p = try XCTUnwrap(points.first)
+        XCTAssertEqual(p.richAttributes?.positionType, "GPS")
+    }
+
     func testParseDeviceArray_emptyInput() {
         let decryptor = CacheDecryptor()
         let result = decryptor.parseDeviceArray([])

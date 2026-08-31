@@ -172,6 +172,30 @@ actor CacheDecryptor {
         return try ChaChaPoly.open(sealed, using: key)
     }
 
+    /// Which dictionary holds the position to publish, or nil when there is none.
+    ///
+    /// Find My shows a device as "Home · 9 hr. ago" from a Find My network sighting
+    /// when it has nothing fresher. Reading only `location` meant publishing nothing
+    /// at all for those records.
+    ///
+    /// `location` always wins when present — it is the fresher of the two. A
+    /// `crowdSourcedLocation` rescues the record only when Apple flags it **not old**,
+    /// and that guard is the whole safety of this. A sighting sitting behind a working
+    /// primary location reads old (19 to 244 hours, sometimes hundreds of kilometres
+    /// away), while a record with no primary at all reads fresh. Home Assistant
+    /// computes zone state from the coordinates and ignores `is_old`, so publishing a
+    /// stale sighting would move an entity into the wrong zone and fire automations.
+    ///
+    /// Absent is not false: Apple saying nothing about staleness is a different
+    /// statement from Apple calling the fix current.
+    nonisolated static func positionSource(for device: [String: Any]) -> [String: Any]? {
+        let primary = device["location"] as? [String: Any]
+        if primary?["latitude"] is Double { return primary }
+
+        let sighting = device["crowdSourcedLocation"] as? [String: Any]
+        return sighting?["isOld"] as? Bool == false ? sighting : nil
+    }
+
     nonisolated static func extractSymmetricKey(from any: Any) throws -> Data? {
         if let s = any as? String, let raw = Data(base64Encoded: s) { return raw }
         if let d = any as? Data {
@@ -270,7 +294,7 @@ actor CacheDecryptor {
             let name = (device["name"] as? String) ?? ""
 
             guard
-                let loc = device["location"] as? [String: Any],
+                let loc = Self.positionSource(for: device),
                 let lat = loc["latitude"] as? Double,
                 let lon = loc["longitude"] as? Double,
                 let acc = loc["horizontalAccuracy"] as? Double
@@ -309,7 +333,8 @@ actor CacheDecryptor {
                                               timestamp: timestamp,
                                               motionActivityState: nil,
                                               locationLabel: nil,
-                                              isOld: loc["isOld"] as? Bool)
+                                              isOld: loc["isOld"] as? Bool,
+                                              positionType: (loc["positionType"] as? String).nonNullish)
 
             results.append(DevicePoint(id: id,
                                        name: name,

@@ -13,6 +13,13 @@ struct RichLocationAttributes: Sendable {
     /// fabricated `false` would claim Apple called the fix current, which is a
     /// different statement from Apple saying nothing.
     let isOld: Bool?
+    /// Apple's name for how the fix was obtained — `Wifi`, `GPS`, `crowdsourced`,
+    /// `ownedDeviceLocation` so far. Passed through verbatim: an unmapped value must
+    /// stay visible rather than be folded into a plausible-looking default.
+    ///
+    /// It matters most when a position came from the crowdsourced fallback, where the
+    /// source would otherwise be silently substituted.
+    let positionType: String?
 
     /// Explicit rather than memberwise so `isOld` can default — every other field
     /// is a `let` with no default, so adding one would otherwise break all five
@@ -24,7 +31,8 @@ struct RichLocationAttributes: Sendable {
          timestamp: Date?,
          motionActivityState: Int?,
          locationLabel: String?,
-         isOld: Bool? = nil) {
+         isOld: Bool? = nil,
+         positionType: String? = nil) {
         self.verticalAccuracy = verticalAccuracy
         self.altitude = altitude
         self.speed = speed
@@ -33,6 +41,7 @@ struct RichLocationAttributes: Sendable {
         self.motionActivityState = motionActivityState
         self.locationLabel = locationLabel
         self.isOld = isOld
+        self.positionType = positionType
     }
 
     /// Overlay `other`'s populated fields onto these, field by field.
@@ -52,7 +61,8 @@ struct RichLocationAttributes: Sendable {
             timestamp: other.timestamp ?? timestamp,
             motionActivityState: other.motionActivityState ?? motionActivityState,
             locationLabel: other.locationLabel ?? locationLabel,
-            isOld: other.isOld ?? isOld
+            isOld: other.isOld ?? isOld,
+            positionType: other.positionType ?? positionType
         )
     }
 
