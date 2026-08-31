@@ -20,6 +20,27 @@ struct RichLocationAttributes: Sendable {
     /// It matters most when a position came from the crowdsourced fallback, where the
     /// source would otherwise be silently substituted.
     let positionType: String?
+    /// Apple's own accuracy judgement on the fix, passed through the same way `isOld`
+    /// is. Measured `false` on every item so far, so the `true` branch is unexercised —
+    /// which is a reason not to claim it is validated, not a reason to withhold it.
+    let isInaccurate: Bool?
+    /// `Left` / `Right` / `Case` — Apple's vocabulary for a piece of a grouped
+    /// accessory, and the same words the grouped-accessory work already deals in.
+    /// Absent on anything that is not part of a pair.
+    let partName: String?
+    /// The user's own label for the item, chosen by them in Find My, and its emoji.
+    /// Content rather than vocabulary: fine to publish to their own broker, and never
+    /// to be printed in a diagnostic.
+    let role: String?
+    let roleEmoji: String?
+    /// One pre-formatted address line, `address.mediumAddressModern` — house number,
+    /// street and city. Apple writes four widths and this is the one chosen; nothing is
+    /// assembled or parsed here.
+    ///
+    /// Deliberately not `streetAddress`, which measured as the house number alone (`9`,
+    /// `999`), and deliberately not the whole 19-key dict, which is ~670 B churning on
+    /// every position change.
+    let address: String?
 
     /// Explicit rather than memberwise so `isOld` can default — every other field
     /// is a `let` with no default, so adding one would otherwise break all five
@@ -32,7 +53,12 @@ struct RichLocationAttributes: Sendable {
          motionActivityState: Int?,
          locationLabel: String?,
          isOld: Bool? = nil,
-         positionType: String? = nil) {
+         positionType: String? = nil,
+         isInaccurate: Bool? = nil,
+         partName: String? = nil,
+         role: String? = nil,
+         roleEmoji: String? = nil,
+         address: String? = nil) {
         self.verticalAccuracy = verticalAccuracy
         self.altitude = altitude
         self.speed = speed
@@ -42,6 +68,11 @@ struct RichLocationAttributes: Sendable {
         self.locationLabel = locationLabel
         self.isOld = isOld
         self.positionType = positionType
+        self.isInaccurate = isInaccurate
+        self.partName = partName
+        self.role = role
+        self.roleEmoji = roleEmoji
+        self.address = address
     }
 
     /// Overlay `other`'s populated fields onto these, field by field.
@@ -62,7 +93,15 @@ struct RichLocationAttributes: Sendable {
             motionActivityState: other.motionActivityState ?? motionActivityState,
             locationLabel: other.locationLabel ?? locationLabel,
             isOld: other.isOld ?? isOld,
-            positionType: other.positionType ?? positionType
+            positionType: other.positionType ?? positionType,
+            // Only FMIP records carry these five — a friend record has no parts, no
+            // role and no address — so in practice ours always survive. Merged the
+            // same way regardless, so the rule stays one rule.
+            isInaccurate: other.isInaccurate ?? isInaccurate,
+            partName: other.partName ?? partName,
+            role: other.role ?? role,
+            roleEmoji: other.roleEmoji ?? roleEmoji,
+            address: other.address ?? address
         )
     }
 

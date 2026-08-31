@@ -52,6 +52,15 @@ enum ReadRoot {
 enum FMIPCacheFile {
     case devices
     case items
+    /// The second place Apple describes a group. A group is carried either as an
+    /// embedded `itemGroup` on a device record or as a standalone record here, and the
+    /// two share one identity — measured 2026-08-30, a parent's `baUUID` on one Mac and
+    /// this file's `identifier` on another were byte-identical for the same AirPods.
+    ///
+    /// Same ChaChaPoly under `fmipSymmetricKey` as the other two, so it needs no new
+    /// key and no new crypto. Absent on some machines, which the read path already
+    /// treats as nothing rather than as an error.
+    case itemGroups
     case friendCache
 
     var relativePath: String {
@@ -60,6 +69,8 @@ enum FMIPCacheFile {
             return "Library/Caches/com.apple.findmy.fmipcore/Devices.data"
         case .items:
             return "Library/Caches/com.apple.findmy.fmipcore/Items.data"
+        case .itemGroups:
+            return "Library/Caches/com.apple.findmy.fmipcore/ItemGroups.data"
         case .friendCache:
             return "Library/Caches/com.apple.findmy.fmfcore/FriendCacheData.data"
         }
@@ -383,6 +394,20 @@ actor CacheDecryptor {
             let verticalAccuracy = loc["verticalAccuracy"] as? Double
             let hasAltitude = (verticalAccuracy ?? -1) >= 0
 
+            // Measured on a real Items.data 2026-08-30, which struck two candidates the
+            // spec had proposed before anyone looked:
+            //
+            // `address.streetAddress` is the house number alone — `9`, `999` — so the
+            // address line comes from `mediumAddressModern`, one of four widths Apple
+            // pre-formats. No assembling, no parsing, and no fallback to another key:
+            // a different width is a different answer, not a worse version of this one.
+            //
+            // `location.floorLevel` read `-1` on every item, which is CoreLocation's
+            // "no value" and the same sentinel that reached Home Assistant as
+            // `altitude: -1` earlier in this release. It is not read at all.
+            let role = device["role"] as? [String: Any]
+            let address = (device["address"] as? [String: Any])?["mediumAddressModern"] as? String
+
             let rich = RichLocationAttributes(verticalAccuracy: hasAltitude ? verticalAccuracy : nil,
                                               altitude: hasAltitude ? loc["altitude"] as? Double : nil,
                                               speed: loc["speed"] as? Double,
@@ -391,7 +416,12 @@ actor CacheDecryptor {
                                               motionActivityState: nil,
                                               locationLabel: nil,
                                               isOld: loc["isOld"] as? Bool,
-                                              positionType: (loc["positionType"] as? String).nonNullish)
+                                              positionType: (loc["positionType"] as? String).nonNullish,
+                                              isInaccurate: loc["isInaccurate"] as? Bool,
+                                              partName: ((device["partInfo"] as? [String: Any])?["name"] as? String).nonNullish,
+                                              role: (role?["name"] as? String).nonNullish,
+                                              roleEmoji: (role?["emoji"] as? String).nonNullish,
+                                              address: address.nonNullish)
 
             results.append(DevicePoint(id: id,
                                        name: name,

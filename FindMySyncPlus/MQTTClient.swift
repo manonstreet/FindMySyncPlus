@@ -353,6 +353,25 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
             if let label = rich.locationLabel {
                 attrs["location_label"] = label
             }
+            // Apple's own accuracy judgement, passed through like `is_old` rather than
+            // folded into a rule of ours. Absent stays absent.
+            if let inaccurate = rich.isInaccurate {
+                attrs["is_inaccurate"] = inaccurate
+            }
+            if let part = rich.partName {
+                attrs["part_name"] = part
+            }
+            if let role = rich.role {
+                attrs["role"] = role
+            }
+            if let emoji = rich.roleEmoji {
+                attrs["role_emoji"] = emoji
+            }
+            // Home Assistant has no built-in reverse geocoding, so this is the one
+            // attribute here a user would otherwise install an integration to get.
+            if let address = rich.address {
+                attrs["address"] = address
+            }
         }
         return attrs
     }
