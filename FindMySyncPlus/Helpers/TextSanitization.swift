@@ -44,7 +44,7 @@ func slugifyAlias(_ raw: String, maxLen: Int = 48) -> String {
 // permits hyphens — so this is a second, narrower conversion, applied ONLY to
 // `default_entity_id`.
 //
-// HA would sanitise the value anyway: `default_entity_id` is validated as a
+// HA would sanitize the value anyway: `default_entity_id` is validated as a
 // plain string, and `async_generate_entity_id` slugifies its input. Doing it
 // here means the value we publish is the entity ID HA will actually create, so
 // what we log is what the user will see.

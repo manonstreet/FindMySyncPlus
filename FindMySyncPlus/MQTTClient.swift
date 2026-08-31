@@ -46,7 +46,7 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
     }
 
     #if DEBUG
-    /// Seeds the retry counter so backoff behaviour can be tested without opening a
+    /// Seeds the retry counter so backoff behavior can be tested without opening a
     /// socket. Mirrors `CacheDecryptor.loadKeyForTesting`.
     func setReconnectAttemptsForTesting(_ value: Int) { reconnectAttempts = value }
     #endif
@@ -269,7 +269,7 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
     /// The publish sequence itself: clear, wait, republish.
     ///
     /// Split from the guards above so it can be asserted on with a recording
-    /// publisher — the ordering *is* the behaviour, and nothing else can check it.
+    /// publisher — the ordering *is* the behavior, and nothing else can check it.
     /// `delay` is a parameter for the same reason; production always uses 0.5s.
     func performReRegister(client: MQTTPublishing,
                            devId: String,
@@ -313,7 +313,7 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
             attrs["battery_level_raw"] = level
         }
         if let code = device.batteryStatusCode {
-            // Deliberately not normalised into a percentage. The same ordinal means
+            // Deliberately not normalized into a percentage. The same ordinal means
             // different things across manufacturers — observed values 0, 1, 2, 4, 5 and
             // 100 from Apple, Sitecom and World Tag hardware, on scales that cannot be
             // reconciled. Passing it through lets a user map their own.

@@ -8,7 +8,7 @@ struct DevicePoint: Sendable {
     let accuracy: Double
     let battery: Double?
     /// `Items.data` battery ordinal, passed through unmodified. Its meaning varies by
-    /// manufacturer and is deliberately not normalised — see `BatteryParsingTests`.
+    /// manufacturer and is deliberately not normalized — see `BatteryParsingTests`.
     let batteryStatusCode: Int?
     /// `Devices.data` charging state ("Charging" / "NotCharging" / "Unknown").
     let chargingState: String?

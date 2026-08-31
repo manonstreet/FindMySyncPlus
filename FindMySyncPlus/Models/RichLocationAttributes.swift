@@ -40,7 +40,7 @@ struct RichLocationAttributes: Sendable {
     /// A family device appears in both caches: FMIP gives the location plus
     /// `timestamp` and `isOld`, and the friend record in LocalStorage gives the
     /// richer fields — altitude, speed, course, motion state, location label. The
-    /// friend record wins wherever it has a value, which preserves the behaviour
+    /// friend record wins wherever it has a value, which preserves the behavior
     /// from when it replaced the device's attributes outright; ours fill the gaps
     /// it does not cover, `isOld` in particular, which only FMIP reports.
     func mergedPreferring(_ other: RichLocationAttributes) -> RichLocationAttributes {
@@ -69,7 +69,7 @@ struct RichLocationAttributes: Sendable {
             // Apple has added activity types before. Folding an unmapped value into
             // "Unknown" makes it indistinguishable from a genuine 0 and impossible to
             // notice, so the raw value stays visible — the same reasoning as
-            // `decodeLocationLabel` passing unrecognised input through unchanged.
+            // `decodeLocationLabel` passing unrecognized input through unchanged.
             return "Unmapped(\(raw))"
         }
     }

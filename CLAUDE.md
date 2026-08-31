@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**FindMySyncPlus** is a macOS menu bar app (macOS 15+ only) that decrypts Apple Find My cache files and publishes device, item, and friend locations to Home Assistant. Supports **REST** (`device_tracker/see`) and **MQTT** (with HA auto-discovery and rich attributes) transports. It is a pure Swift/SwiftUI/AppKit project built entirely in Xcode — no package manager, no scripts.
+**FindMySyncPlus** is a macOS menu bar app (macOS 14.4+) that decrypts Apple Find My cache files and publishes device, item, and friend locations to Home Assistant. Supports **REST** (`device_tracker/see`) and **MQTT** (with HA auto-discovery and rich attributes) transports. It is a pure Swift/SwiftUI/AppKit project built entirely in Xcode — no package manager, no scripts.
 
 ## Build & Run
 
@@ -77,7 +77,27 @@ Requires Full Disk Access to read the Find My cache. `FindMyRefresher.swift` can
 
 ## Testing
 
-70 unit tests across five test files: `CacheDecryptorTests` (ChaChaPoly round-trips, parentID plumbing for grouped items), `TextSanitizationTests` (slugify, normalizeID), `LocalStorageDecryptorTests` (AES-CBC page decryption, Apple location label decoding), `ModelTests` (DevicePoint.with() copy semantics, RichLocationAttributes motion state mapping, parentID preservation), `SyncEngineGroupingTests` (unaliased grouped child filter, parent location backfill from freshest child). Tests use synthetic data — no real Find My files required. Run via Xcode (Cmd+U) or xcodebuild test.
+Eleven test files. All use synthetic data — no real Find My files required. Trust
+`** TEST SUCCEEDED **` rather than counting `passed on` lines — xcodebuild interleaves
+timestamps into those, so a grep count drifts between identical runs.
+
+| Test file | Covers |
+|---|---|
+| `BatteryParsingTests` | Apple reuses `batteryStatus` for two different things — a charging-state String in `Devices.data`, an Int ordinal in `Items.data`. Guards the split and the vendor scoping |
+| `CacheDecryptorTests` | ChaChaPoly round-trips, parentID plumbing for grouped items |
+| `FMIPFreshnessTests` | `location_timestamp` / `is_old` reaching Items. Rich attributes are built only on the friends path, so an AirTag previously carried no timestamp at all (#17) |
+| `HAEntityIDTests` | `slugifyAlias` permits hyphens, HA's object part does not. Verified against HA source: `default_entity_id` is `cv.string` and HA slugifies anyway |
+| `LocalStorageDecryptorTests` | AES-CBC page decryption, Apple location label decoding |
+| `LocalStorageWALTests` | Synthetic SQLite WAL construction, frame parsing, salt validation, page merging |
+| `ModelTests` | `DevicePoint.with()` copy semantics, motion-state mapping, parentID preservation |
+| `MQTTDiscoveryTests` | HA removed `object_id` in Core 2026.4 and ignores it silently; asserts `default_entity_id` is published instead (#22) |
+| `MQTTPublishSequenceTests` | Publish ordering via a recording `MQTTPublishing` — the clear-wait-republish sequence in re-registration *is* the behavior, and nothing else can check it |
+| `SyncEngineGroupingTests` | Unaliased grouped-child filter, parent location backfill from freshest child |
+| `TextSanitizationTests` | slugify, normalizeID |
+
+Run via Xcode (Cmd+U) or xcodebuild test. A green suite is not sufficient for MQTT
+changes — verify those against the demo fixtures, which caught two defects the
+suite missed.
 
 ## Conventions
 - `AppModel`, `SettingsStore` are `@MainActor final class` using `@Published` + Combine for reactivity. `LogStore` is `final class ... @unchecked Sendable`.
