@@ -193,6 +193,14 @@ struct BatterySensorPayloadTests {
         #expect(payload()["unit_of_measurement"] as? String == "%")
     }
 
+    /// Without `state_class` Home Assistant records the state but keeps no long-term
+    /// statistics for it, so a battery-over-time graph has nothing behind it. The
+    /// sensor shipped in 1.4.5b without one.
+    @Test("declares measurement state_class, so HA keeps statistics")
+    func declaresStateClass() {
+        #expect(payload()["state_class"] as? String == "measurement")
+    }
+
     @Test("groups under the same device card as the tracker")
     func sharesDeviceBlock() throws {
         let device = try #require(payload()["device"] as? [String: Any])

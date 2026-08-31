@@ -71,6 +71,10 @@ extension MQTTClient {
             "state_topic": attributesTopic(forDevId: devId, prefix: topicPrefix),
             "value_template": "{{ value_json.battery }}",
             "device_class": "battery",
+            // Without this HA records the state but keeps no long-term statistics, so
+            // a battery-over-time graph has nothing behind it. Additive: statistics
+            // start from here and existing history is untouched.
+            "state_class": "measurement",
             "unit_of_measurement": "%",
             "device": [
                 "identifiers": ["findmysyncplus"],
