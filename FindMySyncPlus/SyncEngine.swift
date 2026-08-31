@@ -51,6 +51,14 @@ final class SyncEngine {
     private let restClient = RESTClient()
     private let mqttClient = MQTTClient()
 
+    /// Whether this macOS provides friend locations at all. Injectable so the macOS 14
+    /// branch can be exercised on hardware that cannot run it.
+    private let friendsAvailability: FriendsAvailability
+
+    init(friendsAvailability: FriendsAvailability = .current) {
+        self.friendsAvailability = friendsAvailability
+    }
+
     var mqtt: MQTTClient { mqttClient }
     var rest: RESTClient { restClient }
 
@@ -146,7 +154,7 @@ final class SyncEngine {
 
         let candidates = buildCandidates(settings: settings)
         let hasFMIPSources = !candidates.isEmpty
-        let hasFriendSource = settings.enableFriends
+        let hasFriendSource = friendsAvailability.isEnabled(userToggle: settings.enableFriends)
 
         if !hasFMIPSources && !hasFriendSource {
             logger.info("All sources are disabled; nothing to do this run.")
@@ -164,7 +172,8 @@ final class SyncEngine {
         guard io != nil || hasFriendSource else { return }
 
         var friendEntries = await readFriends(enabled: hasFriendSource, settings: settings, logger: logger)
-        friendEntries = await enrichFriendNames(friendEntries, settings: settings, logger: logger)
+        friendEntries = await enrichFriendNames(friendEntries, enabled: hasFriendSource,
+                                                settings: settings, logger: logger)
 
         let hadFMIPData = io?.hadSuccessfulDecrypt ?? false
         if !hadFMIPData && friendEntries.isEmpty {
@@ -193,7 +202,8 @@ final class SyncEngine {
 
     private func ensureKeys(settings: SettingsStore, logger: LogStore) async {
         await cacheDecryptor.ensureFMIPKey(logger: logger)
-        if settings.enableFriends {
+        // Both keys serve Friends only, so an unsupported macOS needs neither.
+        if friendsAvailability.isEnabled(userToggle: settings.enableFriends) {
             await localStorageDecryptor.ensureKey(logger: logger)
             await cacheDecryptor.ensureFMFKey(logger: logger)
         }
@@ -202,7 +212,14 @@ final class SyncEngine {
     private func logSources(settings: SettingsStore, logger: LogStore) {
         let srcDevices = settings.enableDevices ? "Devices \u{2713}" : "Devices (off)"
         let srcItems = settings.enableItems ? "Items \u{2713}" : "Items (off)"
-        let srcFriends = settings.enableFriends ? "Friends \u{2713}" : "Friends (off)"
+        // Distinguish "you switched it off" from "this macOS does not provide it",
+        // so the line never reads as a user choice the user did not make.
+        let srcFriends: String
+        if !friendsAvailability.isSupported {
+            srcFriends = "Friends (needs macOS 15+)"
+        } else {
+            srcFriends = settings.enableFriends ? "Friends \u{2713}" : "Friends (off)"
+        }
         logger.debug("Sources: \(srcDevices), \(srcItems), \(srcFriends)")
     }
 
@@ -273,11 +290,18 @@ final class SyncEngine {
         return []
     }
 
-    private func enrichFriendNames(_ entries: [DevicePoint], settings: SettingsStore, logger: LogStore) async -> [DevicePoint] {
-        guard !entries.isEmpty else { return entries }
+    private func enrichFriendNames(_ entries: [DevicePoint], enabled: Bool,
+                                   settings: SettingsStore, logger: LogStore) async -> [DevicePoint] {
+        // Gated on the source, not on having friends to enrich. The key either decrypts
+        // or it does not, and that is true whether or not anyone is sharing a location —
+        // bailing on an empty list left the indicator unvalidated forever for someone
+        // with no friends shared, which is the last case of #19's unclearable light.
+        // Gating on `enabled` still matters: with Friends off the key is not consulted,
+        // so the indicator reads "not applicable" rather than going green.
+        guard enabled else { return entries }
         guard let fmfNames = await cacheDecryptor.readFMFContactNames(logger: logger) else { return entries }
         settings.fmfKeyStatus = .valid
-        guard !fmfNames.isEmpty else { return entries }
+        guard !entries.isEmpty, !fmfNames.isEmpty else { return entries }
         let enriched = entries.map { entry in
             if let displayName = fmfNames[entry.id] {
                 return entry.with(name: displayName)

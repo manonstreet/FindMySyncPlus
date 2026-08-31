@@ -76,6 +76,9 @@ person identifier (DSID) and skips duplicates, so each family member is only tra
 attributes from LocalStorage (altitude, speed, course, motion state) are merged onto the FMIP
 device entry, giving family members the best of both sources.
 
+**Requires macOS 15 or later.** macOS 14 does not store friend locations, so there is nothing to
+process. The FMF and LocalStorage keys are not used there.
+
 **Setup:** Import `LocalStorage.key` in the Access Settings tab (extracted alongside the other keys in Phase 1) — the Friends source auto-enables when the key is imported.
 
 ---
@@ -98,6 +101,7 @@ device entry, giving family members the best of both sources.
 ## Requirements
 
 - macOS 14.4 (Sonoma) or later — 14.4 is where Apple began encrypting the Find My caches, which is what this app decrypts
+- Friend locations require macOS 15 or later — on macOS 14 only the Find My key is needed
 - A running Home Assistant instance — either the `device_tracker.see` REST API or an MQTT broker (e.g. Mosquitto add-on)
 - Find My encryption keys extracted from Keychain (see Phase 1 below)
 

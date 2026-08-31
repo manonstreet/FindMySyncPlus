@@ -370,6 +370,13 @@ private struct InstallCoordinator: View {
                 }
                 // Bind core models and optionally start scheduler on launch
                 app.bind(settings: settings, logger: logger)
+
+                // Once per launch, not per run: at the default 300 s interval the
+                // scheduler would otherwise repeat this 288 times a day.
+                let friends = FriendsAvailability.current
+                if friends.isSpoofed { logger.warn(friends.spoofMessage) }
+                if !friends.isSupported { logger.info(friends.restrictionMessage) }
+
                 if settings.autoStartSchedulerOnLaunch { app.start() }
                 if settings.openMainOnLaunch { WindowCoordinator.shared?.openMain() }
             }

@@ -7,6 +7,15 @@ struct AccessSettingsView: View {
     @EnvironmentObject var logger: LogStore
     @EnvironmentObject var app: AppModel
 
+    /// Whether this macOS provides friend locations at all. The FMF and LocalStorage
+    /// keys serve Friends only, so it decides how their indicators read.
+    private let friendsAvailability = FriendsAvailability.current
+
+    /// How the two Friends-only key indicators should read.
+    private var friendsKeyApplicability: KeyApplicability {
+        friendsAvailability.keyApplicability(userToggle: settings.enableFriends)
+    }
+
     @State private var showAuth: Bool = false
     @State private var showMqttPassword: Bool = false
     @State private var authLastTest: Date? = nil
@@ -430,8 +439,10 @@ struct AccessSettingsView: View {
                     case .all:
                         VStack(alignment: .leading, spacing: 6) {
                             keyStatusRow("Find My", status: settings.fmipKeyStatus, kind: .fmip)
-                            keyStatusRow("FMF", status: settings.fmfKeyStatus, kind: .fmf)
-                            keyStatusRow("LocalStorage", status: settings.localStorageKeyStatus, kind: .localStorage)
+                            keyStatusRow("FMF", status: settings.fmfKeyStatus, kind: .fmf,
+                                     applicability: friendsKeyApplicability)
+                            keyStatusRow("LocalStorage", status: settings.localStorageKeyStatus, kind: .localStorage,
+                                     applicability: friendsKeyApplicability)
                         }
                         HStack {
                             if let result = bulkImportResult {
@@ -466,7 +477,8 @@ struct AccessSettingsView: View {
                             }
                         }
                     case .fmf:
-                        keyStatusRow("FMF", status: settings.fmfKeyStatus, kind: .fmf)
+                        keyStatusRow("FMF", status: settings.fmfKeyStatus, kind: .fmf,
+                                     applicability: friendsKeyApplicability)
                         HStack {
                             Spacer()
                             Button {
@@ -485,7 +497,8 @@ struct AccessSettingsView: View {
                             }
                         }
                     case .localStorage:
-                        keyStatusRow("LocalStorage", status: settings.localStorageKeyStatus, kind: .localStorage)
+                        keyStatusRow("LocalStorage", status: settings.localStorageKeyStatus, kind: .localStorage,
+                                     applicability: friendsKeyApplicability)
                         HStack {
                             Spacer()
                             Button {
@@ -513,22 +526,31 @@ struct AccessSettingsView: View {
     private enum KeyKind { case fmip, fmf, localStorage }
 
     @ViewBuilder
-    private func keyStatusRow(_ name: String, status: KeyStatus, kind: KeyKind? = nil) -> some View {
-        HStack(spacing: 6) {
-            switch status {
-            case .notPresent:
-                Image(systemName: "xmark.seal.fill").foregroundStyle(.secondary)
-            case .present:
-                Image(systemName: "seal").foregroundStyle(.secondary)
-            case .valid:
-                Image(systemName: "checkmark.seal.fill").foregroundStyle(.green)
-            case .invalid:
-                Image(systemName: "xmark.seal.fill").foregroundStyle(.red)
+    private func keyStatusRow(_ name: String, status: KeyStatus, kind: KeyKind? = nil,
+                              applicability: KeyApplicability = .reported) -> some View {
+        let notApplicable = applicability.isNotApplicable
+        return HStack(spacing: 6) {
+            if notApplicable {
+                // Deliberately not a warning icon: the key is not missing, it serves a
+                // feature that will not run here.
+                Image(systemName: "minus.circle").foregroundStyle(.secondary)
+            } else {
+                switch status {
+                case .notPresent:
+                    Image(systemName: "xmark.seal.fill").foregroundStyle(.secondary)
+                case .present:
+                    Image(systemName: "seal").foregroundStyle(.secondary)
+                case .valid:
+                    Image(systemName: "checkmark.seal.fill").foregroundStyle(.green)
+                case .invalid:
+                    Image(systemName: "xmark.seal.fill").foregroundStyle(.red)
+                }
             }
             Text(name)
-                .foregroundStyle(status == .notPresent || status == .present ? .secondary : .primary)
+                .foregroundStyle(
+                    notApplicable || status == .notPresent || status == .present ? .secondary : .primary)
             Spacer()
-            Text(keyStatusLabel(status))
+            Text(applicability.label ?? keyStatusLabel(status))
                 .font(.callout)
                 .foregroundStyle(.secondary)
         }

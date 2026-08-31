@@ -9,6 +9,9 @@ struct GeneralSettingsView: View {
 
     @StateObject private var loginItemManager = LoginItemManager()
 
+    /// Whether this macOS provides friend locations at all.
+    private let friendsAvailability = FriendsAvailability.current
+
     @State private var intervalMinutes: Int = 5
     @State private var waitSecondsInt: Int = 10
 
@@ -144,16 +147,29 @@ struct GeneralSettingsView: View {
                 VStack(spacing: 10) {
                     SettingsToggleRow(label: "Devices", isOn: $settings.enableDevices, disabled: settings.fmipKeyStatus == .notPresent)
                     SettingsToggleRow(label: "Items", isOn: $settings.enableItems, disabled: settings.fmipKeyStatus == .notPresent)
-                    SettingsToggleRow(label: "Friends", isOn: $settings.enableFriends, disabled: settings.localStorageKeyStatus == .notPresent)
+                    // Reads off, because that is what it does. The stored preference is
+                    // deliberately left alone: it can legitimately be true on a machine
+                    // that was upgraded, and writing false would lose the setting for
+                    // anyone who later moves to macOS 15.
+                    SettingsToggleRow(
+                        label: "Friends",
+                        isOn: friendsAvailability.isSupported ? $settings.enableFriends : .constant(false),
+                        disabled: !friendsAvailability.isSupported || settings.localStorageKeyStatus == .notPresent,
+                        qualifier: friendsAvailability.isSupported ? nil : FriendsAvailability.toggleQualifier
+                    )
                 }
                 .font(.body)
                 .padding(.top, 2)
 
-                if settings.fmipKeyStatus == .notPresent || settings.localStorageKeyStatus == .notPresent {
+                // On macOS 14 the LocalStorage key is not needed, so its absence must
+                // not prompt the user to go and import one.
+                if settings.fmipKeyStatus == .notPresent
+                    || (friendsAvailability.isSupported && settings.localStorageKeyStatus == .notPresent) {
                     Text("Import keys in Access settings to enable sources")
                         .font(.callout)
                         .foregroundStyle(.secondary)
                 }
+
             }
         }
     }
