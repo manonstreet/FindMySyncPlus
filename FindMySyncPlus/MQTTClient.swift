@@ -358,9 +358,6 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
             if let inaccurate = rich.isInaccurate {
                 attrs["is_inaccurate"] = inaccurate
             }
-            if let part = rich.partName {
-                attrs["part_name"] = part
-            }
             if let role = rich.role {
                 attrs["role"] = role
             }

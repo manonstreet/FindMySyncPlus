@@ -24,13 +24,14 @@ struct RichLocationAttributes: Sendable {
     /// is. Measured `false` on every item so far, so the `true` branch is unexercised —
     /// which is a reason not to claim it is validated, not a reason to withhold it.
     let isInaccurate: Bool?
-    /// `Left` / `Right` / `Case` — Apple's vocabulary for a piece of a grouped
-    /// accessory, and the same words the grouped-accessory work already deals in.
-    /// Absent on anything that is not part of a pair.
-    let partName: String?
-    /// The user's own label for the item, chosen by them in Find My, and its emoji.
-    /// Content rather than vocabulary: fine to publish to their own broker, and never
-    /// to be printed in a diagnostic.
+    /// The category picked when an item is set up on iPhone — one of a fixed list
+    /// (Backpack, Keys, Wallet, …), with the emoji chosen beside it. Items only; a
+    /// device carries none.
+    ///
+    /// Absent when the owner typed a name instead of picking a category: Apple stores
+    /// the literal string "Custom Name" there, and the name they actually typed is the
+    /// item's `name`. `CacheDecryptor` drops that placeholder, so this is either a real
+    /// category or nothing.
     let role: String?
     let roleEmoji: String?
     /// One pre-formatted address line, `address.mediumAddressModern` — house number,
@@ -55,7 +56,6 @@ struct RichLocationAttributes: Sendable {
          isOld: Bool? = nil,
          positionType: String? = nil,
          isInaccurate: Bool? = nil,
-         partName: String? = nil,
          role: String? = nil,
          roleEmoji: String? = nil,
          address: String? = nil) {
@@ -69,7 +69,6 @@ struct RichLocationAttributes: Sendable {
         self.isOld = isOld
         self.positionType = positionType
         self.isInaccurate = isInaccurate
-        self.partName = partName
         self.role = role
         self.roleEmoji = roleEmoji
         self.address = address
@@ -94,11 +93,10 @@ struct RichLocationAttributes: Sendable {
             locationLabel: other.locationLabel ?? locationLabel,
             isOld: other.isOld ?? isOld,
             positionType: other.positionType ?? positionType,
-            // Only FMIP records carry these five — a friend record has no parts, no
-            // role and no address — so in practice ours always survive. Merged the
-            // same way regardless, so the rule stays one rule.
+            // Only FMIP records carry these four — a friend record has no role and no
+            // address — so in practice ours always survive. Merged the same way
+            // regardless, so the rule stays one rule.
             isInaccurate: other.isInaccurate ?? isInaccurate,
-            partName: other.partName ?? partName,
             role: other.role ?? role,
             roleEmoji: other.roleEmoji ?? roleEmoji,
             address: other.address ?? address

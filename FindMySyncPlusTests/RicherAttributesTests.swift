@@ -2,7 +2,7 @@ import Testing
 import Foundation
 @testable import FindMySyncPlus
 
-/// `richer-attributes.md` §7 — four fields chosen after measuring a real `Items.data`,
+/// `richer-attributes.md` §7 — fields chosen after measuring a real `Items.data`,
 /// not before. The measurement struck two of the spec's own proposals, and two of the
 /// tests here exist to keep them struck:
 ///
@@ -17,7 +17,6 @@ struct RicherAttributesTests {
 
     private func raw(
         isInaccurate: Bool? = nil,
-        partName: String? = nil,
         roleName: String? = nil,
         roleEmoji: String? = nil,
         address: [String: Any]? = nil,
@@ -36,7 +35,6 @@ struct RicherAttributesTests {
             "name": "Test AirTag",
             "location": location
         ]
-        if let partName { record["partInfo"] = ["name": partName, "symbol": "case", "type": 1] }
         var role: [String: Any] = [:]
         if let roleName { role["name"] = roleName }
         if let roleEmoji { role["emoji"] = roleEmoji }
@@ -85,11 +83,17 @@ struct RicherAttributesTests {
         #expect(rich.isInaccurate == nil)
     }
 
-    @Test("partInfo.name is carried through")
-    func carriesPartName() throws {
-        let points = CacheDecryptor().parseDeviceArray([raw(partName: "Right Bud")])
+    /// Choosing to type a name instead of picking a category stores the literal string
+    /// "Custom Name" in `role`, not the typed name — which is `name`, already published.
+    /// Four of five items on a live cache read exactly that, so publishing it verbatim
+    /// would put "Custom Name" on most people's trackers.
+    @Test("the Custom Name placeholder is dropped rather than published")
+    func customNamePlaceholderIsDropped() throws {
+        let points = CacheDecryptor().parseDeviceArray([raw(roleName: "Custom Name", roleEmoji: "\u{1F600}")])
         let rich = try #require(points.first?.richAttributes)
-        #expect(rich.partName == "Right Bud")
+        #expect(rich.role == nil)
+        // The emoji is a real choice even when the name is not, so it survives.
+        #expect(rich.roleEmoji == "\u{1F600}")
     }
 
     @Test("role name and emoji are carried through")
@@ -139,7 +143,6 @@ struct RicherAttributesPublishingTests {
 
     private func point(
         isInaccurate: Bool? = nil,
-        partName: String? = nil,
         role: String? = nil,
         roleEmoji: String? = nil,
         address: String? = nil
@@ -150,7 +153,6 @@ struct RicherAttributesPublishingTests {
                                           motionActivityState: nil,
                                           locationLabel: nil,
                                           isInaccurate: isInaccurate,
-                                          partName: partName,
                                           role: role,
                                           roleEmoji: roleEmoji,
                                           address: address)
@@ -163,14 +165,12 @@ struct RicherAttributesPublishingTests {
     func attributesArePublished() {
         let attrs = MQTTClient().buildAttributes(
             for: point(isInaccurate: false,
-                       partName: "Case",
                        role: "Backpack",
                        roleEmoji: "🎒",
                        address: "999 Example St, Springfield"),
             iso: ISO8601DateFormatter())
 
         #expect(attrs["is_inaccurate"] as? Bool == false)
-        #expect(attrs["part_name"] as? String == "Case")
         #expect(attrs["role"] as? String == "Backpack")
         #expect(attrs["role_emoji"] as? String == "🎒")
         #expect(attrs["address"] as? String == "999 Example St, Springfield")
@@ -181,7 +181,6 @@ struct RicherAttributesPublishingTests {
         let attrs = MQTTClient().buildAttributes(for: point(), iso: ISO8601DateFormatter())
 
         #expect(attrs["is_inaccurate"] == nil)
-        #expect(attrs["part_name"] == nil)
         #expect(attrs["role"] == nil)
         #expect(attrs["role_emoji"] == nil)
         #expect(attrs["address"] == nil)

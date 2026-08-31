@@ -405,7 +405,18 @@ actor CacheDecryptor {
             // `location.floorLevel` read `-1` on every item, which is CoreLocation's
             // "no value" and the same sentinel that reached Home Assistant as
             // `altitude: -1` earlier in this release. It is not read at all.
+            // `role` is the category picked when an item is set up on iPhone — one of a
+            // fixed list (Backpack, Keys, Wallet, …) with an emoji. Items only; a device
+            // has none.
+            //
+            // Choosing to type a name instead stores the literal string "Custom Name"
+            // here, *not* the name — that is carried by `name`, which is already
+            // published. Measured on a live cache: four of five items read exactly that.
+            // Publishing it would put "Custom Name" on most people's trackers, so the
+            // placeholder is dropped and the attribute is simply absent, which is what it
+            // means.
             let role = device["role"] as? [String: Any]
+            let roleName = (role?["name"] as? String).nonNullish
             let address = (device["address"] as? [String: Any])?["mediumAddressModern"] as? String
 
             let rich = RichLocationAttributes(verticalAccuracy: hasAltitude ? verticalAccuracy : nil,
@@ -418,8 +429,7 @@ actor CacheDecryptor {
                                               isOld: loc["isOld"] as? Bool,
                                               positionType: (loc["positionType"] as? String).nonNullish,
                                               isInaccurate: loc["isInaccurate"] as? Bool,
-                                              partName: ((device["partInfo"] as? [String: Any])?["name"] as? String).nonNullish,
-                                              role: (role?["name"] as? String).nonNullish,
+                                              role: roleName == "Custom Name" ? nil : roleName,
                                               roleEmoji: (role?["emoji"] as? String).nonNullish,
                                               address: address.nonNullish)
 
