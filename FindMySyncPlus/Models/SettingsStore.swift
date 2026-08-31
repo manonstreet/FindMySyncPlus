@@ -307,6 +307,40 @@ final class SettingsStore: ObservableObject {
         aliases = copy
     }
 
+    /// One observed child-to-group join. A named type rather than a tuple because three
+    /// same-typed members read as three interchangeable strings at the call site.
+    struct ParentGroupUpdate {
+        let aliasKey: String
+        let groupID: String
+        let groupName: String
+    }
+
+    /// Record the group's own identity on each aliased child, in one write per run.
+    ///
+    /// Distinct from `batchUpdateParentAliases`, and written under a weaker condition:
+    /// that one needs *both* ends aliased, this one needs only the child to be. That is
+    /// the whole point — it is what lets a header be drawn for a group the user never
+    /// aliased, or whose alias they deleted, without waiting for the accessory to report.
+    ///
+    /// The name is refreshed on every observation so a rename in Find My propagates.
+    func batchUpdateParentGroups(_ updates: [ParentGroupUpdate]) {
+        guard !updates.isEmpty else { return }
+        var copy = aliases
+        var changed = false
+        for u in updates {
+            guard let idx = copy.firstIndex(where: { $0.alias == u.aliasKey }) else { continue }
+            guard copy[idx].parentGroupID != u.groupID
+                    || copy[idx].parentGroupName != u.groupName else { continue }
+            copy[idx].parentGroupID = u.groupID
+            copy[idx].parentGroupName = u.groupName
+            changed = true
+        }
+        // Only write when something moved: this runs every cycle and the value is
+        // stable once learned.
+        guard changed else { return }
+        aliases = copy
+    }
+
     /// Add (or remove) a UUID to an existing alias.
     func updateAlias(_ aliasKey: String, addUUID uuid: String? = nil, removeUUID: String? = nil, lastSeenName: String? = nil) {
         guard let idx = aliases.firstIndex(where: { $0.alias == aliasKey }) else { return }

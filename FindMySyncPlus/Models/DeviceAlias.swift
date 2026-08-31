@@ -15,6 +15,19 @@ struct DeviceAlias: Equatable, Identifiable, Codable {
     /// Written on observe, read always: the relationship is a property of the pair, not
     /// of this run, so a group still nests when nothing reported this cycle.
     var parentAlias: String?
+    /// The group's own identity, persisted on the **child**.
+    ///
+    /// `parentAlias` is written only when both ends are aliased, so it cannot describe a
+    /// group the user never aliased — and a header for such a group therefore had to be
+    /// drawn from the live grouping, making it the one part of a persisted list that
+    /// needed something to have reported this cycle.
+    ///
+    /// These two carry what a header needs — the id to join on and Apple's name to show
+    /// — so it survives the accessory being offline, and survives the group's own alias
+    /// being deleted. Written on observe whenever a child is aliased and grouped,
+    /// whatever the parent's alias state.
+    var parentGroupID: String?
+    var parentGroupName: String?
     var id: String { alias }
 
     /// Home Assistant entity ID for this alias (e.g. "findmy_airpods").
@@ -42,15 +55,20 @@ struct DeviceAlias: Equatable, Identifiable, Codable {
         "device_tracker.\(haSlug(devId))"
     }
 
-    private enum CodingKeys: String, CodingKey { case alias, tracked, knownUUIDs, lastSeenName, parentAlias }
+    private enum CodingKeys: String, CodingKey {
+        case alias, tracked, knownUUIDs, lastSeenName, parentAlias, parentGroupID, parentGroupName
+    }
 
     init(alias: String, tracked: Bool, knownUUIDs: [String], lastSeenName: String?,
-         parentAlias: String? = nil) {
+         parentAlias: String? = nil,
+         parentGroupID: String? = nil, parentGroupName: String? = nil) {
         self.alias = alias
         self.tracked = tracked
         self.knownUUIDs = knownUUIDs
         self.lastSeenName = lastSeenName
         self.parentAlias = parentAlias
+        self.parentGroupID = parentGroupID
+        self.parentGroupName = parentGroupName
     }
 
     init(from decoder: Decoder) throws {
@@ -60,6 +78,8 @@ struct DeviceAlias: Equatable, Identifiable, Codable {
         lastSeenName = try c.decodeIfPresent(String.self, forKey: .lastSeenName)
         // Absent decodes to nil, so every alias already stored needs no migration.
         parentAlias = try c.decodeIfPresent(String.self, forKey: .parentAlias)
+        parentGroupID = try c.decodeIfPresent(String.self, forKey: .parentGroupID)
+        parentGroupName = try c.decodeIfPresent(String.self, forKey: .parentGroupName)
         // Try array first
         if let arr = try? c.decode([String].self, forKey: .knownUUIDs) {
             knownUUIDs = arr
@@ -78,5 +98,7 @@ struct DeviceAlias: Equatable, Identifiable, Codable {
         try c.encode(knownUUIDs, forKey: .knownUUIDs)
         try c.encodeIfPresent(lastSeenName, forKey: .lastSeenName)
         try c.encodeIfPresent(parentAlias, forKey: .parentAlias)
+        try c.encodeIfPresent(parentGroupID, forKey: .parentGroupID)
+        try c.encodeIfPresent(parentGroupName, forKey: .parentGroupName)
     }
 }

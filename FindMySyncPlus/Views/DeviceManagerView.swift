@@ -374,7 +374,6 @@ struct DeviceManagerView: View {
 
     @ViewBuilder
     private func aliasRow(for rec: DeviceAlias,
-                          nestedChildCount: Int = 0,
                           disclosure: (isCollapsed: Bool, onToggle: () -> Void)? = nil) -> some View {
                     let singleSource = singleSource(forKnownUUIDs: rec.knownUUIDs, using: sourceMap)
                     let sortedUUIDs = rec.knownUUIDs
@@ -387,7 +386,6 @@ struct DeviceManagerView: View {
                             sourceBadge: singleSource,
                             nameLabel: "Name:",
                             transportMode: settings.transportMode,
-                            nestedChildCount: nestedChildCount,
                             disclosure: disclosure,
                             onToggleTracked: { (newValue: Bool) in
                                 settings.setAlias(rec.alias, tracked: newValue)
@@ -942,7 +940,6 @@ struct DeviceManagerView: View {
                                 header: {
                                     aliasRow(
                                         for: rec,
-                                        nestedChildCount: kids.count,
                                         disclosure: kids.isEmpty ? nil : (isCollapsed, {
                                             if expandedAliasParents.contains(rec.alias) {
                                                 expandedAliasParents.remove(rec.alias)
@@ -1005,13 +1002,6 @@ struct DeviceManagerView: View {
         let sourceBadge: DeviceSource?
         let nameLabel: String
         let transportMode: TransportMode
-
-        /// How many aliased children nest under this row. Deleting a parent while they
-        /// exist would orphan them and cost the grouping while buying nothing —
-        /// untracking is what stops a group publishing, and renaming is what fixes a
-        /// name, so delete has no motive here. The trash is disabled, the same shape as
-        /// the greyed Assign on a parent that is already assigned.
-        var nestedChildCount: Int = 0
 
         /// Same contract as `UnassignedRow.disclosure`, so a grouped parent behaves
         /// identically in both lists: always-visible pill, tap toggles. nil = no chevron.
@@ -1088,20 +1078,22 @@ struct DeviceManagerView: View {
                             .help("Re-create the Home Assistant entity so its ID matches this alias")
                         }
 
+                        // Deleting a group's alias used to be blocked while children
+                        // nested under it, because it would have orphaned them. It no
+                        // longer does: the group falls back to an unaliased header and
+                        // the children stay nested under that, which is the exact
+                        // reverse of assigning the group and having its row take the
+                        // header's place. Blocking a legal action to prevent a state
+                        // that no longer occurs is worse than the state was.
                         Button(action: onDelete) {
                             Image(systemName: "trash")
                                 .font(.system(size: 13, weight: .semibold))
-                                .foregroundStyle(nestedChildCount > 0
-                                                 ? Color.secondary.opacity(0.4)
-                                                 : (hoverTrash ? Color.accentColor.opacity(0.9) : .secondary))
+                                .foregroundStyle(hoverTrash ? Color.accentColor.opacity(0.9) : .secondary)
                                 .alignmentGuide(.firstTextBaseline) { d in d[.bottom] - 1 } // nudge up
                         }
                         .buttonStyle(.plain)
-                        .disabled(nestedChildCount > 0)
                         .onHover { hoverTrash = $0 }
-                        .help(nestedChildCount > 0
-                              ? "Remove the \(nestedChildCount) grouped item\(nestedChildCount == 1 ? "" : "s") first, or switch tracking off instead"
-                              : "Delete alias")
+                        .help("Delete alias")
                     }
 
                     Spacer()

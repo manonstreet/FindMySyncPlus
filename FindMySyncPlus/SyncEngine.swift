@@ -583,6 +583,14 @@ final class SyncEngine {
         var notTrackedCount = 0
         var lastSeenNameUpdates: [(aliasKey: String, name: String)] = []
         var parentAliasUpdates: [(aliasKey: String, parentAlias: String)] = []
+        var parentGroupUpdates: [SettingsStore.ParentGroupUpdate] = []
+
+        // Apple's name for each group, so a child can persist it beside the id and the
+        // Aliases list can label a header with nothing live to read.
+        let groupNamesByID: [String: String] = Dictionary(
+            allDevices.map { ($0.id.normalized(), $0.name) },
+            uniquingKeysWith: { first, _ in first }
+        )
 
         // Collect family DSIDs from FMIP device entries for friend dedup.
         var familyDSIDs: Set<String> = []
@@ -630,6 +638,19 @@ final class SyncEngine {
                    let parentRec = aliasByUUIDLocal[parentID.normalized()],
                    parentRec.alias != rec.alias {
                     parentAliasUpdates.append((aliasKey: rec.alias, parentAlias: parentRec.alias))
+                }
+
+                // The group's own identity, recorded whatever the parent's alias state.
+                // `parentAlias` above needs both ends aliased, so it says nothing about a
+                // group the user never aliased — and that is exactly the group a header
+                // has to describe. Persisting the id and name here is what lets the
+                // header survive the accessory being offline, and survive the group's
+                // alias being deleted.
+                if let parentID = d.parentID {
+                    let groupID = parentID.normalized()
+                    parentGroupUpdates.append(.init(aliasKey: rec.alias,
+                                                    groupID: groupID,
+                                                    groupName: groupNamesByID[groupID] ?? "Group"))
                 }
 
                 logDevice(d, source: srcLabel, alias: rec.alias, tracked: rec.tracked, logger: logger)
@@ -701,6 +722,7 @@ final class SyncEngine {
         // Flush all lastSeenName updates in a single storage write
         settings.batchUpdateLastSeenNames(lastSeenNameUpdates)
         settings.batchUpdateParentAliases(parentAliasUpdates)
+        settings.batchUpdateParentGroups(parentGroupUpdates)
 
         // Update UI with merged entries including non-family friends
         var allEntries = app.lastLocatedEntries

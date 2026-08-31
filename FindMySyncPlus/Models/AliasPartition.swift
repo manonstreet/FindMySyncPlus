@@ -59,12 +59,25 @@ struct AliasPartition {
         var headerNames: [String: String] = [:]
         var top: [DeviceAlias] = []
 
-        // An alias that owns a live group is the parent itself, not one of its own
+        // Every group id we know of, from this run or from what children persisted.
+        // The persisted half is what lets the checks below work with nothing live.
+        let knownGroupIDs = Set(liveGroups.values.map(\.id))
+            .union(aliases.compactMap(\.parentGroupID))
+
+        // An alias that owns one of those ids is the parent itself, not one of its own
         // children — without this it would nest under a header bearing its own name.
-        let aliasedParentIDs = Set(aliases.compactMap { row -> String? in
-            guard let group = liveGroups[row.alias] else { return nil }
-            return row.knownUUIDs.contains(group.id) ? group.id : nil
-        })
+        //
+        // Matched on `knownUUIDs` rather than on a live lookup, so an aliased parent
+        // still supersedes a header when it did not report. Checking `liveGroups` alone
+        // drew both a real row and a header for one group as soon as the persisted
+        // fallback below could fire.
+        let parentAliasByGroupID: [String: String] = Dictionary(
+            aliases.flatMap { row in
+                row.knownUUIDs.filter { knownGroupIDs.contains($0) }.map { ($0, row.alias) }
+            },
+            uniquingKeysWith: { first, _ in first }
+        )
+        let aliasedParentIDs = Set(parentAliasByGroupID.keys)
 
         for row in aliases {
             if let parent = row.parentAlias,
@@ -74,13 +87,42 @@ struct AliasPartition {
                 continue
             }
 
-            // No stored parent: fall back to the live grouping, which is the only
-            // source when the group has never been aliased.
+            // No `parentAlias`, but the group's own row exists and owns this id. That is
+            // the state left by aliasing a group *after* its children — the join was
+            // observed when the group had no alias to record, so only the id was stored.
+            // Nest under the real row: a header beside it would draw the same group
+            // twice, and top level would lose the nesting the user just created.
+            if let groupID = row.parentGroupID,
+               let parent = parentAliasByGroupID[groupID],
+               parent != row.alias {
+                children[parent, default: []].append(row)
+                continue
+            }
+
+            // No usable stored parent. The live grouping goes first because it carries
+            // Apple's *current* name — a rename must not be masked by a stale copy.
             if let group = liveGroups[row.alias],
                !row.knownUUIDs.contains(group.id),      // not the parent itself
                !aliasedParentIDs.contains(group.id) {   // the parent has a real row
                 headerChildren[group.id, default: []].append(row)
                 headerNames[group.id] = group.name
+                continue
+            }
+
+            // Nothing live: use what the child persisted about its group. This is what
+            // makes a header behave like the rest of this list — present whether or not
+            // anything reported — and it covers two states the live path cannot. A group
+            // whose alias was deleted leaves its children pointing at a row that is
+            // gone, and a group that has never reported has no live entry to find.
+            if let groupID = row.parentGroupID,
+               !row.knownUUIDs.contains(groupID),
+               !aliasedParentIDs.contains(groupID) {
+                headerChildren[groupID, default: []].append(row)
+                // Only as a fallback: a live name for the same group already won above,
+                // and must not be overwritten by another child's stale copy.
+                if headerNames[groupID] == nil {
+                    headerNames[groupID] = row.parentGroupName ?? "Group"
+                }
                 continue
             }
 
