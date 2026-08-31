@@ -6,7 +6,11 @@ on:
       - '**/*.swift'
       - '.swiftlint.yml'
   push:
-    branches: [main, v1.1-beta]
+    # Every branch. This read [main, v1.1-beta] and was never updated as
+    # development moved to v1.2, v1.3 and v1.4-beta — so with no PRs for our own
+    # work, seven runs happened in the repo's whole history and two releases
+    # shipped without CI ever linting them.
+    branches: ['**']
     paths:
       - '**/*.swift'
       - '.swiftlint.yml'
