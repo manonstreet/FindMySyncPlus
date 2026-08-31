@@ -142,6 +142,43 @@ final class CacheDecryptorTests: XCTestCase {
         XCTAssertEqual(p.richAttributes?.positionType, "GPS")
     }
 
+    /// Every FMIP record carries `altitude` and `verticalAccuracy` — measured on both
+    /// `Devices.data` and `Items.data` — and `MQTTClient` already knows how to publish
+    /// them. They were passed as `nil` here, so devices and items dropped two values
+    /// Apple hands us while friends published them.
+    ///
+    func testParseDeviceArray_carriesAltitudeAndVerticalAccuracy() throws {
+        let points = CacheDecryptor().parseDeviceArray([[
+            "baUUID": "alt-uuid",
+            "name": "Test Device",
+            "location": ["latitude": 1.0, "longitude": 2.0, "horizontalAccuracy": 5.0,
+                         "verticalAccuracy": 3.5, "altitude": 32.0]
+        ]])
+
+        let p = try XCTUnwrap(points.first)
+        XCTAssertEqual(p.richAttributes?.altitude, 32.0)
+        XCTAssertEqual(p.richAttributes?.verticalAccuracy, 3.5)
+        XCTAssertNil(p.richAttributes?.speed, "absent from this record, so absent here")
+        XCTAssertNil(p.richAttributes?.course, "absent from this record, so absent here")
+    }
+
+    /// `speed` and `course` were on none of the 25 devices and 5 items measured — but
+    /// that was a single instant with nothing moving, and a field that appears only in
+    /// motion is indistinguishable from one that never appears. So they are read
+    /// rather than hard-coded to nil: if Apple does populate them, they travel.
+    func testParseDeviceArray_carriesSpeedAndCourseWhenPresent() throws {
+        let points = CacheDecryptor().parseDeviceArray([[
+            "baUUID": "motion-uuid",
+            "name": "Test Device",
+            "location": ["latitude": 1.0, "longitude": 2.0, "horizontalAccuracy": 5.0,
+                         "speed": 4.2, "course": 271.5]
+        ]])
+
+        let p = try XCTUnwrap(points.first)
+        XCTAssertEqual(p.richAttributes?.speed, 4.2)
+        XCTAssertEqual(p.richAttributes?.course, 271.5)
+    }
+
     func testParseDeviceArray_emptyInput() {
         let decryptor = CacheDecryptor()
         let result = decryptor.parseDeviceArray([])

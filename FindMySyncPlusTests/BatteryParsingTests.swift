@@ -146,10 +146,15 @@ struct BatteryPlumbingTests {
     func vendorIdentifierPlumbing() throws {
         let points = CacheDecryptor().parseDeviceArray([located([
             "batteryStatus": 5,
-            "productType": ["type": "hawkeye",
-                            "productInformation": ["vendorIdentifier": 76,
+            // The shape measured off a live Items.data: `type` is an internal
+            // codename (`b389` for an AirTag, `hawkeye` for AirPods and, oddly, for a
+            // Pebblebee), never a model name.
+            "productType": ["type": "b389",
+                            "productInformation": ["antennaPower": 7.0,
                                                    "manufacturerName": "Apple",
-                                                   "modelName": "AirTag"]]
+                                                   "modelName": "AirTag",
+                                                   "productIdentifier": 1,
+                                                   "vendorIdentifier": 76]]
         ])])
 
         let p = try #require(points.first)

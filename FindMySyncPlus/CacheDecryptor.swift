@@ -326,10 +326,19 @@ actor CacheDecryptor {
             let timestamp = (loc["timeStamp"] as? Double).map {
                 Date(timeIntervalSince1970: $0 / 1000)
             }
-            let rich = RichLocationAttributes(verticalAccuracy: nil,
-                                              altitude: nil,
-                                              speed: nil,
-                                              course: nil,
+            // `altitude` and `verticalAccuracy` are on every record measured and were
+            // being dropped: friends published them while devices and items did not,
+            // for no reason beyond this call site never being wired up.
+            //
+            // `speed` and `course` were not seen on any of 25 devices and 5 items —
+            // but that was one instant, with nothing moving. A field that appears only
+            // while a device is in motion would look identical to a field that does
+            // not exist. So read them and let absent be absent, rather than encoding
+            // an absence we cannot demonstrate.
+            let rich = RichLocationAttributes(verticalAccuracy: loc["verticalAccuracy"] as? Double,
+                                              altitude: loc["altitude"] as? Double,
+                                              speed: loc["speed"] as? Double,
+                                              course: loc["course"] as? Double,
                                               timestamp: timestamp,
                                               motionActivityState: nil,
                                               locationLabel: nil,
