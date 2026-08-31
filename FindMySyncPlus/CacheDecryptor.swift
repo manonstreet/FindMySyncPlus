@@ -172,6 +172,46 @@ actor CacheDecryptor {
         return try ChaChaPoly.open(sealed, using: key)
     }
 
+    /// Why a record did or did not produce a position, for the Status window.
+    ///
+    /// Two negative cases, because two is all the data supports. There is deliberately
+    /// no "sharing disabled" outcome: `locationCapable`, `locationEnabled` and
+    /// `locFoundEnabled` were measured against a machine where Share My Location was
+    /// switched off and back on, and none of them moved — the four devices that gained
+    /// a position never changed a flag. Reporting one as a reason would send a user
+    /// away from the actual cause.
+    enum LocationOutcome: Equatable {
+        /// A position was parsed. Carries what Apple said about it, verbatim.
+        case located(positionType: String?, accuracyMetres: Double?, ageHours: Double?)
+        /// Apple holds a Find My network sighting that was not published, because it
+        /// is flagged old and publishing it would move the entity into a wrong zone.
+        case cachedSightingDeclined(ageHours: Double?)
+        /// Apple reports no position for this record at all.
+        case nothingReported
+    }
+
+    /// Derived from `positionSource`, never from a second copy of the rule — otherwise
+    /// the diagnostic can report a device as blank while Home Assistant shows it on
+    /// the map, which is worse than saying nothing.
+    nonisolated static func locationOutcome(for device: [String: Any],
+                                            now: Date = Date()) -> LocationOutcome {
+        func ageHours(_ raw: Any?) -> Double? {
+            guard let millis = raw as? Double else { return nil }
+            return (now.timeIntervalSince1970 - millis / 1000) / 3600
+        }
+
+        if let source = positionSource(for: device) {
+            return .located(positionType: (source["positionType"] as? String).nonNullish,
+                            accuracyMetres: source["horizontalAccuracy"] as? Double,
+                            ageHours: ageHours(source["timeStamp"]))
+        }
+        if let sighting = device["crowdSourcedLocation"] as? [String: Any],
+           sighting["latitude"] is Double {
+            return .cachedSightingDeclined(ageHours: ageHours(sighting["timeStamp"]))
+        }
+        return .nothingReported
+    }
+
     /// Which dictionary holds the position to publish, or nil when there is none.
     ///
     /// Find My shows a device as "Home · 9 hr. ago" from a Find My network sighting

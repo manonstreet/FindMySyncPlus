@@ -647,25 +647,7 @@ final class SyncEngine {
             }
         }
 
-        // No-location metric (from raw arrays) — compact guard style
-        let decryptedArray = (rawBySource[.devices] ?? []) + (rawBySource[.items] ?? [])
-        var noLocationCount = 0
-        for raw in decryptedArray {
-            let id = normalizeID(raw["baUUID"]) ?? normalizeID(raw["deviceDiscoveryId"])
-            let hasValidLocation: Bool = {
-                guard let loc = raw["location"] as? [String: Any],
-                      loc["latitude"] is Double,
-                      loc["longitude"] is Double,
-                      loc["horizontalAccuracy"] is Double
-                else { return false }
-                return true
-            }()
-            if !hasValidLocation, let id {
-                let name = (raw["name"] as? String) ?? ""
-                logger.debug("- \(name) (\(id)) has no location")
-                noLocationCount += 1
-            }
-        }
+        let noLocationCount = logLocationOutcomes(rawBySource: rawBySource, logger: logger)
 
         // Single pass over all FMIP devices to build plan and metrics
         let allDevices = Array(devicesBySource.values.joined())
