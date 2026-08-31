@@ -281,6 +281,14 @@ actor CacheDecryptor {
             let batteryReading = Self.parseBattery(device)
             let prsId = (device["prsId"] as? String).nonNullish
 
+            // Two levels down, under `productType` — there is no top-level
+            // `productInformation`, and reading one finds nothing, which looks like
+            // "no Apple items on this machine" rather than like a bug. The same dict
+            // carries `manufacturerName` and `modelName`; `productType.type` is not a
+            // model name, it holds internal codenames like "hawkeye".
+            let productInfo = (device["productType"] as? [String: Any])?["productInformation"]
+            let vendorIdentifier = (productInfo as? [String: Any])?["vendorIdentifier"] as? Int
+
             var parentID: String? = nil
             if !groupParentIDs.isEmpty,
                let gid = (device["groupIdentifier"] as? String).nonNullish {
@@ -311,6 +319,7 @@ actor CacheDecryptor {
                                        battery: batteryReading.level,
                                        batteryStatusCode: batteryReading.statusCode,
                                        chargingState: batteryReading.chargingState,
+                                       vendorIdentifier: vendorIdentifier,
                                        prsId: prsId,
                                        richAttributes: rich,
                                        parentID: parentID))

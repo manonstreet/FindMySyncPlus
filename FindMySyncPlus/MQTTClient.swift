@@ -319,6 +319,11 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
             // reconciled. Passing it through lets a user map their own.
             attrs["battery_status_raw"] = code
         }
+        // Travels beside the raw ordinal, never instead of it, so a user who disagrees
+        // with the threshold can template on the raw directly.
+        if let low = device.isBatteryLow {
+            attrs["battery_low"] = low
+        }
         if let charging = device.chargingState {
             attrs["charging_state"] = charging
         }

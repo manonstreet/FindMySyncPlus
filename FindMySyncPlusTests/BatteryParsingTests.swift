@@ -139,6 +139,42 @@ struct BatteryPlumbingTests {
         #expect(p.chargingState == "Unknown")
     }
 
+    /// The field is two levels down, under `productType`. Parsing `productInformation`
+    /// at the top level finds nothing, which would read as "no Apple items here"
+    /// rather than as a bug.
+    @Test("the vendor id is read from productType.productInformation")
+    func vendorIdentifierPlumbing() throws {
+        let points = CacheDecryptor().parseDeviceArray([located([
+            "batteryStatus": 5,
+            "productType": ["type": "hawkeye",
+                            "productInformation": ["vendorIdentifier": 76,
+                                                   "manufacturerName": "Apple",
+                                                   "modelName": "AirTag"]]
+        ])])
+
+        let p = try #require(points.first)
+        #expect(p.vendorIdentifier == 76)
+    }
+
+    @Test("a top-level productInformation is not where the vendor id lives")
+    func vendorIdentifierIsNotTopLevel() throws {
+        let points = CacheDecryptor().parseDeviceArray([located([
+            "batteryStatus": 5,
+            "productInformation": ["vendorIdentifier": 76]
+        ])])
+
+        let p = try #require(points.first)
+        #expect(p.vendorIdentifier == nil)
+    }
+
+    @Test("an item with no productType carries no vendor id")
+    func absentVendorIdentifier() throws {
+        let points = CacheDecryptor().parseDeviceArray([located(["batteryStatus": 5])])
+
+        let p = try #require(points.first)
+        #expect(p.vendorIdentifier == nil)
+    }
+
     @Test("with() preserves the new battery fields")
     func withPreservesBatteryFields() throws {
         let points = CacheDecryptor().parseDeviceArray(
@@ -161,11 +197,19 @@ struct BatteryPlumbingTests {
 @MainActor
 struct BatteryAttributeTests {
 
+    /// Apple's Bluetooth SIG company ID.
+    private static let apple = 76
+    /// A real Pebblebee reading — not a SIG company ID at all, which is why the field
+    /// is only trustworthy for Apple.
+    private static let pebblebee = -1_163_068_817
+
     private func point(battery: Double? = nil,
                        statusCode: Int? = nil,
-                       chargingState: String? = nil) -> DevicePoint {
+                       chargingState: String? = nil,
+                       vendorIdentifier: Int? = nil) -> DevicePoint {
         DevicePoint(id: "uuid", name: "Test", latitude: 1, longitude: 2, accuracy: 3,
-                    battery: battery, batteryStatusCode: statusCode, chargingState: chargingState)
+                    battery: battery, batteryStatusCode: statusCode, chargingState: chargingState,
+                    vendorIdentifier: vendorIdentifier)
     }
 
     private func attrs(_ p: DevicePoint) -> [String: Any] {
@@ -190,6 +234,56 @@ struct BatteryAttributeTests {
         #expect(a["battery"] == nil, "we cannot map a third-party ordinal to a percentage")
         #expect(a["battery_level_raw"] == nil)
         #expect(a["charging_state"] == nil)
+    }
+
+    // MARK: - battery_low, scoped to Apple
+
+    /// 5 is the only ordinal correlated with a real Find My low-battery banner, against
+    /// four observations of 1 on healthy Apple hardware. 2–4 are unobserved, so this
+    /// warns late at worst and never falsely.
+    @Test("an Apple item at 5 is low")
+    func appleAtFiveIsLow() {
+        let a = attrs(point(statusCode: 5, vendorIdentifier: Self.apple))
+
+        #expect(a["battery_low"] as? Bool == true)
+        #expect(a["battery_status_raw"] as? Int == 5, "the raw travels beside the computed")
+    }
+
+    /// `false` rather than absent: an attribute that appears and disappears as an item
+    /// drains is awkward to automate against, and a visible raw beside it asserts
+    /// nothing the user cannot check.
+    @Test("an Apple item at any other ordinal is not low")
+    func appleBelowFiveIsNotLow() {
+        for code in [0, 1, 2, 4] {
+            let a = attrs(point(statusCode: code, vendorIdentifier: Self.apple))
+            #expect(a["battery_low"] as? Bool == false, "ordinal \(code)")
+        }
+    }
+
+    /// Third-party ordinals are vendor-defined and unreconcilable, so there is no
+    /// threshold to be conservative about. Publishing `false` there would be a claim,
+    /// not a reading.
+    @Test("a non-Apple item gets no flag at all, at any ordinal")
+    func nonAppleGetsNoFlag() {
+        for code in [1, 2, 5, 100] {
+            let a = attrs(point(statusCode: code, vendorIdentifier: Self.pebblebee))
+            #expect(a["battery_low"] == nil, "ordinal \(code)")
+            #expect(a["battery_status_raw"] as? Int == code, "the raw is still published")
+        }
+    }
+
+    @Test("an unknown vendor gets no flag")
+    func unknownVendorGetsNoFlag() {
+        #expect(attrs(point(statusCode: 5)) ["battery_low"] == nil)
+    }
+
+    /// Devices carry a charging-state String, not an ordinal, so the flag never applies
+    /// to them however they are labelled.
+    @Test("a device with no ordinal gets no flag")
+    func deviceGetsNoFlag() {
+        let a = attrs(point(battery: 0.05, chargingState: "NotCharging", vendorIdentifier: Self.apple))
+
+        #expect(a["battery_low"] == nil, "a low percentage is not this signal")
     }
 
     @Test("a device with no battery data publishes no battery attributes at all")
