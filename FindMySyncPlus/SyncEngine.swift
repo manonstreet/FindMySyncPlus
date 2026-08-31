@@ -36,6 +36,7 @@ private extension FMIPCacheFile {
         switch self {
         case .devices: return "Devices"
         case .items: return "Items"
+        case .itemGroups: return "ItemGroups"
         case .friendCache: return "FriendCache"
         }
     }
@@ -227,6 +228,11 @@ final class SyncEngine {
         var list: [FMIPCacheFile] = []
         if settings.enableDevices { list.append(.devices) }
         if settings.enableItems   { list.append(.items) }
+        // A group only groups items, so it follows the Items toggle rather than getting
+        // one of its own. Deliberately last: pre-flight stops at the first readable
+        // cache, so a machine without this file never reaches it and never logs about
+        // it. On the ones that do have it, the read path treats absent as nothing.
+        if settings.enableItems   { list.append(.itemGroups) }
         return list
     }
 
@@ -423,15 +429,29 @@ final class SyncEngine {
             }
         }
 
-        // Phase 2 — build groupIdentifier -> parent id map from Devices.data
-        // entries that own an itemGroup (e.g. an AirPods Pro pair). Children
-        // (e.g. Case, Left Bud, Right Bud) carry this same id in their
-        // `groupIdentifier` field and will get parentID stamped accordingly.
-        let groupParentIDs = buildGroupParentIDs(rawDevices: rawBySource[.devices] ?? [])
+        // Phase 2 — build groupIdentifier -> parent id map. A group is described either
+        // by a device record that owns an `itemGroup` (e.g. an AirPods Pro pair) or by a
+        // standalone record in ItemGroups.data; both are adapted to one shape here, so
+        // everything downstream sees a single kind of parent. Children (Case, Left Bud,
+        // Right Bud) carry the group id in `groupIdentifier` and get parentID stamped.
+        let deviceRecords = rawBySource[.devices] ?? []
+        let deviceParentIDs = Set(deviceRecords.compactMap { raw -> String? in
+            guard raw["itemGroup"] is [String: Any] else { return nil }
+            return (raw["baUUID"] as? String).nonNullish
+        })
+        let groupRecords = deviceRecords + groupParentRecords(
+            fromItemGroups: rawBySource[.itemGroups] ?? [],
+            existingParentIDs: deviceParentIDs)
+        let groupParentIDs = buildGroupParentIDs(rawDevices: groupRecords)
 
         // Phase 3 — parse raw -> DevicePoint, threading the group map only
         // for items (parents themselves don't need parentID).
         for (file, arr) in rawBySource {
+            // ItemGroups records describe a group, not a device. They carry no position
+            // and would parse to nothing anyway; skipping them keeps them out of the
+            // per-source counts as well, where they are not devices that failed to
+            // report but records that were never devices.
+            guard file != .itemGroups else { continue }
             let map = (file == .items) ? groupParentIDs : [:]
             let points = cacheDecryptor.parseDeviceArray(arr, groupParentIDs: map)
             devicesBySource[file, default: []].append(contentsOf: points)
@@ -449,7 +469,7 @@ final class SyncEngine {
         if let items = devicesBySource[.items], !items.isEmpty {
             let devices = devicesBySource[.devices] ?? []
             let parentIDs: Set<String> = Set(
-                (rawBySource[.devices] ?? []).compactMap { raw -> String? in
+                groupRecords.compactMap { raw -> String? in
                     guard raw["itemGroup"] is [String: Any] else { return nil }
                     return (raw["baUUID"] as? String).nonNullish
                 }
@@ -458,7 +478,7 @@ final class SyncEngine {
                 let backfilled = backfillParentLocations(
                     parents: devices.filter { parentIDs.contains($0.id) },
                     children: items,
-                    rawDevices: rawBySource[.devices] ?? [],
+                    rawDevices: groupRecords,
                     rawItems: rawBySource[.items] ?? []
                 )
                 let backfilledByID = Dictionary(uniqueKeysWithValues: backfilled.map { ($0.id, $0) })
@@ -486,163 +506,6 @@ final class SyncEngine {
             devicesBySource: devicesBySource,
             hadSuccessfulDecrypt: hadSuccessfulDecrypt
         )
-    }
-
-    /// Maps each grouped child's `groupIdentifier` to the parent device's id.
-    /// A parent device entry in Devices.data is identified by the presence of
-    /// an `itemGroup` dict; the parent's id is its `baUUID`. The child's
-    /// `groupIdentifier` field carries the same string, so the map's key and
-    /// value are identical.
-    private func buildGroupParentIDs(rawDevices: [[String: Any]]) -> [String: String] {
-        var map: [String: String] = [:]
-        for raw in rawDevices {
-            guard raw["itemGroup"] is [String: Any] else { continue }
-            guard let parentID = (raw["baUUID"] as? String).nonNullish else { continue }
-            map[parentID] = parentID
-        }
-        return map
-    }
-
-    /// Returns `points` with unaliased grouped children removed. A "child" is
-    /// any DevicePoint with a non-nil `parentID`; "aliased" means an entry in
-    /// `aliasByUUID` exists for the child's id (normalized). Aliased children
-    /// are always preserved so existing user setups continue to publish
-    /// unchanged. Unaliased children are dropped because the parent group
-    /// entity (e.g. "AirPods Pro") is the canonical entity for the pair —
-    /// users opt sub-items in by aliasing them.
-    nonisolated func filterUnaliasedGroupedChildren(
-        _ points: [DevicePoint],
-        aliasByUUID: [String: String]
-    ) -> [DevicePoint] {
-        return points.filter { p in
-            guard p.parentID != nil else { return true }
-            return aliasByUUID[p.id.normalized()] != nil
-        }
-    }
-
-    /// Returns `parents` with each parent's location replaced by its freshest
-    /// child's location when the parent's own location is unreliable. A
-    /// parent location is considered unreliable when its `isOld` flag is true
-    /// or when at least one child reports a `timeStamp` newer by ≥ 60_000 ms.
-    /// Group parents that produced no point of their own, rebuilt from their freshest
-    /// child.
-    ///
-    /// A parent whose position is absent rather than stale never survives
-    /// `parseDeviceArray`, so it would otherwise never appear — taking its whole group
-    /// with it, since children nest under a row that has to exist. Measured on the
-    /// development Mac: the AirPods parent reads `location: $null` *and*
-    /// `crowdSourcedLocation: $null` while all three children carry fresh fixes.
-    ///
-    /// Its record is real; only the position is missing, and the freshest child is
-    /// already the answer given to every other parent. The child's rich attributes
-    /// travel with it, because the position *is* the child's and its timestamp and
-    /// staleness describe it accurately.
-    nonisolated private func revivedParents(
-        rawDevices: [[String: Any]],
-        alreadyParsed: Set<String>,
-        freshestChildByParent: [String: (ts: Double, point: DevicePoint)]
-    ) -> [DevicePoint] {
-        var revived: [DevicePoint] = []
-        for raw in rawDevices {
-            guard raw["itemGroup"] is [String: Any] else { continue }
-            guard let id = (raw["baUUID"] as? String).nonNullish, !alreadyParsed.contains(id) else { continue }
-            // No reporting child means nothing to give it, and inventing a position
-            // would be worse than showing none.
-            guard let (_, child) = freshestChildByParent[id] else { continue }
-            revived.append(DevicePoint(
-                id: id,
-                name: (raw["name"] as? String) ?? "",
-                latitude: child.latitude,
-                longitude: child.longitude,
-                accuracy: child.accuracy,
-                battery: nil,
-                richAttributes: child.richAttributes
-            ))
-        }
-        return revived
-    }
-
-    nonisolated func backfillParentLocations(
-        parents: [DevicePoint],
-        children: [DevicePoint],
-        rawDevices: [[String: Any]],
-        rawItems: [[String: Any]]
-    ) -> [DevicePoint] {
-        // Deliberately not `guard !parents.isEmpty`: a parent whose position is absent
-        // rather than stale never parsed, so it arrives here as nothing at all. That is
-        // the case this has to handle, and returning early would skip it.
-        struct Stamp { let ts: Double; let isOld: Bool }
-        var parentStamp: [String: Stamp] = [:]
-        for raw in rawDevices {
-            guard raw["itemGroup"] is [String: Any] else { continue }
-            guard let id = (raw["baUUID"] as? String).nonNullish else { continue }
-            let loc = raw["location"] as? [String: Any]
-            let ts = (loc?["timeStamp"] as? Double) ?? 0
-            let isOld = (loc?["isOld"] as? Bool) ?? false
-            parentStamp[id] = Stamp(ts: ts, isOld: isOld)
-        }
-
-        // Map parentID -> freshest child (id, timestamp, point).
-        let childByID: [String: DevicePoint] = Dictionary(
-            uniqueKeysWithValues: children.compactMap { c -> (String, DevicePoint)? in
-                guard c.parentID != nil else { return nil }
-                return (c.id, c)
-            }
-        )
-        var freshestChildByParent: [String: (ts: Double, point: DevicePoint)] = [:]
-        for raw in rawItems {
-            let id = (raw["identifier"] as? String).nonNullish
-                ?? (raw["baUUID"] as? String).nonNullish
-                ?? (raw["deviceDiscoveryId"] as? String).nonNullish
-                ?? (raw["serialNumber"] as? String).nonNullish
-            guard let id else { continue }
-            guard let point = childByID[id], let pid = point.parentID else { continue }
-            let loc = raw["location"] as? [String: Any]
-            let ts = (loc?["timeStamp"] as? Double) ?? 0
-            if let existing = freshestChildByParent[pid] {
-                if ts > existing.ts {
-                    freshestChildByParent[pid] = (ts, point)
-                }
-            } else {
-                freshestChildByParent[pid] = (ts, point)
-            }
-        }
-
-        let staleThresholdMs: Double = 60_000
-
-        // A group parent with no position of its own produced no point, so it is not in
-        // `parents` and would otherwise never appear — taking its whole group with it,
-        // since children nest under a row that has to exist. Measured on the
-        // development Mac: the AirPods parent reads `location: $null` *and*
-        // `crowdSourcedLocation: $null` while all three children carry fresh fixes.
-        //
-        // Its record is real; only the position is missing, and the freshest child is
-        // already the answer this function gives every other parent. The child's rich
-        // attributes travel with it, because the position *is* the child's and its
-        // timestamp and staleness describe it accurately.
-        let revived = revivedParents(rawDevices: rawDevices,
-                                     alreadyParsed: Set(parents.map(\.id)),
-                                     freshestChildByParent: freshestChildByParent)
-
-        return revived + parents.map { parent in
-            guard let pst = parentStamp[parent.id],
-                  let (childTs, childPoint) = freshestChildByParent[parent.id] else {
-                return parent
-            }
-            let parentIsStale = pst.isOld || (childTs > pst.ts + staleThresholdMs)
-            guard parentIsStale else { return parent }
-            return DevicePoint(
-                id: parent.id,
-                name: parent.name,
-                latitude: childPoint.latitude,
-                longitude: childPoint.longitude,
-                accuracy: childPoint.accuracy,
-                battery: parent.battery,
-                prsId: parent.prsId,
-                richAttributes: parent.richAttributes,
-                parentID: parent.parentID
-            )
-        }
     }
 
     // MARK: - Build plan and log
