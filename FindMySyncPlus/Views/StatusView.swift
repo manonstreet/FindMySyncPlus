@@ -9,7 +9,7 @@ private enum LogDisplayStyle: String, CaseIterable {
 }
 
 struct StatusView: View {
-    @State private var showRunBusyToast: Bool = false
+    @State private var toastMessage: String?
     @AppStorage("statusAutoScroll") private var autoScroll: Bool = true
     @AppStorage("statusSavedScrollID") private var savedScrollIDRaw: String = ""
     private let bottomSentinelID = UUID()
@@ -32,8 +32,8 @@ struct StatusView: View {
             logList
         }
         .overlay(alignment: .topTrailing) {
-            if showRunBusyToast {
-                Text("Run already in progress")
+            if let toastMessage {
+                Text(toastMessage)
                     .padding(.vertical, 6)
                     .padding(.horizontal, 12)
                     .background(.ultraThinMaterial, in: Capsule())
@@ -49,11 +49,11 @@ struct StatusView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .toolbarRunNowRequested)) { _ in
             let ok = app.runNowIfIdle()
-            if !ok { triggerRunBusyToast() }
+            if !ok { showToast("Run already in progress") }
         }
         .onReceive(NotificationCenter.default.publisher(for: .toolbarDryRunRequested)) { _ in
             let ok = app.runDryIfIdle()
-            if !ok { triggerRunBusyToast() }
+            if !ok { showToast("Run already in progress") }
         }
     }
 
@@ -133,6 +133,14 @@ struct StatusView: View {
                 logger.minimumLevel = newLevel
             }
 
+            // Row-at-a-time text selection is a SwiftUI limit — `.textSelection` is
+            // scoped to one `Text`, so a drag can never cross rows. Copying the whole
+            // buffer is what people actually want, and it replaces screenshotting the
+            // window, which is how every report has arrived so far.
+            Button("Copy") { copyLog() }
+                .controlSize(.regular)
+                .help("Copy the whole log to the clipboard as text")
+
             Button("Clear") {
                 logger.clear()
                 logger.info("Status log cleared")
@@ -203,10 +211,31 @@ struct StatusView: View {
         }
     }
 
-    private func triggerRunBusyToast() {
-        withAnimation(.easeOut(duration: 0.15)) { showRunBusyToast = true }
+    private func showToast(_ message: String) {
+        withAnimation(.easeOut(duration: 0.15)) { toastMessage = message }
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) {
-            withAnimation(.easeInOut(duration: 0.2)) { showRunBusyToast = false }
+            withAnimation(.easeInOut(duration: 0.2)) { toastMessage = nil }
         }
+    }
+
+    /// Put the whole buffer on the clipboard as plain text, one entry per line.
+    ///
+    /// Copies **verbatim**. The Status window is unredacted by design — seeing real
+    /// coordinates is how a user confirms the app works — so what is on screen is what
+    /// lands on the clipboard, and editing it before sharing is the user's call. Text
+    /// is far easier to redact by hand than the screenshots this replaces. The redacted
+    /// path is the diagnostic export, a separate affordance with a separate contract.
+    private func copyLog() {
+        let entries = logger.entries
+        guard !entries.isEmpty else {
+            showToast("Nothing to copy")
+            return
+        }
+        let text = entries
+            .map { "\($0.timestampString) [\($0.level.display)] \($0.message)" }
+            .joined(separator: "\n")
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
+        showToast("Copied \(entries.count) line\(entries.count == 1 ? "" : "s")")
     }
 }
