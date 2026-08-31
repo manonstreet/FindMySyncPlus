@@ -11,6 +11,7 @@ struct SourceBadge: View {
         case .device: return .accentColor   // typically blue
         case .item:   return .green
         case .friend: return .purple
+        case .group:  return .orange
         }
     }
 
@@ -19,6 +20,7 @@ struct SourceBadge: View {
         case .device: "Device"
         case .item: "Item"
         case .friend: "Friend"
+        case .group: "Group"
         }
         let color = resolvedTint
         let fillOpacity: Double = (scheme == .dark) ? 0.28 : 0.12

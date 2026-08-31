@@ -162,6 +162,42 @@ final class CacheDecryptorTests: XCTestCase {
         XCTAssertNil(p.richAttributes?.course, "absent from this record, so absent here")
     }
 
+    /// A crowdsourced fix carries `altitude: -1` and `verticalAccuracy: -1`, which are
+    /// Apple's "unavailable" sentinels rather than measurements. CoreLocation's own
+    /// contract is that a negative `verticalAccuracy` invalidates the altitude, so
+    /// publishing -1 hands a user a plausible-looking metre reading that means nothing.
+    ///
+    /// Seen live in Home Assistant on an AirPods group located only by the Find My
+    /// network: `Altitude -1`, `Vertical accuracy -1`.
+    func testParseDeviceArray_dropsAltitudeWhenVerticalAccuracyIsNegative() throws {
+        let points = CacheDecryptor().parseDeviceArray([[
+            "baUUID": "sentinel-uuid",
+            "name": "Test Device",
+            "location": ["latitude": 1.0, "longitude": 2.0, "horizontalAccuracy": 36.16,
+                         "verticalAccuracy": -1.0, "altitude": -1.0]
+        ]])
+
+        let p = try XCTUnwrap(points.first)
+        XCTAssertNil(p.richAttributes?.altitude, "-1 is 'unavailable', not an altitude")
+        XCTAssertNil(p.richAttributes?.verticalAccuracy)
+        XCTAssertEqual(p.accuracy, 36.16, "the horizontal fix is still good")
+    }
+
+    /// A genuinely negative altitude is real — the Dead Sea is 430 m below sea level —
+    /// so the test is the accuracy's sign, never the altitude's.
+    func testParseDeviceArray_keepsNegativeAltitudeWhenAccuracyIsValid() throws {
+        let points = CacheDecryptor().parseDeviceArray([[
+            "baUUID": "below-sea-uuid",
+            "name": "Test Device",
+            "location": ["latitude": 1.0, "longitude": 2.0, "horizontalAccuracy": 5.0,
+                         "verticalAccuracy": 3.0, "altitude": -430.0]
+        ]])
+
+        let p = try XCTUnwrap(points.first)
+        XCTAssertEqual(p.richAttributes?.altitude, -430.0)
+        XCTAssertEqual(p.richAttributes?.verticalAccuracy, 3.0)
+    }
+
     /// `speed` and `course` were on none of the 25 devices and 5 items measured — but
     /// that was a single instant with nothing moving, and a field that appears only in
     /// motion is indistinguishable from one that never appears. So they are read

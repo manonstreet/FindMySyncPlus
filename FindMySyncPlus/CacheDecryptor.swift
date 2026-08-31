@@ -375,8 +375,16 @@ actor CacheDecryptor {
             // while a device is in motion would look identical to a field that does
             // not exist. So read them and let absent be absent, rather than encoding
             // an absence we cannot demonstrate.
-            let rich = RichLocationAttributes(verticalAccuracy: loc["verticalAccuracy"] as? Double,
-                                              altitude: loc["altitude"] as? Double,
+            // A negative `verticalAccuracy` is CoreLocation's own way of saying the
+            // altitude is invalid, and a crowdsourced fix carries -1 for both. Passing
+            // them through hands a user a plausible-looking metre reading that means
+            // "unavailable" — the sign is the test, never the altitude's own value,
+            // since a real altitude can be negative.
+            let verticalAccuracy = loc["verticalAccuracy"] as? Double
+            let hasAltitude = (verticalAccuracy ?? -1) >= 0
+
+            let rich = RichLocationAttributes(verticalAccuracy: hasAltitude ? verticalAccuracy : nil,
+                                              altitude: hasAltitude ? loc["altitude"] as? Double : nil,
                                               speed: loc["speed"] as? Double,
                                               course: loc["course"] as? Double,
                                               timestamp: timestamp,

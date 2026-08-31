@@ -98,6 +98,64 @@ final class SyncEngineGroupingTests: XCTestCase {
         )
     }
 
+    /// The case the development Mac actually produces, measured 2026-08-30:
+    ///
+    ///     parent 659A4C7F…  location=$null  crowdSourced=$null
+    ///
+    /// A group parent whose position is **absent** rather than stale never survives
+    /// `parseDeviceArray`, so it reaches backfill as no point at all — and backfill
+    /// only ever considered parents that had already parsed. The group then vanishes
+    /// from both lists and its children render flat. This worked when the nesting was
+    /// built, because the parent then arrived with a stale position rather than none;
+    /// the fixtures kept showing it working because their parent carries a location.
+    ///
+    /// The parent record is real. Only its position is missing, and giving it the
+    /// freshest child's position is exactly what backfill exists to do — this extends
+    /// it from "stale" to "absent".
+    func testBackfill_parentWithNoPositionAtAll_takesFreshestChild() throws {
+        let engine = SyncEngine()
+        let pid = "659A4C7F-CFED-42DC-96D4-102745AA19C2"
+        let aRaw = childRaw(id: "EEEEEEEE-2222-2222-2222-222222222222",
+                            parentID: pid, lat: 20.0, ts: 5000)
+        let bRaw = childRaw(id: "EEEEEEEE-3333-3333-3333-333333333333",
+                            parentID: pid, lat: 30.0, ts: 7000)
+
+        // Both position fields hold Apple's "$null" placeholder, so this record yields
+        // no DevicePoint at all — which is why none is passed in.
+        var pRaw: [String: Any] = parentRaw(id: pid, lat: 0, ts: 0, isOld: false)
+        pRaw["location"] = "$null"
+        pRaw["crowdSourcedLocation"] = "$null"
+        pRaw["name"] = "AirPods Pro"
+
+        let childA = parsedDevicePoint(from: aRaw, parentID: pid)
+        let childB = parsedDevicePoint(from: bRaw, parentID: pid)
+
+        let result = engine.backfillParentLocations(
+            parents: [], children: [childA, childB],
+            rawDevices: [pRaw], rawItems: [aRaw, bRaw]
+        )
+
+        let parent = try XCTUnwrap(result.first { $0.id == pid },
+                                   "the group must exist for its children to nest under")
+        XCTAssertEqual(parent.latitude, 30.0, accuracy: 0.001, "freshest child")
+        XCTAssertEqual(parent.name, "AirPods Pro")
+    }
+
+    /// A parent with no position and no reporting children stays absent. There is
+    /// nothing to give it, and inventing a position would be worse than showing none.
+    func testBackfill_parentWithNoPositionAndNoChildren_staysAbsent() {
+        let engine = SyncEngine()
+        let pid = "FFFFFFFF-1111-1111-1111-111111111111"
+        var pRaw: [String: Any] = parentRaw(id: pid, lat: 0, ts: 0, isOld: false)
+        pRaw["location"] = "$null"
+
+        let result = engine.backfillParentLocations(
+            parents: [], children: [], rawDevices: [pRaw], rawItems: []
+        )
+
+        XCTAssertTrue(result.isEmpty)
+    }
+
     func testBackfill_isOldParent_replacedByFreshestChild() {
         let engine = SyncEngine()
         let pid = "AAAAAAAA-1111-1111-1111-111111111111"

@@ -66,6 +66,7 @@ Requires Full Disk Access to read the Find My cache. `FindMyRefresher.swift` can
 | `Models/SettingsStore.swift` | All persisted config; Keychain wrappers for auth token and 3 decryption keys |
 | `Models/DevicePoint.swift` | Device location struct with `with()` copy method for safe field updates; carries `parentID` for grouped accessories (e.g. AirPods Case/Buds) |
 | `Models/RichLocationAttributes.swift` | Rich location data (altitude, speed, course, motion state, location label) with Apple label decoder |
+| `Models/AliasPartition.swift` | Splits the Aliases list into top-level rows, nested children and headers for groups that are not themselves aliased. Pure, so the cases are testable away from the view |
 | `Helpers/FriendsAvailability.swift` | Whether this macOS provides friend locations. Injectable version seam — the macOS 14 branch cannot be exercised on any available hardware, so `spoofOSVersion` substitutes a version the way `demoRoot` substitutes a read root |
 | `SyncEngineDiagnostics.swift` | Why each record did or did not produce a position: one `.info` summary per source per run, `.debug` detail per device |
 | `Models/DeviceAlias.swift` | Alias↔UUID mapping model |
@@ -79,7 +80,7 @@ Requires Full Disk Access to read the Find My cache. `FindMyRefresher.swift` can
 
 ## Testing
 
-Thirteen test files. All use synthetic data — no real Find My files required. Trust
+Fourteen test files. All use synthetic data — no real Find My files required. Trust
 `** TEST SUCCEEDED **` rather than counting `passed on` lines — xcodebuild interleaves
 timestamps into those, so a grep count drifts between identical runs.
 
@@ -95,6 +96,7 @@ timestamps into those, so a grep count drifts between identical runs.
 | `MQTTDiscoveryTests` | HA removed `object_id` in Core 2026.4 and ignores it silently; asserts `default_entity_id` is published instead (#22) |
 | `MQTTPublishSequenceTests` | Publish ordering via a recording `MQTTPublishing` — the clear-wait-republish sequence in re-registration *is* the behavior, and nothing else can check it |
 | `SyncEngineGroupingTests` | Unaliased grouped-child filter, parent location backfill from freshest child |
+| `AliasNestingTests` | The Aliases-list partition: persisted `parentAlias` join, orphans staying visible, headers for unaliased groups, one-level flattening and cycles. Cases taken from three real systems |
 | `FriendsAvailabilityTests` | The macOS 15 gate and its spoof override. `resolve` is pure so the 14.x branch is testable without a test writing to the app's real `UserDefaults` |
 | `LocationDiagnosticsTests` | The two no-location buckets and the summary wording. Asserts absences too — "Share My Location" and "powered off" must not come back |
 | `TextSanitizationTests` | slugify, normalizeID |

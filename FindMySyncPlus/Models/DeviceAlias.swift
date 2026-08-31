@@ -5,6 +5,16 @@ struct DeviceAlias: Equatable, Identifiable, Codable {
     var tracked: Bool                     // whether this alias is currently posted
     var knownUUIDs: [String]              // most-recent-first list of UUIDs
     var lastSeenName: String?             // latest Apple device name (informational)
+    /// The alias of the group this one belongs to, when a join has been observed.
+    ///
+    /// Keyed on the **alias, not the UUID**. `knownUUIDs` is explicitly the unstable
+    /// identity — auto-learn appends to it whenever a device reappears under a new one
+    /// — so a cached `uuid -> uuid` parent map goes stale on every rotation. Both ends
+    /// keep their aliases whatever their UUIDs do.
+    ///
+    /// Written on observe, read always: the relationship is a property of the pair, not
+    /// of this run, so a group still nests when nothing reported this cycle.
+    var parentAlias: String?
     var id: String { alias }
 
     /// Home Assistant entity ID for this alias (e.g. "findmy_airpods").
@@ -32,13 +42,15 @@ struct DeviceAlias: Equatable, Identifiable, Codable {
         "device_tracker.\(haSlug(devId))"
     }
 
-    private enum CodingKeys: String, CodingKey { case alias, tracked, knownUUIDs, lastSeenName }
+    private enum CodingKeys: String, CodingKey { case alias, tracked, knownUUIDs, lastSeenName, parentAlias }
 
-    init(alias: String, tracked: Bool, knownUUIDs: [String], lastSeenName: String?) {
+    init(alias: String, tracked: Bool, knownUUIDs: [String], lastSeenName: String?,
+         parentAlias: String? = nil) {
         self.alias = alias
         self.tracked = tracked
         self.knownUUIDs = knownUUIDs
         self.lastSeenName = lastSeenName
+        self.parentAlias = parentAlias
     }
 
     init(from decoder: Decoder) throws {
@@ -46,6 +58,8 @@ struct DeviceAlias: Equatable, Identifiable, Codable {
         alias = try c.decode(String.self, forKey: .alias)
         tracked = try c.decode(Bool.self, forKey: .tracked)
         lastSeenName = try c.decodeIfPresent(String.self, forKey: .lastSeenName)
+        // Absent decodes to nil, so every alias already stored needs no migration.
+        parentAlias = try c.decodeIfPresent(String.self, forKey: .parentAlias)
         // Try array first
         if let arr = try? c.decode([String].self, forKey: .knownUUIDs) {
             knownUUIDs = arr
@@ -63,5 +77,6 @@ struct DeviceAlias: Equatable, Identifiable, Codable {
         try c.encode(tracked, forKey: .tracked)
         try c.encode(knownUUIDs, forKey: .knownUUIDs)
         try c.encodeIfPresent(lastSeenName, forKey: .lastSeenName)
+        try c.encodeIfPresent(parentAlias, forKey: .parentAlias)
     }
 }

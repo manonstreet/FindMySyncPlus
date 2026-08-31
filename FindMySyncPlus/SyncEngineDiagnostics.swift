@@ -17,7 +17,13 @@ extension SyncEngine {
     /// reason comes from `CacheDecryptor.locationOutcome`, which is built on the same
     /// `positionSource` the parser uses — a second copy of that rule could report a
     /// device as blank while Home Assistant shows it on the map.
+    /// - Parameter locatedIDs: normalized ids that produced a point *after* the whole
+    ///   read phase, revival included. A group parent whose own position is absent is
+    ///   given its freshest child's, so reading the raw record alone would report it as
+    ///   blank while the app publishes it — the diagnostic disagreeing with the app is
+    ///   worse than no diagnostic.
     func logLocationOutcomes(rawBySource: [FMIPCacheFile: [[String: Any]]],
+                             locatedIDs: Set<String>,
                              logger: LogStore) -> Int {
         var noLocationCount = 0
 
@@ -34,6 +40,12 @@ extension SyncEngine {
 
                 // Each line states what is true of the record, rather than announcing
                 // an absence and then explaining it.
+                // Revived parents are located, whatever their own record says.
+                if locatedIDs.contains(id), case .nothingReported = CacheDecryptor.locationOutcome(for: raw) {
+                    logger.debug("- \(name) (\(id)): located from its grouped items")
+                    continue
+                }
+
                 switch CacheDecryptor.locationOutcome(for: raw) {
                 case let .located(type, accuracy, age):
                     logger.debug("- \(name) (\(id)): located, \(Self.fixDescription(type, accuracy, age))")

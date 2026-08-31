@@ -4,7 +4,7 @@ import Foundation
 
 enum RunKind: String { case none, scheduled, manual }
 
-enum DeviceSource: String { case device, item, friend }
+enum DeviceSource: String { case device, item, friend, group }
 
 struct LocatedEntry {
     let point: DevicePoint
@@ -442,24 +442,29 @@ final class SyncEngine {
         // location (isOld=true) while their children in Items.data have fresh
         // ones; use the children's data so the parent entity reflects current
         // location.
-        if let devices = devicesBySource[.devices], !devices.isEmpty,
-           let items = devicesBySource[.items], !items.isEmpty {
+        // Runs whenever there are children, not only when a parent already parsed: a
+        // parent whose position is absent rather than stale never parses, and it is the
+        // one that most needs reviving — without it the whole group disappears from
+        // both lists and the children render flat.
+        if let items = devicesBySource[.items], !items.isEmpty {
+            let devices = devicesBySource[.devices] ?? []
             let parentIDs: Set<String> = Set(
                 (rawBySource[.devices] ?? []).compactMap { raw -> String? in
                     guard raw["itemGroup"] is [String: Any] else { return nil }
                     return (raw["baUUID"] as? String).nonNullish
                 }
             )
-            let parents = devices.filter { parentIDs.contains($0.id) }
-            if !parents.isEmpty {
+            if !parentIDs.isEmpty {
                 let backfilled = backfillParentLocations(
-                    parents: parents,
+                    parents: devices.filter { parentIDs.contains($0.id) },
                     children: items,
                     rawDevices: rawBySource[.devices] ?? [],
                     rawItems: rawBySource[.items] ?? []
                 )
                 let backfilledByID = Dictionary(uniqueKeysWithValues: backfilled.map { ($0.id, $0) })
+                let known = Set(devices.map(\.id))
                 devicesBySource[.devices] = devices.map { backfilledByID[$0.id] ?? $0 }
+                    + backfilled.filter { !known.contains($0.id) }
             }
         }
 
@@ -519,14 +524,53 @@ final class SyncEngine {
     /// child's location when the parent's own location is unreliable. A
     /// parent location is considered unreliable when its `isOld` flag is true
     /// or when at least one child reports a `timeStamp` newer by ≥ 60_000 ms.
+    /// Group parents that produced no point of their own, rebuilt from their freshest
+    /// child.
+    ///
+    /// A parent whose position is absent rather than stale never survives
+    /// `parseDeviceArray`, so it would otherwise never appear — taking its whole group
+    /// with it, since children nest under a row that has to exist. Measured on the
+    /// development Mac: the AirPods parent reads `location: $null` *and*
+    /// `crowdSourcedLocation: $null` while all three children carry fresh fixes.
+    ///
+    /// Its record is real; only the position is missing, and the freshest child is
+    /// already the answer given to every other parent. The child's rich attributes
+    /// travel with it, because the position *is* the child's and its timestamp and
+    /// staleness describe it accurately.
+    nonisolated private func revivedParents(
+        rawDevices: [[String: Any]],
+        alreadyParsed: Set<String>,
+        freshestChildByParent: [String: (ts: Double, point: DevicePoint)]
+    ) -> [DevicePoint] {
+        var revived: [DevicePoint] = []
+        for raw in rawDevices {
+            guard raw["itemGroup"] is [String: Any] else { continue }
+            guard let id = (raw["baUUID"] as? String).nonNullish, !alreadyParsed.contains(id) else { continue }
+            // No reporting child means nothing to give it, and inventing a position
+            // would be worse than showing none.
+            guard let (_, child) = freshestChildByParent[id] else { continue }
+            revived.append(DevicePoint(
+                id: id,
+                name: (raw["name"] as? String) ?? "",
+                latitude: child.latitude,
+                longitude: child.longitude,
+                accuracy: child.accuracy,
+                battery: nil,
+                richAttributes: child.richAttributes
+            ))
+        }
+        return revived
+    }
+
     nonisolated func backfillParentLocations(
         parents: [DevicePoint],
         children: [DevicePoint],
         rawDevices: [[String: Any]],
         rawItems: [[String: Any]]
     ) -> [DevicePoint] {
-        guard !parents.isEmpty else { return parents }
-
+        // Deliberately not `guard !parents.isEmpty`: a parent whose position is absent
+        // rather than stale never parsed, so it arrives here as nothing at all. That is
+        // the case this has to handle, and returning early would skip it.
         struct Stamp { let ts: Double; let isOld: Bool }
         var parentStamp: [String: Stamp] = [:]
         for raw in rawDevices {
@@ -565,7 +609,22 @@ final class SyncEngine {
         }
 
         let staleThresholdMs: Double = 60_000
-        return parents.map { parent in
+
+        // A group parent with no position of its own produced no point, so it is not in
+        // `parents` and would otherwise never appear — taking its whole group with it,
+        // since children nest under a row that has to exist. Measured on the
+        // development Mac: the AirPods parent reads `location: $null` *and*
+        // `crowdSourcedLocation: $null` while all three children carry fresh fixes.
+        //
+        // Its record is real; only the position is missing, and the freshest child is
+        // already the answer this function gives every other parent. The child's rich
+        // attributes travel with it, because the position *is* the child's and its
+        // timestamp and staleness describe it accurately.
+        let revived = revivedParents(rawDevices: rawDevices,
+                                     alreadyParsed: Set(parents.map(\.id)),
+                                     freshestChildByParent: freshestChildByParent)
+
+        return revived + parents.map { parent in
             guard let pst = parentStamp[parent.id],
                   let (childTs, childPoint) = freshestChildByParent[parent.id] else {
                 return parent
@@ -643,11 +702,15 @@ final class SyncEngine {
             switch src {
             case .item: return "Item"
             case .friend: return "Friend"
+            case .group: return "Group"
             default: return "Device"
             }
         }
 
-        let noLocationCount = logLocationOutcomes(rawBySource: rawBySource, logger: logger)
+        let locatedIDs = Set(devicesBySource.values.joined().map { $0.id.normalized() })
+        let noLocationCount = logLocationOutcomes(rawBySource: rawBySource,
+                                                  locatedIDs: locatedIDs,
+                                                  logger: logger)
 
         // Single pass over all FMIP devices to build plan and metrics
         let allDevices = Array(devicesBySource.values.joined())
@@ -656,6 +719,7 @@ final class SyncEngine {
         var unassignedCount = 0
         var notTrackedCount = 0
         var lastSeenNameUpdates: [(aliasKey: String, name: String)] = []
+        var parentAliasUpdates: [(aliasKey: String, parentAlias: String)] = []
 
         // Collect family DSIDs from FMIP device entries for friend dedup.
         var familyDSIDs: Set<String> = []
@@ -693,6 +757,16 @@ final class SyncEngine {
             if let rec = aliasByUUIDLocal[uuid] {
                 if !d.name.isEmpty {
                     lastSeenNameUpdates.append((aliasKey: rec.alias, name: d.name))
+                }
+
+                // Record the group this child belongs to, keyed on both aliases rather
+                // than on their UUIDs — UUIDs rotate and auto-learn appends new ones,
+                // while an alias is the stable identity. Once stored, the Aliases list
+                // can nest the pair whether or not either reported this cycle.
+                if let parentID = d.parentID,
+                   let parentRec = aliasByUUIDLocal[parentID.normalized()],
+                   parentRec.alias != rec.alias {
+                    parentAliasUpdates.append((aliasKey: rec.alias, parentAlias: parentRec.alias))
                 }
 
                 logDevice(d, source: srcLabel, alias: rec.alias, tracked: rec.tracked, logger: logger)
@@ -763,6 +837,7 @@ final class SyncEngine {
 
         // Flush all lastSeenName updates in a single storage write
         settings.batchUpdateLastSeenNames(lastSeenNameUpdates)
+        settings.batchUpdateParentAliases(parentAliasUpdates)
 
         // Update UI with merged entries including non-family friends
         var allEntries = app.lastLocatedEntries

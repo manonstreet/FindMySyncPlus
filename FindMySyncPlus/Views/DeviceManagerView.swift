@@ -133,6 +133,40 @@ private struct UnassignedRow: View {
     }
 }
 
+/// A group that is not itself aliased, shown so its aliased children can nest.
+///
+/// Carries a parent's visual weight - bold name and badges, as a real row has - so the
+/// hierarchy reads correctly, and nothing else. No entity ID, no UUID chips, no Tracked
+/// toggle, no rename or delete: those are visibly absent *because* this is not an alias,
+/// which answers the objection that once parked this idea rather than arguing with it.
+///
+/// Deliberately no Assign button either. Assigning belongs to the Unassigned pane, and
+/// duplicating it here would blur what each pane is for. Once the group is assigned, a
+/// real alias row replaces this in place.
+private struct AliasGroupHeader: View {
+    let name: String
+    @Environment(\.colorScheme) private var scheme
+
+    var body: some View {
+        HStack(spacing: 6) {
+            // Full weight, like the alias rows around it. Greyed, it read as a
+            // disabled row rather than a heading — the badge is what says this is not
+            // an alias, and it says it without making the name look switched off.
+            Text(name)
+                .font(.system(size: 16, weight: .semibold))
+            SourceBadge(source: .group)
+                .alignmentGuide(.firstTextBaseline) { d in d[.bottom] - 1 }
+            Text("Not aliased")
+                .font(.system(size: 10, weight: .semibold))
+                .padding(.horizontal, 5)
+                .padding(.vertical, 1)
+                .background(Capsule(style: .continuous).fill(Color.gray.opacity(scheme == .dark ? 0.28 : 0.12)))
+                .overlay(Capsule(style: .continuous).stroke(Color.gray.opacity(scheme == .dark ? 0.55 : 0.35), lineWidth: 0.5))
+                .foregroundStyle(.secondary)
+        }
+    }
+}
+
 private struct AliasRowContainer<Content: View>: View {
     @ViewBuilder var content: Content
     @State private var hovering = false
@@ -200,6 +234,19 @@ struct DeviceManagerView: View {
     // Empty set means every parent is collapsed (the default), so the user
     // sees just parent rows and clicks the chevron to reveal sub-items.
     @State private var expandedParents: Set<String> = []
+    /// Which unaliased group headers the user has collapsed.
+    ///
+    /// Stored as *collapsed*, the opposite of the two sets above, because a header has
+    /// no independent meaning. An alias parent row carries an entity, tracking and
+    /// controls, so starting it collapsed merely hides its children; a header exists
+    /// only to hold them, so collapsed it is a lone label above rows it has nothing to
+    /// do with.
+    @State private var collapsedHeaders: Set<String> = []
+
+    /// Which alias groups are expanded. Same shape and same default as
+    /// `expandedParents` above, so the identical control behaves identically in both
+    /// lists: collapsed until opened, with the chevron always visible.
+    @State private var expandedAliasParents: Set<String> = []
 
     // Unified source filter for both Unassigned and Aliases sections
     private enum SourceFilter: String, CaseIterable, Identifiable {
@@ -262,7 +309,15 @@ struct DeviceManagerView: View {
     }
 
     private var sourceMap: [String: DeviceSource] {
-        app.sourceByUUIDMap(from: app.lastLocatedEntries)
+        var map = app.sourceByUUIDMap(from: app.lastLocatedEntries)
+        // Anything other records point at as their parent is a group, not a device.
+        // Badging it by the file it came from would label the same accessory
+        // differently on two Macs, depending only on whether Apple embedded the group
+        // in a device record or left it in ItemGroups.data.
+        for parentID in entriesAll.compactMap({ $0.point.parentID?.normalized() }) {
+            map[parentID] = .group
+        }
+        return map
     }
 
     private var hasDeviceAliases: Bool {
@@ -275,6 +330,128 @@ struct DeviceManagerView: View {
 
     private var hasFriendAliases: Bool {
         rowsSorted.contains { singleSource(forKnownUUIDs: $0.knownUUIDs, using: sourceMap) == .friend }
+    }
+
+    /// One Aliases row, rendered identically whether it sits at the top level or nested
+    /// under its group. Lifted out of the list so nesting adds no second copy of it.
+    /// Record the group relationship at the moment an alias is created, in both
+    /// directions.
+    ///
+    /// `parentAlias` is written whenever a join is observed, and assigning an alias *is*
+    /// an observation — the live grouping for this run is already on screen. Leaving it
+    /// to the next sync means a group that plainly nests in Unassigned sits flat in
+    /// Aliases for up to a full interval, which reads as the feature not working.
+    ///
+    /// Both directions matter: aliasing a child when the parent already has an alias,
+    /// and aliasing a parent when its children already do. The second is the case that
+    /// looks most broken, since the row the children need has just appeared.
+    private func captureGroupJoin(newAlias: String, uuid: String) {
+        let normalized = uuid.normalized()
+        var updates: [(aliasKey: String, parentAlias: String)] = []
+
+        // The new alias is a child: nest it under its parent's alias, if there is one.
+        if let parentID = entriesAll.first(where: { $0.point.id.normalized() == normalized })?
+            .point.parentID?.normalized(),
+           let parentAlias = settings.aliases.first(where: {
+               $0.knownUUIDs.contains(parentID)
+           })?.alias, parentAlias != newAlias {
+            updates.append((aliasKey: newAlias, parentAlias: parentAlias))
+        }
+
+        // The new alias is a parent: adopt any already-aliased children.
+        let ownUUIDs = Set(settings.aliases.first(where: { $0.alias == newAlias })?.knownUUIDs ?? [normalized])
+        for entry in entriesAll {
+            guard let childParent = entry.point.parentID?.normalized(),
+                  ownUUIDs.contains(childParent) else { continue }
+            guard let childAlias = settings.aliases.first(where: {
+                $0.knownUUIDs.contains(entry.point.id.normalized())
+            })?.alias, childAlias != newAlias else { continue }
+            updates.append((aliasKey: childAlias, parentAlias: newAlias))
+        }
+
+        settings.batchUpdateParentAliases(updates)
+    }
+
+    @ViewBuilder
+    private func aliasRow(for rec: DeviceAlias,
+                          nestedChildCount: Int = 0,
+                          disclosure: (isCollapsed: Bool, onToggle: () -> Void)? = nil) -> some View {
+                    let singleSource = singleSource(forKnownUUIDs: rec.knownUUIDs, using: sourceMap)
+                    let sortedUUIDs = rec.knownUUIDs
+                    AliasRowContainer {
+                        AliasRowView(
+                            aliasKey: rec.alias,
+                            tracked: rec.tracked,
+                            knownUUIDs: sortedUUIDs,
+                            lastSeenName: rec.lastSeenName,
+                            sourceBadge: singleSource,
+                            nameLabel: "Name:",
+                            transportMode: settings.transportMode,
+                            nestedChildCount: nestedChildCount,
+                            disclosure: disclosure,
+                            onToggleTracked: { (newValue: Bool) in
+                                settings.setAlias(rec.alias, tracked: newValue)
+                                if !newValue {
+                                    Task { if await app.publishPendingRetirements() == false { retirementFailed = true } }
+                                }
+                            },
+                            onRename: {
+                                renameAliasKey = rec.alias
+                                renameText = rec.alias
+                                showRenameSheet = true
+                            },
+                            onDelete: {
+                                deleteAliasKey = rec.alias
+                                showDeleteConfirm = true
+                            },
+                            onReRegister: {
+                                reRegisterAliasKey = rec.alias
+                                showReRegisterConfirm = true
+                            },
+                            onDeleteUUID: { uuid in
+                                if rec.tracked && rec.knownUUIDs.count == 1 && rec.knownUUIDs.contains(uuid) {
+                                    pendingUUIDDelete = (aliasKey: rec.alias, uuid: uuid)
+                                } else {
+                                    settings.updateAlias(rec.alias, removeUUID: uuid)
+                                    logger.info(#"Alias "\#(rec.alias)" no longer includes UUID \#(uuid)"#)
+                                }
+                            }
+                        )
+                    }
+    }
+
+    /// Which group each aliased row belongs to *this run*, as `(parent id, name)`.
+    ///
+    /// Only consulted for rows with no stored `parentAlias` - that is, a group the user
+    /// has never aliased, which is the state issue #22 was in. There is no persisted
+    /// value to read there, so the live grouping is the only source. It is dependable
+    /// because an unaliased parent with no position of its own reaches the list only
+    /// through revival, and revival needs a reporting child.
+    private var liveGroupsByAlias: [String: (id: String, name: String)] {
+        let parentNames: [String: String] = Dictionary(
+            entriesAll.map { ($0.point.id.normalized(), $0.point.name) },
+            uniquingKeysWith: { first, _ in first }
+        )
+
+        var map: [String: (id: String, name: String)] = [:]
+        for entry in entriesAll {
+            guard let parentID = entry.point.parentID?.normalized() else { continue }
+            guard let alias = settings.aliases.first(where: {
+                $0.knownUUIDs.contains(entry.point.id.normalized())
+            })?.alias else { continue }
+            map[alias] = (parentID, parentNames[parentID] ?? "Group")
+        }
+
+        // The parent's own alias too, so the partition can tell a real row from a header
+        // and never draws both for one group.
+        let groupIDs = Set(entriesAll.compactMap { $0.point.parentID?.normalized() })
+        for row in settings.aliases where map[row.alias] == nil {
+            for uuid in row.knownUUIDs where groupIDs.contains(uuid) {
+                map[row.alias] = (uuid, parentNames[uuid] ?? "Group")
+                break
+            }
+        }
+        return map
     }
 
     private var filteredAliases: [DeviceAlias] {
@@ -426,6 +603,7 @@ struct DeviceManagerView: View {
                              onConfirm: { uuid, name, alias in
                 let key = settings.createAlias(from: alias, tracked: true, initialUUID: uuid, lastSeenName: name)
                 logger.info("Alias \"\(key)\" now includes UUID \(uuid.normalized())")
+                captureGroupJoin(newAlias: key, uuid: uuid)
             })
         }
         .sheet(isPresented: $showRenameSheet) {
@@ -697,52 +875,97 @@ struct DeviceManagerView: View {
             } else {
                 ScrollView {
                     LazyVStack(spacing: 0) {
-                        ForEach(filteredAliases, id: \.alias) { rec in
-                            let singleSource = singleSource(forKnownUUIDs: rec.knownUUIDs, using: sourceMap)
-                            let sortedUUIDs = rec.knownUUIDs
-                            AliasRowContainer {
-                                AliasRowView(
-                                    aliasKey: rec.alias,
-                                    tracked: rec.tracked,
-                                    knownUUIDs: sortedUUIDs,
-                                    lastSeenName: rec.lastSeenName,
-                                    sourceBadge: singleSource,
-                                    nameLabel: "Name:",
-                                    transportMode: settings.transportMode,
-                                    onToggleTracked: { (newValue: Bool) in
-                                        settings.setAlias(rec.alias, tracked: newValue)
-                                        if !newValue {
-                                            Task { if await app.publishPendingRetirements() == false { retirementFailed = true } }
-                                        }
-                                    },
-                                    onRename: {
-                                        renameAliasKey = rec.alias
-                                        renameText = rec.alias
-                                        showRenameSheet = true
-                                    },
-                                    onDelete: {
-                                        deleteAliasKey = rec.alias
-                                        showDeleteConfirm = true
-                                    },
-                                    onReRegister: {
-                                        reRegisterAliasKey = rec.alias
-                                        showReRegisterConfirm = true
-                                    },
-                                    onDeleteUUID: { uuid in
-                                        if rec.tracked && rec.knownUUIDs.count == 1 && rec.knownUUIDs.contains(uuid) {
-                                            pendingUUIDDelete = (aliasKey: rec.alias, uuid: uuid)
-                                        } else {
-                                            settings.updateAlias(rec.alias, removeUUID: uuid)
-                                            logger.info(#"Alias "\#(rec.alias)" no longer includes UUID \#(uuid)"#)
+                        // Grouped accessories nest here as they already do in
+                        // Unassigned. The join is the persisted `parentAlias`, not the
+                        // run-scoped `parentID` map: this list is config and holds rows
+                        // for devices that did not report this cycle, so a live join
+                        // would go flat for every offline group.
+                        //
+                        // A row whose `parentAlias` names no row in the list is an
+                        // orphan and stays at the top level — the user made it, so it
+                        // is never hidden. That is the state issue #22 was in.
+                        let partition = AliasPartition(filteredAliases, liveGroups: liveGroupsByAlias)
+
+                        // Groups whose own alias does not exist. Their children would
+                        // otherwise sit flat, which is the state issue #22 reported.
+                        ForEach(partition.headers, id: \.id) { header in
+                            let kids = partition.children(ofHeader: header.id)
+                            let isCollapsed = collapsedHeaders.contains(header.id)
+                            ParentDisclosureRow(
+                                hasChildren: !kids.isEmpty,
+                                isCollapsed: isCollapsed,
+                                header: {
+                                    AliasRowContainer {
+                                        HStack(spacing: 6) {
+                                            AliasGroupHeader(name: header.name)
+                                                .padding(.vertical, 6)
+                                            Button {
+                                                if collapsedHeaders.contains(header.id) {
+                                                    collapsedHeaders.remove(header.id)
+                                                } else {
+                                                    collapsedHeaders.insert(header.id)
+                                                }
+                                            } label: {
+                                                Image(systemName: isCollapsed ? "chevron.right" : "chevron.down")
+                                                    .font(.system(size: 10, weight: .semibold))
+                                                    .foregroundStyle(Color.accentColor)
+                                                    .frame(width: 10, height: 10)
+                                                    .padding(.horizontal, 6)
+                                                    .padding(.vertical, 3)
+                                                    .background(Capsule(style: .continuous).fill(Color.secondary.opacity(0.10)))
+                                            }
+                                            .buttonStyle(.plain)
+                                            .help(isCollapsed ? "Expand grouped sub-items" : "Collapse grouped sub-items")
+                                            Spacer()
                                         }
                                     }
-                                )
-                            }
-                            .padding(.top, rec.alias == filteredAliases.first?.alias ? -8 : 0)
+                                },
+                                children: {
+                                    ForEach(kids, id: \.alias) { kid in
+                                        Divider().padding(.horizontal, 12)
+                                        aliasRow(for: kid)
+                                    }
+                                }
+                            )
+                            Divider().padding(.horizontal, 12)
+                        }
+
+                        ForEach(partition.topLevel, id: \.alias) { rec in
+                            let kids = partition.children(of: rec.alias)
+                            // Collapsed until opened, matching the Unassigned list
+                            // exactly — same control, same default, so the same
+                            // accessory behaves the same way in both places.
+                            let isCollapsed = !expandedAliasParents.contains(rec.alias)
+                            ParentDisclosureRow(
+                                hasChildren: !kids.isEmpty,
+                                isCollapsed: isCollapsed,
+                                header: {
+                                    aliasRow(
+                                        for: rec,
+                                        nestedChildCount: kids.count,
+                                        disclosure: kids.isEmpty ? nil : (isCollapsed, {
+                                            if expandedAliasParents.contains(rec.alias) {
+                                                expandedAliasParents.remove(rec.alias)
+                                            } else {
+                                                expandedAliasParents.insert(rec.alias)
+                                            }
+                                        })
+                                    )
+                                },
+                                children: {
+                                    ForEach(kids, id: \.alias) { kid in
+                                        Divider().padding(.horizontal, 12)
+                                        aliasRow(for: kid)
+                                    }
+                                }
+                            )
                             Divider().padding(.horizontal, 12)
                         }
                     }
-                    .padding(.vertical, 8)
+                    // Bottom only. Every row already carries its own vertical padding,
+                    // so a top inset here would double up on whatever renders first —
+                    // which is a group header or an alias row depending on the data.
+                    .padding(.bottom, 8)
                     .padding(.trailing, 14)
                 }
             }
@@ -783,12 +1006,24 @@ struct DeviceManagerView: View {
         let nameLabel: String
         let transportMode: TransportMode
 
+        /// How many aliased children nest under this row. Deleting a parent while they
+        /// exist would orphan them and cost the grouping while buying nothing —
+        /// untracking is what stops a group publishing, and renaming is what fixes a
+        /// name, so delete has no motive here. The trash is disabled, the same shape as
+        /// the greyed Assign on a parent that is already assigned.
+        var nestedChildCount: Int = 0
+
+        /// Same contract as `UnassignedRow.disclosure`, so a grouped parent behaves
+        /// identically in both lists: always-visible pill, tap toggles. nil = no chevron.
+        var disclosure: (isCollapsed: Bool, onToggle: () -> Void)?
+
         var onToggleTracked: (Bool) -> Void
         var onRename: () -> Void
         var onDelete: () -> Void
         var onReRegister: () -> Void
         var onDeleteUUID: (String) -> Void
 
+        @State private var pillHovering = false
         @State private var hoverRename = false
         @State private var hoverTrash  = false
         @State private var hoverReRegister = false
@@ -803,6 +1038,24 @@ struct DeviceManagerView: View {
                         if let s = sourceBadge {
                             SourceBadge(source: s)
                                 .alignmentGuide(.firstTextBaseline) { d in d[.bottom] - 1 }
+                        }
+                        if let disc = disclosure {
+                            Button(action: disc.onToggle) {
+                                Image(systemName: disc.isCollapsed ? "chevron.right" : "chevron.down")
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .foregroundStyle(Color.accentColor)
+                                    .frame(width: 10, height: 10)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 3)
+                                    .background(
+                                        Capsule(style: .continuous)
+                                            .fill(Color.secondary.opacity(pillHovering ? 0.18 : 0.10))
+                                    )
+                            }
+                            .buttonStyle(.plain)
+                            .onHover { pillHovering = $0 }
+                            .help(disc.isCollapsed ? "Expand grouped sub-items" : "Collapse grouped sub-items")
+                            .alignmentGuide(.firstTextBaseline) { d in d[.bottom] - 1 }
                         }
                     }
 
@@ -838,12 +1091,17 @@ struct DeviceManagerView: View {
                         Button(action: onDelete) {
                             Image(systemName: "trash")
                                 .font(.system(size: 13, weight: .semibold))
-                                .foregroundStyle(hoverTrash ? Color.accentColor.opacity(0.9) : .secondary)
+                                .foregroundStyle(nestedChildCount > 0
+                                                 ? Color.secondary.opacity(0.4)
+                                                 : (hoverTrash ? Color.accentColor.opacity(0.9) : .secondary))
                                 .alignmentGuide(.firstTextBaseline) { d in d[.bottom] - 1 } // nudge up
                         }
                         .buttonStyle(.plain)
+                        .disabled(nestedChildCount > 0)
                         .onHover { hoverTrash = $0 }
-                        .help("Delete alias")
+                        .help(nestedChildCount > 0
+                              ? "Remove the \(nestedChildCount) grouped item\(nestedChildCount == 1 ? "" : "s") first, or switch tracking off instead"
+                              : "Delete alias")
                     }
 
                     Spacer()

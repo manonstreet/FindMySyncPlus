@@ -285,6 +285,28 @@ final class SettingsStore: ObservableObject {
         aliases = copy
     }
 
+    /// Record which group each aliased child belongs to, in one write per run.
+    ///
+    /// Written whenever a live join is observed and read regardless of whether either
+    /// device reported this cycle — the relationship belongs to the pair, not to a run,
+    /// so a group still nests when it is offline. Overwriting on every observation is
+    /// what makes regrouping self-correct.
+    func batchUpdateParentAliases(_ updates: [(aliasKey: String, parentAlias: String)]) {
+        guard !updates.isEmpty else { return }
+        var copy = aliases
+        var changed = false
+        for u in updates {
+            guard let idx = copy.firstIndex(where: { $0.alias == u.aliasKey }) else { continue }
+            guard copy[idx].parentAlias != u.parentAlias else { continue }
+            copy[idx].parentAlias = u.parentAlias
+            changed = true
+        }
+        // Only write when something moved: this runs every cycle, and the value is
+        // stable once learned.
+        guard changed else { return }
+        aliases = copy
+    }
+
     /// Add (or remove) a UUID to an existing alias.
     func updateAlias(_ aliasKey: String, addUUID uuid: String? = nil, removeUUID: String? = nil, lastSeenName: String? = nil) {
         guard let idx = aliases.firstIndex(where: { $0.alias == aliasKey }) else { return }
