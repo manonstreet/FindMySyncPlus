@@ -38,9 +38,8 @@ struct RichLocationAttributes: Sendable {
     /// street and city. Apple writes four widths and this is the one chosen; nothing is
     /// assembled or parsed here.
     ///
-    /// Deliberately not `streetAddress`, which measured as the house number alone (`9`,
-    /// `999`), and deliberately not the whole 19-key dict, which is ~670 B churning on
-    /// every position change.
+    /// Deliberately not `streetAddress`, which is the house number alone, and not the
+    /// whole `address` dict, which is ~670 B churning on every position change.
     let address: String?
 
     /// Explicit rather than memberwise so `isOld` can default — every other field

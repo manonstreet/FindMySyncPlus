@@ -26,7 +26,7 @@ extension SyncEngine {
     ///   with no members at all.
     /// - **Dedup by id.** If one machine ever describes a group both ways it is still
     ///   one group. Keying on the id does this without name matching, which would be a
-    ///   guess — the ids were measured byte-identical across machines.
+    ///   guess.
     nonisolated func groupParentRecords(
         fromItemGroups rawGroups: [[String: Any]],
         existingParentIDs: Set<String>
@@ -90,11 +90,9 @@ extension SyncEngine {
     /// Group parents that produced no point of their own, rebuilt from their freshest
     /// child.
     ///
-    /// A parent whose position is absent rather than stale never survives
-    /// `parseDeviceArray`, so it would otherwise never appear — taking its whole group
-    /// with it, since children nest under a row that has to exist. Measured on the
-    /// development Mac: the AirPods parent reads `location: $null` *and*
-    /// `crowdSourcedLocation: $null` while all three children carry fresh fixes.
+    /// A parent can carry `$null` on both `location` and `crowdSourcedLocation`, so it
+    /// never survives `parseDeviceArray` and would otherwise never appear — taking its
+    /// whole group with it, since children nest under a row that has to exist.
     ///
     /// Its record is real; only the position is missing, and the freshest child is
     /// already the answer given to every other parent. The child's rich attributes
@@ -173,16 +171,8 @@ extension SyncEngine {
 
         let staleThresholdMs: Double = 60_000
 
-        // A group parent with no position of its own produced no point, so it is not in
-        // `parents` and would otherwise never appear — taking its whole group with it,
-        // since children nest under a row that has to exist. Measured on the
-        // development Mac: the AirPods parent reads `location: $null` *and*
-        // `crowdSourcedLocation: $null` while all three children carry fresh fixes.
-        //
-        // Its record is real; only the position is missing, and the freshest child is
-        // already the answer this function gives every other parent. The child's rich
-        // attributes travel with it, because the position *is* the child's and its
-        // timestamp and staleness describe it accurately.
+        // A parent with no position of its own produced no point, so it is not in
+        // `parents`. See `revivedParents` for why it has to be rebuilt here.
         let revived = revivedParents(rawDevices: rawDevices,
                                      alreadyParsed: Set(parents.map(\.id)),
                                      freshestChildByParent: freshestChildByParent)

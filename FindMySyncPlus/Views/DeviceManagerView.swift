@@ -421,7 +421,7 @@ struct DeviceManagerView: View {
     /// Which group each aliased row belongs to *this run*, as `(parent id, name)`.
     ///
     /// Only consulted for rows with no stored `parentAlias` - that is, a group the user
-    /// has never aliased, which is the state issue #22 was in. There is no persisted
+    /// has never aliased (issue #22). There is no persisted
     /// value to read there, so the live grouping is the only source. It is dependable
     /// because an unaliased parent with no position of its own reaches the list only
     /// through revival, and revival needs a reporting child.
@@ -881,11 +881,11 @@ struct DeviceManagerView: View {
                         //
                         // A row whose `parentAlias` names no row in the list is an
                         // orphan and stays at the top level — the user made it, so it
-                        // is never hidden. That is the state issue #22 was in.
+                        // is never hidden.
                         let partition = AliasPartition(filteredAliases, liveGroups: liveGroupsByAlias)
 
                         // Groups whose own alias does not exist. Their children would
-                        // otherwise sit flat, which is the state issue #22 reported.
+                        // otherwise sit flat (issue #22).
                         ForEach(partition.headers, id: \.id) { header in
                             let kids = partition.children(ofHeader: header.id)
                             let isCollapsed = collapsedHeaders.contains(header.id)

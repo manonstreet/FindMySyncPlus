@@ -63,8 +63,8 @@ extension SyncEngine {
 
             // One .info line per source per run. A per-device line at this level would
             // turn the 5000-entry buffer over in hours at the default interval, and the
-            // per-device detail above is .debug — which by §2.4 is not even built
-            // unless someone raises the level.
+            // per-device detail above is .debug, which is not even built unless
+            // someone raises the level.
             if let summary = Self.noLocationSummary(source: source, total: raws.count,
                                                     cachedOnly: cachedOnly,
                                                     nothingReported: nothingReported) {
@@ -109,12 +109,9 @@ extension SyncEngine {
     /// emitted only when some records had no explanation of their own, since a run
     /// where every gap is already accounted for needs no hint about a different cause.
     ///
-    /// It stays generic on purpose. An earlier draft named Share My Location, because
-    /// switching that on is what resolved issue #19 — but that setting governs sharing
-    /// with *people*, while whether a device reports its own position at all depends on
-    /// Location Services and the Find My iPhone/Mac toggle. One correlation on one
-    /// machine is not grounds for sending every other user to check one specific
-    /// switch.
+    /// It stays generic on purpose. Naming Share My Location would be wrong: that
+    /// setting governs sharing with *people*, while whether a device reports its own
+    /// position depends on Location Services and the Find My iPhone/Mac toggle.
     nonisolated static func noLocationSummary(source: String,
                                               total: Int,
                                               cachedOnly: Int,
@@ -122,12 +119,9 @@ extension SyncEngine {
         let missing = cachedOnly + nothingReported
         guard missing > 0 else { return nil }
 
-        // An all-blank source was briefly given its own line blaming a stale cache.
-        // That is wrong: a stale cache holds old coordinates, not missing ones, so it
-        // would show as old timestamps rather than as no position at all. The
-        // account-wide cause behind issue #19's 38-of-38 is a plausible hunch and
-        // nothing more, so it stays out — the general line already reads correctly at
-        // any count.
+        // No special line for an all-blank source. Blaming a stale cache would be
+        // wrong — a stale cache holds old coordinates, not missing ones — and any
+        // account-wide cause is a guess. The general line reads correctly at any count.
         var reasons: [String] = []
         if cachedOnly > 0 { reasons.append("\(cachedOnly) with only a cached sighting") }
         if nothingReported > 0 { reasons.append("\(nothingReported) with nothing reported") }

@@ -54,8 +54,8 @@ enum FMIPCacheFile {
     case items
     /// The second place Apple describes a group. A group is carried either as an
     /// embedded `itemGroup` on a device record or as a standalone record here, and the
-    /// two share one identity — measured 2026-08-30, a parent's `baUUID` on one Mac and
-    /// this file's `identifier` on another were byte-identical for the same AirPods.
+    /// two share one identity: a parent's `baUUID` and this file's `identifier` are the
+    /// same value for the same group.
     ///
     /// Same ChaChaPoly under `fmipSymmetricKey` as the other two, so it needs no new
     /// key and no new crypto. Absent on some machines, which the read path already
@@ -187,10 +187,8 @@ actor CacheDecryptor {
     ///
     /// Two negative cases, because two is all the data supports. There is deliberately
     /// no "sharing disabled" outcome: `locationCapable`, `locationEnabled` and
-    /// `locFoundEnabled` were measured against a machine where Share My Location was
-    /// switched off and back on, and none of them moved — the four devices that gained
-    /// a position never changed a flag. Reporting one as a reason would send a user
-    /// away from the actual cause.
+    /// `locFoundEnabled` do not track Share My Location, so reporting one as a reason
+    /// would send a user away from the actual cause.
     enum LocationOutcome: Equatable {
         /// A position was parsed. Carries what Apple said about it, verbatim.
         case located(positionType: String?, accuracyMetres: Double?, ageHours: Double?)
@@ -377,15 +375,10 @@ actor CacheDecryptor {
             let timestamp = (loc["timeStamp"] as? Double).map {
                 Date(timeIntervalSince1970: $0 / 1000)
             }
-            // `altitude` and `verticalAccuracy` are on every record measured and were
-            // being dropped: friends published them while devices and items did not,
-            // for no reason beyond this call site never being wired up.
+            // `speed` and `course` appear only while a device is moving, which is
+            // indistinguishable from their not existing. Read them and let absent be
+            // absent rather than encoding an absence we cannot demonstrate.
             //
-            // `speed` and `course` were not seen on any of 25 devices and 5 items —
-            // but that was one instant, with nothing moving. A field that appears only
-            // while a device is in motion would look identical to a field that does
-            // not exist. So read them and let absent be absent, rather than encoding
-            // an absence we cannot demonstrate.
             // A negative `verticalAccuracy` is CoreLocation's own way of saying the
             // altitude is invalid, and a crowdsourced fix carries -1 for both. Passing
             // them through hands a user a plausible-looking metre reading that means
@@ -394,27 +387,15 @@ actor CacheDecryptor {
             let verticalAccuracy = loc["verticalAccuracy"] as? Double
             let hasAltitude = (verticalAccuracy ?? -1) >= 0
 
-            // Measured on a real Items.data 2026-08-30, which struck two candidates the
-            // spec had proposed before anyone looked:
+            // `streetAddress` is the house number alone, so the address line uses
+            // `mediumAddressModern` — one of four widths Apple pre-formats.
             //
-            // `address.streetAddress` is the house number alone — `9`, `999` — so the
-            // address line comes from `mediumAddressModern`, one of four widths Apple
-            // pre-formats. No assembling, no parsing, and no fallback to another key:
-            // a different width is a different answer, not a worse version of this one.
+            // `role` is the category chosen when an item is set up. Typing a custom name
+            // instead stores the literal string "Custom Name" here; the typed name is in
+            // `name`, so the placeholder is dropped rather than published.
             //
-            // `location.floorLevel` read `-1` on every item, which is CoreLocation's
-            // "no value" and the same sentinel that reached Home Assistant as
-            // `altitude: -1` earlier in this release. It is not read at all.
-            // `role` is the category picked when an item is set up on iPhone — one of a
-            // fixed list (Backpack, Keys, Wallet, …) with an emoji. Items only; a device
-            // has none.
-            //
-            // Choosing to type a name instead stores the literal string "Custom Name"
-            // here, *not* the name — that is carried by `name`, which is already
-            // published. Measured on a live cache: four of five items read exactly that.
-            // Publishing it would put "Custom Name" on most people's trackers, so the
-            // placeholder is dropped and the attribute is simply absent, which is what it
-            // means.
+            // `location.floorLevel` is -1 on every record measured — CoreLocation's
+            // no-value sentinel — so it is not read.
             let role = device["role"] as? [String: Any]
             let roleName = (role?["name"] as? String).nonNullish
             let address = (device["address"] as? [String: Any])?["mediumAddressModern"] as? String

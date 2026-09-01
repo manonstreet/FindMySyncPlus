@@ -15,8 +15,7 @@ import Foundation
 ///
 /// **Headers cover the case that rule cannot reach.** `parentAlias` is written only when
 /// both ends are aliased, so a user who aliased the children and never the group has no
-/// stored value — and that is precisely what issue #22 did. Those rows would sit flat,
-/// which is the feature failing to reach the person who reported it. A header is drawn
+/// stored value (issue #22). Those rows would otherwise sit flat. A header is drawn
 /// from the live grouping instead, since it is the only source available; that is sound
 /// rather than a compromise, because an unaliased parent with no position of its own
 /// only reaches the list through revival, and revival needs a reporting child. Whenever

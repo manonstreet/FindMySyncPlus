@@ -57,10 +57,9 @@ extension MQTTClient {
     /// `value_template`, so this adds one discovery message per device and no new
     /// publishing path.
     ///
-    /// `default_entity_id`, never `object_id`: the payload audit found HA dropped
-    /// `object_id` support for `sensor.mqtt` as well, so the original spec for this
-    /// sensor would have shipped the identical bug this release exists to fix. Note
-    /// the domain is `sensor.`, not `device_tracker.`.
+    /// `default_entity_id`, never `object_id`: HA dropped `object_id` for `sensor.mqtt`
+    /// as well as for `device_tracker`. Note the domain is `sensor.`, not
+    /// `device_tracker.`.
     nonisolated static func batterySensorPayload(devId: String,
                                                  displayName: String,
                                                  topicPrefix: String) -> [String: Any] {
