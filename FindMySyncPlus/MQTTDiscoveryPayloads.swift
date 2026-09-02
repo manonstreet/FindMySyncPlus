@@ -68,7 +68,12 @@ extension MQTTClient {
             "unique_id": "\(devId)_battery",
             "default_entity_id": "sensor.\(haSlug(devId))_battery",
             "state_topic": attributesTopic(forDevId: devId, prefix: topicPrefix),
-            "value_template": "{{ value_json.battery }}",
+            // Guarded because the attributes payload omits `battery` whenever Apple
+            // supplies none, which is transient rather than per-device. Unguarded,
+            // every such publish makes HA log a template warning. Rendering empty is
+            // HA's "ignore this update", so the last known percentage stands instead
+            // of being replaced by a fabricated one.
+            "value_template": "{% if value_json.battery is defined %}{{ value_json.battery }}{% endif %}",
             "device_class": "battery",
             // Without this HA records the state but keeps no long-term statistics, so
             // a battery-over-time graph has nothing behind it. Additive: statistics

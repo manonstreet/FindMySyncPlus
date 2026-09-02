@@ -184,7 +184,26 @@ struct BatterySensorPayloadTests {
     func reusesAttributesTopic() {
         #expect(payload()["state_topic"] as? String
                 == "findmysyncplus/findmy_ohrapfel-case/attributes")
-        #expect(payload()["value_template"] as? String == "{{ value_json.battery }}")
+    }
+
+    /// The attributes payload omits `battery` whenever Apple supplies none for that
+    /// record. It is transient and not device-specific — issue #26 saw it on an
+    /// iPhone and a MacBook that both reported a percentage on surrounding runs.
+    /// Because this sensor reads the tracker's attributes topic, every such publish
+    /// re-evaluates the template, and a bare `{{ value_json.battery }}` makes Home
+    /// Assistant log `'dict object' has no attribute 'battery'` each time.
+    ///
+    /// Rendering to an empty string is HA's "ignore this update" path, so the last
+    /// known percentage stands instead of being replaced by a fabricated one — the
+    /// same reasoning as passing the raw signal through elsewhere.
+    ///
+    /// Not `| default(none)`: that renders the literal string `None` into a sensor
+    /// declaring `device_class: battery` and `unit_of_measurement: %`, which trades
+    /// one warning for another.
+    @Test("value_template renders empty, not an error, when battery is absent")
+    func toleratesMissingBattery() {
+        #expect(payload()["value_template"] as? String
+                == "{% if value_json.battery is defined %}{{ value_json.battery }}{% endif %}")
     }
 
     @Test("declares the battery device class and percent unit")
