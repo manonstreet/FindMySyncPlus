@@ -481,10 +481,24 @@ final class SyncEngine {
                     rawDevices: groupRecords,
                     rawItems: rawBySource[.items] ?? []
                 )
-                let backfilledByID = Dictionary(uniqueKeysWithValues: backfilled.map { ($0.id, $0) })
+                let points = backfilled.points
+                let backfilledByID = Dictionary(uniqueKeysWithValues: points.map { ($0.id, $0) })
                 let known = Set(devices.map(\.id))
                 devicesBySource[.devices] = devices.map { backfilledByID[$0.id] ?? $0 }
-                    + backfilled.filter { !known.contains($0.id) }
+                    + points.filter { !known.contains($0.id) }
+
+                // A grouped child the backfill could not match leaves its group holding
+                // whatever position it already had. Silent, that is a run where every
+                // group is wrong and nothing says so.
+                if !backfilled.unresolvedChildren.isEmpty {
+                    for child in backfilled.unresolvedChildren {
+                        logger.debug("- Grouped child \(child.id) is in group " +
+                                     "\(child.groupIdentifier) but matched no parsed record")
+                    }
+                    logger.info("Grouping: \(backfilled.unresolvedChildren.count) " +
+                                "grouped item\(backfilled.unresolvedChildren.count == 1 ? "" : "s") " +
+                                "could not be matched; their group keeps its own position")
+                }
             }
         }
 

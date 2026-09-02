@@ -320,6 +320,23 @@ actor CacheDecryptor {
         }
     }
 
+    /// The id a record is known by, everywhere.
+    ///
+    /// A `DevicePoint`'s `id` is the app's identity for that record — it reaches aliases,
+    /// `knownUUIDs`, the entity mapping and every log line. Anything looking one up must
+    /// resolve it the same way, so this is the single definition rather than a chain
+    /// repeated at each site.
+    ///
+    /// Returned **unnormalized**. `DeviceAlias.knownUUIDs` stores ids in whatever form they
+    /// were saved, so normalizing here would change every `DevicePoint.id` and unlink
+    /// existing aliases from the devices they name. Normalize at comparison points instead.
+    nonisolated static func resolveID(_ raw: [String: Any]) -> String? {
+        (raw["baUUID"] as? String).nonNullish ??
+        (raw["deviceDiscoveryId"] as? String).nonNullish ??
+        (raw["identifier"] as? String).nonNullish ??
+        (raw["serialNumber"] as? String).nonNullish
+    }
+
     // Returns only devices that have a valid location.
     // `groupParentIDs` maps a child's `groupIdentifier` value to the parent's id (the
     // parent device's `baUUID`). Children whose `groupIdentifier` resolves get
@@ -333,12 +350,7 @@ actor CacheDecryptor {
         results.reserveCapacity(decryptedArray.count)
 
         for device in decryptedArray {
-            let id =
-                (device["baUUID"] as? String).nonNullish ??
-                (device["deviceDiscoveryId"] as? String).nonNullish ??
-                (device["identifier"] as? String).nonNullish ??
-                (device["serialNumber"] as? String).nonNullish
-            guard let id else { continue }
+            guard let id = Self.resolveID(device) else { continue }
 
             let name = (device["name"] as? String) ?? ""
 

@@ -133,7 +133,7 @@ final class SyncEngineGroupingTests: XCTestCase {
         let result = engine.backfillParentLocations(
             parents: [], children: [childA, childB],
             rawDevices: [pRaw], rawItems: [aRaw, bRaw]
-        )
+        ).points
 
         let parent = try XCTUnwrap(result.first { $0.id == pid },
                                    "the group must exist for its children to nest under")
@@ -151,7 +151,7 @@ final class SyncEngineGroupingTests: XCTestCase {
 
         let result = engine.backfillParentLocations(
             parents: [], children: [], rawDevices: [pRaw], rawItems: []
-        )
+        ).points
 
         XCTAssertTrue(result.isEmpty)
     }
@@ -172,7 +172,7 @@ final class SyncEngineGroupingTests: XCTestCase {
         let result = engine.backfillParentLocations(
             parents: [parent], children: [childA, childB],
             rawDevices: [pRaw], rawItems: [aRaw, bRaw]
-        )
+        ).points
 
         XCTAssertEqual(result.count, 1)
         XCTAssertEqual(result[0].id, pid)
@@ -192,7 +192,7 @@ final class SyncEngineGroupingTests: XCTestCase {
         let result = engine.backfillParentLocations(
             parents: [parent], children: [childA],
             rawDevices: [pRaw], rawItems: [aRaw]
-        )
+        ).points
         XCTAssertEqual(result[0].latitude, 10.0, accuracy: 0.001)
     }
 
@@ -209,7 +209,7 @@ final class SyncEngineGroupingTests: XCTestCase {
         let result = engine.backfillParentLocations(
             parents: [parent], children: [childA],
             rawDevices: [pRaw], rawItems: [aRaw]
-        )
+        ).points
         XCTAssertEqual(result[0].latitude, 20.0, accuracy: 0.001)
     }
 
@@ -222,7 +222,7 @@ final class SyncEngineGroupingTests: XCTestCase {
         let result = engine.backfillParentLocations(
             parents: [parent], children: [],
             rawDevices: [pRaw], rawItems: []
-        )
+        ).points
         XCTAssertEqual(result[0].latitude, 10.0, accuracy: 0.001)
     }
 }

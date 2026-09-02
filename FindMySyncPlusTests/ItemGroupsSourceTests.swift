@@ -133,7 +133,7 @@ struct ItemGroupsSourceTests {
             children: [child(id: Self.caseID, parentID: Self.groupID),
                        child(id: Self.leftID, parentID: Self.groupID)],
             rawDevices: adapted,
-            rawItems: rawItems)
+            rawItems: rawItems).points
 
         let parent = try #require(result.first { $0.id == Self.groupID })
         #expect(parent.name == "AirPods Pro")
@@ -151,7 +151,7 @@ struct ItemGroupsSourceTests {
             existingParentIDs: [])
 
         let result = engine.backfillParentLocations(
-            parents: [], children: [], rawDevices: adapted, rawItems: [])
+            parents: [], children: [], rawDevices: adapted, rawItems: []).points
 
         #expect(result.isEmpty)
     }

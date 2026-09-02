@@ -11,6 +11,17 @@ import Foundation
 
 extension SyncEngine {
 
+    /// What `backfillParentLocations` produced, and what it could not.
+    ///
+    /// The unresolved list exists because dropping a grouped child silently is how a run
+    /// where every group keeps a wrong position looks completely normal. The function is
+    /// `nonisolated` and pure, so it reports rather than logs — the caller does that.
+    struct BackfillResult {
+        let points: [DevicePoint]
+        let unresolvedChildren: [(id: String, groupIdentifier: String)]
+    }
+
+
     /// Adapts `ItemGroups.data` records into the shape a device record that owns an
     /// `itemGroup` already has, so `buildGroupParentIDs`, `revivedParents` and
     /// `backfillParentLocations` handle both sources with no changes of their own.
@@ -128,7 +139,8 @@ extension SyncEngine {
         children: [DevicePoint],
         rawDevices: [[String: Any]],
         rawItems: [[String: Any]]
-    ) -> [DevicePoint] {
+    ) -> BackfillResult {
+        var unresolvedChildren: [(id: String, groupIdentifier: String)] = []
         // Deliberately not `guard !parents.isEmpty`: a parent whose position is absent
         // rather than stale never parsed, so it arrives here as nothing at all. That is
         // the case this has to handle, and returning early would skip it.
@@ -152,12 +164,17 @@ extension SyncEngine {
         )
         var freshestChildByParent: [String: (ts: Double, point: DevicePoint)] = [:]
         for raw in rawItems {
-            let id = (raw["identifier"] as? String).nonNullish
-                ?? (raw["baUUID"] as? String).nonNullish
-                ?? (raw["deviceDiscoveryId"] as? String).nonNullish
-                ?? (raw["serialNumber"] as? String).nonNullish
-            guard let id else { continue }
-            guard let point = childByID[id], let pid = point.parentID else { continue }
+            guard let id = CacheDecryptor.resolveID(raw) else { continue }
+            // A grouped child that no parsed point matches is the failure mode behind
+            // issue #24: the group then sees no children and keeps its own stale
+            // position. Collect it so the caller can say so rather than dropping it
+            // silently.
+            guard let point = childByID[id], let pid = point.parentID else {
+                if let gid = (raw["groupIdentifier"] as? String).nonNullish {
+                    unresolvedChildren.append((id: id, groupIdentifier: gid))
+                }
+                continue
+            }
             let loc = raw["location"] as? [String: Any]
             let ts = (loc?["timeStamp"] as? Double) ?? 0
             if let existing = freshestChildByParent[pid] {
@@ -177,7 +194,7 @@ extension SyncEngine {
                                      alreadyParsed: Set(parents.map(\.id)),
                                      freshestChildByParent: freshestChildByParent)
 
-        return revived + parents.map { parent in
+        let points = revived + parents.map { parent in
             guard let pst = parentStamp[parent.id],
                   let (childTs, childPoint) = freshestChildByParent[parent.id] else {
                 return parent
@@ -196,5 +213,6 @@ extension SyncEngine {
                 parentID: parent.parentID
             )
         }
+        return BackfillResult(points: points, unresolvedChildren: unresolvedChildren)
     }
 }
