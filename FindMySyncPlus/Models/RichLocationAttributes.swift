@@ -41,6 +41,28 @@ struct RichLocationAttributes: Sendable {
     /// Deliberately not `streetAddress`, which is the house number alone, and not the
     /// whole `address` dict, which is ~670 B churning on every position change.
     let address: String?
+    /// Which piece a grouped entity's coordinate came from — `Case`, `Left Bud` — or
+    /// `self` when the group's own record supplied it.
+    ///
+    /// A group's position is sometimes its own and sometimes borrowed, and without this
+    /// the two are indistinguishable. `self` covers a coordinate Apple sourced elsewhere
+    /// too: it is still the group's record that holds it, and inferring otherwise would
+    /// mean cross-matching against other devices.
+    let positionSource: String?
+    /// Whether the pieces of a grouped accessory are `together`, `separated`, or
+    /// `unknown` because at least one position is too stale to compare.
+    ///
+    /// Three states rather than a boolean: a stale piece 40 km away means it reported
+    /// yesterday, not that it is elsewhere now.
+    let separationStatus: String?
+    /// Where each piece of a separated group is: name, address and age, one entry per
+    /// piece.
+    ///
+    /// Carried only while `separationStatus` is `separated`, because that is the moment a
+    /// piece has been left somewhere and the question "which one, and where" has an
+    /// answer worth publishing. A tracker entity per piece answers it badly — it is
+    /// permanent, and the question is momentary.
+    let pieces: [[String: String]]?
 
     /// Explicit rather than memberwise so `isOld` can default — every other field
     /// is a `let` with no default, so adding one would otherwise break all five
@@ -57,7 +79,10 @@ struct RichLocationAttributes: Sendable {
          isInaccurate: Bool? = nil,
          role: String? = nil,
          roleEmoji: String? = nil,
-         address: String? = nil) {
+         address: String? = nil,
+         positionSource: String? = nil,
+         separationStatus: String? = nil,
+         pieces: [[String: String]]? = nil) {
         self.verticalAccuracy = verticalAccuracy
         self.altitude = altitude
         self.speed = speed
@@ -71,6 +96,9 @@ struct RichLocationAttributes: Sendable {
         self.role = role
         self.roleEmoji = roleEmoji
         self.address = address
+        self.positionSource = positionSource
+        self.separationStatus = separationStatus
+        self.pieces = pieces
     }
 
     /// Overlay `other`'s populated fields onto these, field by field.
@@ -98,8 +126,47 @@ struct RichLocationAttributes: Sendable {
             isInaccurate: other.isInaccurate ?? isInaccurate,
             role: other.role ?? role,
             roleEmoji: other.roleEmoji ?? roleEmoji,
-            address: other.address ?? address
+            address: other.address ?? address,
+            positionSource: other.positionSource ?? positionSource,
+            separationStatus: other.separationStatus ?? separationStatus,
+            pieces: other.pieces ?? pieces
         )
+    }
+
+    /// A copy naming where a grouped entity's coordinate came from.
+    ///
+    /// The backfill already decides this — it either keeps the parent's own position or
+    /// takes a child's — so the value is recorded at the point of the decision rather
+    /// than reconstructed afterwards.
+    func namingSource(_ source: String) -> RichLocationAttributes {
+        RichLocationAttributes(
+            verticalAccuracy: verticalAccuracy, altitude: altitude,
+            speed: speed, course: course, timestamp: timestamp,
+            motionActivityState: motionActivityState, locationLabel: locationLabel,
+            isOld: isOld, positionType: positionType, isInaccurate: isInaccurate,
+            role: role, roleEmoji: roleEmoji, address: address,
+            positionSource: source, separationStatus: separationStatus, pieces: pieces)
+    }
+
+    /// A copy carrying a group's separation state, and where its pieces are when they
+    /// are apart.
+    func naming(separation: String, pieces: [[String: String]]? = nil) -> RichLocationAttributes {
+        RichLocationAttributes(
+            verticalAccuracy: verticalAccuracy, altitude: altitude,
+            speed: speed, course: course, timestamp: timestamp,
+            motionActivityState: motionActivityState, locationLabel: locationLabel,
+            isOld: isOld, positionType: positionType, isInaccurate: isInaccurate,
+            role: role, roleEmoji: roleEmoji, address: address,
+            positionSource: positionSource, separationStatus: separation,
+            pieces: pieces ?? self.pieces)
+    }
+
+    /// Everything absent. For a group parent that reached the plan with no attributes of
+    /// its own but still needs to say where its position came from.
+    static var empty: RichLocationAttributes {
+        RichLocationAttributes(verticalAccuracy: nil, altitude: nil, speed: nil,
+                               course: nil, timestamp: nil, motionActivityState: nil,
+                               locationLabel: nil)
     }
 
     var motionStateDescription: String {

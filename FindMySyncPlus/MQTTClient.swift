@@ -369,6 +369,17 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
             if let address = rich.address {
                 attrs["address"] = address
             }
+            // A group's coordinate is sometimes its own and sometimes a piece's. Naming
+            // the source is what stops it reading as a measurement of the whole pair.
+            if let source = rich.positionSource {
+                attrs["position_source"] = source
+            }
+            if let separation = rich.separationStatus {
+                attrs["separation_status"] = separation
+            }
+            if let pieces = rich.pieces {
+                attrs["pieces"] = pieces
+            }
         }
         return attrs
     }

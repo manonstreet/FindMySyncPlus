@@ -65,4 +65,15 @@ struct DevicePoint: Sendable {
                     prsId: prsId, richAttributes: richAttributes ?? self.richAttributes,
                     parentID: parentID)
     }
+
+    /// A copy carrying different rich attributes, leaving every other field alone.
+    /// `with()` covers the location fields; this is the one the grouping path needs.
+    func withRichAttributes(_ attrs: RichLocationAttributes) -> DevicePoint {
+        DevicePoint(id: id, name: name, latitude: latitude, longitude: longitude,
+                    accuracy: accuracy, battery: battery,
+                    batteryStatusCode: batteryStatusCode, chargingState: chargingState,
+                    vendorIdentifier: vendorIdentifier, prsId: prsId,
+                    richAttributes: attrs, parentID: parentID)
+    }
+
 }

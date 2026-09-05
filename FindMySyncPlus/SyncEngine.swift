@@ -444,6 +444,16 @@ final class SyncEngine {
             existingParentIDs: deviceParentIDs)
         let groupParentIDs = buildGroupParentIDs(rawDevices: groupRecords)
 
+        // Provisional: whether Apple re-clusters a group's members when a piece is
+        // separated. Sizes only — [3] together, [2, 1] if it splits. Removed once the
+        // question is answered either way.
+        for record in groupRecords {
+            guard let group = record["itemGroup"] as? [String: Any],
+                  let sizes = Self.clusterSizes(group) else { continue }
+            let name = (record["name"] as? String) ?? "?"
+            logger.debug("- Group \(name): groupedItemIdentifiers \(sizes)")
+        }
+
         // Phase 3 — parse raw -> DevicePoint, threading the group map only
         // for items (parents themselves don't need parentID).
         for (file, arr) in rawBySource {
@@ -484,8 +494,30 @@ final class SyncEngine {
                 let points = backfilled.points
                 let backfilledByID = Dictionary(uniqueKeysWithValues: points.map { ($0.id, $0) })
                 let known = Set(devices.map(\.id))
-                devicesBySource[.devices] = devices.map { backfilledByID[$0.id] ?? $0 }
+                let merged = devices.map { backfilledByID[$0.id] ?? $0 }
                     + points.filter { !known.contains($0.id) }
+
+                // Whether the pieces are in the same place decides whether the group's
+                // coordinate stands for the pair at all, so it is computed once here,
+                // after the position is settled, and travels with the entity.
+                let childrenByParent = Dictionary(grouping: items.compactMap { child -> (String, DevicePoint)? in
+                    guard let pid = child.parentID else { return nil }
+                    return (pid, child)
+                }, by: { $0.0 }).mapValues { $0.map(\.1) }
+
+                devicesBySource[.devices] = merged.map { device in
+                    guard parentIDs.contains(device.id) else { return device }
+                    let children = childrenByParent[device.id] ?? []
+                    let status = separationStatus(children: children,
+                                                  syncInterval: settings.updateIntervalSec)
+                    // Where each piece is, published only while they are apart: that is
+                    // when one has been left somewhere and "which one, and where" has an
+                    // answer. Absent otherwise, so its presence is itself the signal.
+                    let pieces = status == "separated" ? Self.pieceSummaries(children) : nil
+                    return device.withRichAttributes(
+                        (device.richAttributes ?? .empty).naming(separation: status,
+                                                                 pieces: pieces))
+                }
 
                 // A grouped child the backfill could not match leaves its group holding
                 // whatever position it already had. Silent, that is a run where every
@@ -523,6 +555,25 @@ final class SyncEngine {
     }
 
     // MARK: - Build plan and log
+
+    /// One entry per piece: what it is, where, and how old that is.
+    ///
+    /// The age travels with the address because an address without its freshness is the
+    /// same trap as `isOld` without `location_timestamp`. A piece with no address is
+    /// still listed — its name and age are the useful half.
+    nonisolated static func pieceSummaries(_ children: [DevicePoint]) -> [[String: String]]? {
+        let now = Date()
+        let entries = children.compactMap { child -> [String: String]? in
+            var entry: [String: String] = ["name": child.name]
+            if let address = child.richAttributes?.address { entry["address"] = address }
+            if let at = child.richAttributes?.timestamp {
+                entry["age"] = Self.ageDescription(now.timeIntervalSince(at) / 3600)
+            }
+            // Name alone says nothing worth publishing.
+            return entry.count > 1 ? entry : nil
+        }
+        return entries.isEmpty ? nil : entries
+    }
 
     private func logDevice(_ d: DevicePoint, source: String, alias: String?, tracked: Bool, logger: LogStore) {
         var header = "- \(source) \"\(d.name)\" - \(d.id)"
