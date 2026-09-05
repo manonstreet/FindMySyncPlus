@@ -84,6 +84,17 @@ final class SettingsStore: ObservableObject {
             self.localStorageKeyStatus = .notPresent
         }
 
+        // Every level is a standing preference except Debug, which is heavy enough to turn
+        // a 5000-entry buffer over in a few hours. An app that came back up in it would
+        // keep doing that for anyone who switched it on once, so a diagnostic run sets it
+        // for that run.
+        //
+        // Nothing restored it at all until now: the sync lived in `didSet`, which does not
+        // fire during initialization, so the value was written on every change and never
+        // read back.
+        let stored = LogLevel(rawValue: storedLogLevel) ?? .info
+        self.logLevel = stored == .debug ? .info : stored
+
         self.loadAliasesFromStorage()
 
         // One-time migration: existing REST users keep REST as default transport
@@ -152,18 +163,15 @@ final class SettingsStore: ObservableObject {
 
     @AppStorage("deviceAliasesJSON") private var deviceAliasesJSON: String = "[]"
 
-    // Log level
-    @AppStorage("logLevelRaw") var logLevelRaw: Int = LogLevel.info.rawValue {
-        didSet {
-            let newLevel = LogLevel(rawValue: logLevelRaw) ?? .info
-            if logLevel != newLevel { logLevel = newLevel }
-        }
-    }
+    /// Persisted, so a standing preference for Warn or Error survives a launch. **Debug
+    /// does not** — see `init`.
+    @AppStorage("logLevelRaw") private var storedLogLevel: Int = LogLevel.info.rawValue
 
     @Published var logLevel: LogLevel = .info {
         didSet {
-            let raw = logLevel.rawValue
-            if logLevelRaw != raw { logLevelRaw = raw }
+            // Written back on every change, including the Debug-to-Info clamp at launch,
+            // so what is stored and what is shown never disagree.
+            if storedLogLevel != logLevel.rawValue { storedLogLevel = logLevel.rawValue }
         }
     }
 
