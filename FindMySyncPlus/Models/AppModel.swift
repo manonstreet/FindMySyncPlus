@@ -1,6 +1,7 @@
 import Foundation
 import Combine
 import SwiftUI
+import AppKit
 
 private let runDateFormatter: DateFormatter = {
     let df = DateFormatter()
@@ -49,6 +50,14 @@ final class AppModel: NSObject, ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     private var lastScheduledIntervalSec: Double? = nil
 
+    private var sleepObservers: [NSObjectProtocol] = []
+    /// Set on `willSleep`, cleared on `didWake`. Non-nil means we have seen a sleep with no
+    /// matching wake.
+    private var sleepStartedAt: Date?
+    /// Only restart on wake what we stopped on sleep — a scheduler the user stopped stays
+    /// stopped.
+    private var pausedBySleep = false
+
     override init() {
         super.init()
     }
@@ -58,6 +67,7 @@ final class AppModel: NSObject, ObservableObject {
         self.logger = logger
         syncEngine.bind(settings: settings, logger: logger, app: self)
         logger.minimumLevel = settings.logLevel
+        observeSleepWake()
         settings.objectWillChange
             .map { settings.updateIntervalSec }
             .removeDuplicates()
@@ -266,6 +276,54 @@ final class AppModel: NSObject, ObservableObject {
 
     // MARK: - Scheduler
 
+    // A sleeping Mac defers our timer to roughly 15 minutes and services it during dark
+    // wakes, so runs continue and publish positions nobody is refreshing. Measured on two
+    // machines; `sleep-suspension.md` §5a.
+    //
+    // Dark wakes post no `didWake`, which is what makes stopping on `willSleep` safe: we
+    // stay stopped until the machine genuinely wakes.
+    private func observeSleepWake() {
+        guard sleepObservers.isEmpty else { return }
+        let center = NSWorkspace.shared.notificationCenter
+        let register = { (name: Notification.Name, handler: @escaping @MainActor () -> Void) in
+            center.addObserver(forName: name, object: nil, queue: .main) { _ in
+                MainActor.assumeIsolated { handler() }
+            }
+        }
+        sleepObservers = [
+            register(NSWorkspace.willSleepNotification) { [weak self] in self?.noteSleep() },
+            register(NSWorkspace.didWakeNotification) { [weak self] in self?.noteWake() }
+        ]
+    }
+
+    private func noteSleep() {
+        sleepStartedAt = Date()
+        guard isRunning else {
+            logger?.info("System going to sleep")
+            return
+        }
+        pausedBySleep = true
+        // Logged before `stop()` so the reason precedes the disconnect it causes. An
+        // in-flight run is left to finish — a sleep landing mid-run does not stop that run
+        // completing, and cancelling the timer only prevents the next one.
+        logger?.info("System going to sleep — stopping the scheduler")
+        stop()
+    }
+
+    private func noteWake() {
+        // No recorded sleep means the pair did not arrive in the order this assumes, so say
+        // nothing about how long rather than inventing a duration.
+        let slept = sleepStartedAt.map { " after \(Int(Date().timeIntervalSince($0) / 60))m" } ?? ""
+        sleepStartedAt = nil
+        guard pausedBySleep else {
+            logger?.info("System woke\(slept)")
+            return
+        }
+        pausedBySleep = false
+        logger?.info("System woke\(slept) — starting the scheduler")
+        start()
+    }
+
     func start() {
         guard !isRunning else { return }
         isRunning = true
@@ -323,7 +381,15 @@ final class AppModel: NSObject, ObservableObject {
                     break
                 }
 
-                if !Task.isCancelled { await self.syncEngine.run(kind: .scheduled, dryRun: false) }
+                if !Task.isCancelled {
+                    if self.sleepStartedAt != nil {
+                        // Should be unreachable: the scheduler is stopped on `willSleep`.
+                        // If this appears, the pause did not hold. `.warn` rather than
+                        // `.error` — an `.error` would stop the scheduler outright.
+                        self.logger?.warn("Run fired while the system is believed asleep")
+                    }
+                    await self.syncEngine.run(kind: .scheduled, dryRun: false)
+                }
             }
         }
         lastScheduledIntervalSec = sec
