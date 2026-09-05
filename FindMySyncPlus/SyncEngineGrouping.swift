@@ -248,6 +248,83 @@ extension SyncEngine {
         return revived
     }
 
+    struct Collision {
+        let entity: String
+        let kept: DevicePoint
+        let dropped: [DevicePoint]
+    }
+
+    struct DedupeResult {
+        let points: [DevicePoint]
+        let collisions: [Collision]
+    }
+
+    /// One record per entity.
+    ///
+    /// Some accessory records carry no `baUUID`, so the id chain falls through to
+    /// `deviceDiscoveryId` — a Bluetooth MAC. Two records for one physical accessory then
+    /// collapse onto a single id and both publish to the same entity in one run, so Home
+    /// Assistant renders one and the other overwrites it a moment later. That is issue #27.
+    ///
+    /// Sending one instead of two is unambiguous. Choosing which is settled by the
+    /// reporter's own observation — the primary user's location is the right one, the
+    /// family member's is bogus — and Apple marks that itself: `prsId` is the literal
+    /// `"owner"` on this account's records and a DSID on a family member's.
+    ///
+    /// Three collision shapes exist and only this one is the bug; see
+    /// `data/fmip-record-reference.md`. A family member's accessory can appear several
+    /// times with no `owner` among the candidates at all, which is why the fall-through
+    /// matters rather than being defensive padding.
+    nonisolated static func dedupeByEntity(_ points: [DevicePoint]) -> DedupeResult {
+        // Indices, not the points themselves: the colliding records carry the *same* id,
+        // which is what made them collide, so nothing about their contents identifies one.
+        var indicesByEntity: [String: [Int]] = [:]
+        for (index, point) in points.enumerated() {
+            indicesByEntity[point.id.normalized(), default: []].append(index)
+        }
+        guard indicesByEntity.contains(where: { $0.value.count > 1 }) else {
+            return DedupeResult(points: points, collisions: [])
+        }
+
+        var keep: Set<Int> = []
+        var collisions: [Collision] = []
+        for (entity, indices) in indicesByEntity {
+            let winner = preferredIndex(among: indices, in: points)
+            keep.insert(winner)
+            guard indices.count > 1 else { continue }
+            collisions.append(Collision(
+                entity: entity,
+                kept: points[winner],
+                dropped: indices.filter { $0 != winner }.map { points[$0] }))
+        }
+
+        // Rebuilt in the original order rather than dictionary order, so the posted list
+        // is stable for reasons beyond the tie-break.
+        return DedupeResult(
+            points: points.enumerated().filter { keep.contains($0.offset) }.map(\.element),
+            collisions: collisions.sorted { $0.entity < $1.entity })
+    }
+
+    /// `owner` first, then the newest position, then the lowest `prsId`.
+    ///
+    /// The last step exists because the choice must not vary between runs — that would be
+    /// the flapping again by another route. It cannot key on the identifier, which is
+    /// identical across the candidates by definition; `prsId` differs, because the records
+    /// belong to different people. Position in the cache decides only if even that ties.
+    nonisolated static func preferredIndex(among indices: [Int], in points: [DevicePoint]) -> Int {
+        let owned = indices.filter { points[$0].prsId == "owner" }
+        let pool = owned.isEmpty ? indices : owned
+        return pool.sorted { lhs, rhs in
+            let a = points[lhs], b = points[rhs]
+            let ta = a.richAttributes?.timestamp ?? .distantPast
+            let tb = b.richAttributes?.timestamp ?? .distantPast
+            if ta != tb { return ta > tb }
+            let pa = a.prsId ?? "", pb = b.prsId ?? ""
+            if pa != pb { return pa < pb }
+            return lhs < rhs
+        }[0]
+    }
+
     struct ChildIndex {
         let byParent: [String: [DevicePoint]]
         let freshestByParent: [String: (ts: Double, point: DevicePoint)]

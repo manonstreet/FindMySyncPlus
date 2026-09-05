@@ -575,6 +575,38 @@ final class SyncEngine {
         return entries.isEmpty ? nil : entries
     }
 
+    /// Says which record won a collision and which lost, because both are needed to tell
+    /// whether the rule chose correctly — and the reporter's next run is what settles that.
+    ///
+    /// `.info` rather than `.warn`: a warning would put the UI into a warned state on every
+    /// run for anyone affected, and Apple writes these duplicates, so there is nothing the
+    /// user can act on. Still logged, because a record is being dropped.
+    private func logCollisions(_ collisions: [SyncEngine.Collision], logger: LogStore) {
+        for collision in collisions {
+            let dropped = collision.dropped.map { Self.collisionDescription($0) }
+            // The record's own id, not the normalized key: every other device line prints
+            // it as written, and two renderings of one id in one log is a puzzle.
+            logger.info("Duplicate id \(collision.kept.id) — publishing " +
+                        "\(Self.collisionDescription(collision.kept)), dropping " +
+                        dropped.joined(separator: ", "))
+        }
+    }
+
+    nonisolated static func collisionDescription(_ point: DevicePoint) -> String {
+        let owner: String
+        switch point.prsId {
+        case "owner": owner = "owner"
+        case .some: owner = "family"
+        case nil: owner = "unowned"
+        }
+        var parts = [owner]
+        if let type = point.richAttributes?.positionType { parts.append(type) }
+        if let at = point.richAttributes?.timestamp {
+            parts.append(ageDescription(Date().timeIntervalSince(at) / 3600))
+        }
+        return "\"\(point.name)\" (\(parts.joined(separator: ", ")))"
+    }
+
     private func logDevice(_ d: DevicePoint, source: String, alias: String?, tracked: Bool, logger: LogStore) {
         var header = "- \(source) \"\(d.name)\" - \(d.id)"
         if let alias {
@@ -806,6 +838,9 @@ final class SyncEngine {
             logger.debug("Skipped \(droppedChildren) unaliased grouped child entr\(droppedChildren == 1 ? "y" : "ies") from posting.")
         }
 
+        let deduped = Self.dedupeByEntity(filteredToPost)
+        logCollisions(deduped.collisions, logger: logger)
+
         let metrics = RunMetrics(
             discoveredDevices: discoveredDevices,
             discoveredItems: discoveredItems,
@@ -815,11 +850,11 @@ final class SyncEngine {
             locatedFriends: friendEntries.count(where: { !familyDSIDs.contains($0.id.normalized()) }),
             unassignedCount: unassignedCount,
             notTrackedCount: notTrackedCount,
-            toPostCount: filteredToPost.count,
+            toPostCount: deduped.points.count,
             noLocationCount: noLocationCount
         )
 
-        return PlanPhase(toPost: filteredToPost, aliasByUUID: aliasByUUID, metrics: metrics)
+        return PlanPhase(toPost: deduped.points, aliasByUUID: aliasByUUID, metrics: metrics)
     }
 
     // MARK: - Preflight
