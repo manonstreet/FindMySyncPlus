@@ -29,14 +29,9 @@ class ViewRenderTests: XCTestCase {
 
     /// The canvas the row is drawn on.
     ///
-    /// **Explicit, not `Color(nsColor: .controlBackgroundColor)`.** A dynamic `NSColor`
-    /// resolves against the process appearance rather than SwiftUI's `\.colorScheme`, so the
-    /// dark renders came back white-on-white — the content correctly white, the background
-    /// still light. Neither `performAsCurrentDrawingAppearance` nor setting
-    /// `NSApplication.shared.appearance` changed that for `ImageRenderer`.
-    ///
-    /// Fixed values also make a baseline independent of what macOS decides a control
-    /// background should be in some future release.
+    /// Explicit rather than `Color(nsColor: .controlBackgroundColor)` so a baseline does not
+    /// move because macOS restyled a control background. Dynamic colours resolve correctly
+    /// either way — see the note on modifier order in `pixels(_:scheme:)`.
     private static let lightCanvas = Color(red: 1, green: 1, blue: 1)
     private static let darkCanvas  = Color(red: 0.12, green: 0.12, blue: 0.13)
 
@@ -74,23 +69,24 @@ class ViewRenderTests: XCTestCase {
     /// machine that produced it, which is the opposite of a baseline.
     @MainActor
     private func pixels<V: View>(_ view: V, scheme: ColorScheme) throws -> NSBitmapImageRep {
-        let appearance = NSAppearance(named: scheme == .dark ? .darkAqua : .aqua)
         var rep: NSBitmapImageRep?
         var failure: String?
 
-        // `performAsCurrentDrawingAppearance` does not reach ImageRenderer — it resolves
-        // dynamic colours through the application appearance, so that is what has to be set.
-        // `SectionCard` reads `.controlBackgroundColor` and `.separatorColor`, both dynamic.
-        let previous = NSApplication.shared.appearance
-        NSApplication.shared.appearance = appearance
-        defer { NSApplication.shared.appearance = previous }
-
+        // `.environment(\.colorScheme,)` goes LAST, outermost.
+        //
+        // A modifier applied after it sits outside that environment. With the background
+        // applied last, the content resolved dark and the background stayed light -- white
+        // text on a white card. Measured on this view: mean luminance 0.993 with the
+        // background outermost against 0.162 with the environment outermost.
+        //
+        // Dynamic `NSColor`s inside a view are unaffected, because they are already within
+        // the scope. `SectionCard` reads `.controlBackgroundColor` and renders correctly.
         let renderer = ImageRenderer(
             content: view
                 .frame(width: Self.rowWidth)
-                .environment(\.colorScheme, scheme)
                 .tint(.blue)                       // accentColor follows a system preference
-                .background(scheme == .dark ? Self.darkCanvas : Self.lightCanvas))
+                .background(scheme == .dark ? Self.darkCanvas : Self.lightCanvas)
+                .environment(\.colorScheme, scheme))
         renderer.scale = Self.scale
         if let image = renderer.nsImage,
            let tiff = image.tiffRepresentation,
@@ -252,6 +248,25 @@ class ViewRenderTests: XCTestCase {
                 options: [.prettyPrinted, .sortedKeys])
         else { return }
         try? data.write(to: URL(fileURLWithPath: p).appendingPathComponent("manifest.json"))
+    }
+
+    /// `SectionCard` reads `.controlBackgroundColor` and `.separatorColor`. It is covered
+    /// here because those were once believed to block rendering, and do not.
+    @MainActor func testSectionCardDynamicColours() throws {
+        try verify(SectionCard(gutter: 0, innerTrailing: 0) {
+            Text("Section content").font(.callout).padding(10)
+        }, "SectionCard--dynamic-colours")
+    }
+
+    /// PNG storage must not change a pixel, or a baseline is not what it claims to be.
+    @MainActor func testPNGRoundTripIsLossless() throws {
+        let rendered = try pixels(row(badge: .group, name: "Test AirPods",
+                                      disclosure: (isCollapsed: true, onToggle: {})),
+                                  scheme: .dark)
+        let encoded = try XCTUnwrap(rendered.representation(using: .png, properties: [:]))
+        let decoded = try XCTUnwrap(NSBitmapImageRep(data: encoded))
+        XCTAssertEqual(difference(rendered, decoded), 0.0,
+                       "PNG round-trip altered pixels — baselines cannot be trusted")
     }
 
     // MARK: - The noise floor itself
