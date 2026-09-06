@@ -45,11 +45,53 @@ enum ViewSnapshotExport {
 
     /// Called when a run finishes. Renders once, then terminates so the demo session's
     /// restore trap fires.
+    /// How long to wait after the run before capturing.
+    ///
+    /// **Not padding.** `resetAfterRun` is a `defer`, so it runs while the log lines the run
+    /// produced are still queued: `LogStore.log` appends through `DispatchQueue.main.async`,
+    /// and those blocks do not execute until the current work item yields. Capturing
+    /// immediately produced a log that stopped at pre-flight and a broker that had seen zero
+    /// publishes, while the renders showed a fully parsed device list — the state was right
+    /// and the record of how it got there was missing.
+    ///
+    /// The wait also lets the run's MQTT publishes reach the broker before the app quits.
+    private static let settleSeconds: TimeInterval = 3
+
     @MainActor
     static func exportIfRequested(app: AppModel, settings: SettingsStore, logger: LogStore) {
-        guard let dir = outputDirectory else { return }
+        guard outputDirectory != nil else { return }
         guard !didExport else { return }
         didExport = true
+        logger.log(.info, "Snapshot export: run finished, settling \(Int(settleSeconds))s before capture")
+        DispatchQueue.main.asyncAfter(deadline: .now() + settleSeconds) {
+            MainActor.assumeIsolated { capture(app: app, settings: settings, logger: logger) }
+        }
+    }
+
+    /// The run's log, in the Status window's Copy format.
+    ///
+    /// This is what closes the loop: fixtures control the input, the renders show what the UI
+    /// made of it, and this shows what the engine said while doing it. Numbers a render cannot
+    /// show — how many records were discovered, what was dropped and why, what was posted —
+    /// are all here, and a guard that fired silently is visible by its absence.
+    ///
+    /// Byte-identical to the Copy button because both call `LogStore.plainText()`, so a
+    /// headless run produces the same artifact a reporter would paste into an issue.
+    @MainActor
+    private static func writeLog(to dir: URL, logger: LogStore) {
+        let text = logger.plainText()
+        let file = "log--\(label).txt"
+        do {
+            try text.write(to: dir.appendingPathComponent(file), atomically: true, encoding: .utf8)
+            logger.log(.info, "Snapshot export: wrote \(file) (\(text.count) chars)")
+        } catch {
+            logger.log(.error, "Snapshot export: cannot write \(file) — \(error.localizedDescription)")
+        }
+    }
+
+    @MainActor
+    private static func capture(app: AppModel, settings: SettingsStore, logger: LogStore) {
+        guard let dir = outputDirectory else { return }
 
         logger.log(.info, "Snapshot export: rendering to \(dir.path) as '\(label)'")
         do {
@@ -98,6 +140,8 @@ enum ViewSnapshotExport {
                 logger.log(.error, "Snapshot export: cannot write \(file) — \(error.localizedDescription)")
             }
         }
+
+        writeLog(to: dir, logger: logger)
 
         if let data = try? JSONSerialization.data(withJSONObject: entries,
                                                   options: [.prettyPrinted, .sortedKeys]) {

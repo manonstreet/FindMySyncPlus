@@ -231,9 +231,7 @@ struct StatusView: View {
             showToast("Nothing to copy")
             return
         }
-        let text = entries
-            .map { "\($0.timestampString) [\($0.level.display)] \($0.message)" }
-            .joined(separator: "\n")
+        let text = logger.plainText()
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
         showToast("Copied \(entries.count) line\(entries.count == 1 ? "" : "s")")

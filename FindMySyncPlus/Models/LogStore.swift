@@ -36,6 +36,20 @@ final class LogStore: ObservableObject, @unchecked Sendable {
         entries.removeAll()
     }
 
+    /// The buffer as plain text, one entry per line.
+    ///
+    /// Shared by the Status window's Copy button and the headless snapshot export, so what
+    /// a run writes to disk is byte-identical to what a user would paste into an issue. Two
+    /// implementations of this would drift, and the point of the exported copy is that it is
+    /// the same artifact.
+    ///
+    /// Verbatim, like the Status window itself — see `StatusView.copyLog()` for why.
+    func plainText() -> String {
+        entries
+            .map { "\($0.timestampString) [\($0.level.display)] \($0.message)" }
+            .joined(separator: "\n")
+    }
+
     func log(_ level: LogLevel, _ msg: @autoclosure () -> String) {
         // Fast level check before doing any string work
         guard level.rawValue <= minimumLevel.rawValue else { return }
