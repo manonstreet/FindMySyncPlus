@@ -683,6 +683,22 @@ struct DeviceManagerView: View {
                         // orphan and stays at the top level — the user made it, so it
                         // is never hidden.
                         let partition = AliasPartition(filteredAliases, liveGroups: liveGroupsByAlias)
+                        // The partition's shape, once, while a snapshot is being taken.
+                        //
+                        // Headers and nesting are UI-only: nothing in the log or the broker
+                        // says whether a header was drawn, so a case could assert everything
+                        // about the payload and still not notice the Aliases list going flat.
+                        // `AliasNestingTests` covers the rule; this covers the *rendered*
+                        // result, which is what the fixtures exist to exercise.
+                        //
+                        // Guarded on a render so it cannot fire from a view body during
+                        // ordinary use, where it would log on every redraw.
+                        let _ = ViewSnapshotExport.notePartition(
+                            topLevel: partition.topLevel.count,
+                            headers: partition.headers.map(\.name).sorted(),
+                            nested: partition.topLevel.reduce(0) { $0 + partition.children(of: $1.alias).count }
+                                + partition.headers.reduce(0) { $0 + partition.children(ofHeader: $1.id).count },
+                            logger: logger)
 
                         // Groups whose own alias does not exist. Their children would
                         // otherwise sit flat (issue #22).

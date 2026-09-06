@@ -99,9 +99,41 @@ enum ViewSnapshotExport {
     ///
     /// Byte-identical to the Copy button because both call `LogStore.plainText()`, so a
     /// headless run produces the same artifact a reporter would paste into an issue.
+    /// Records the Aliases list's shape while a snapshot is in flight, once per render.
+    ///
+    /// Headers and nesting exist only in the UI. Without this a case can assert every field
+    /// of every payload and still not notice the list going flat, which is exactly what
+    /// issue #22 reported and what §6.1 was built to fix.
+    ///
+    /// Returns `false` so it can sit in a `let _ =` inside a `ViewBuilder`.
+    @MainActor
+    @discardableResult
+    static func notePartition(topLevel: Int, headers: [String], nested: Int,
+                              logger: LogStore) -> Bool {
+        guard isRendering, !notedPartition else { return false }
+        notedPartition = true
+        let names = headers.isEmpty ? "none" : headers.joined(separator: ", ")
+        logger.log(.debug, "Aliases partition: \(topLevel) top-level, "
+            + "\(headers.count) header(s) [\(names)], \(nested) nested")
+        return false
+    }
+
+    @MainActor private static var notedPartition = false
+
+    /// The exporter's own lines, which do not belong in the artifact.
+    ///
+    /// The log is meant to be what the *run* produced — byte-identical to what a user would
+    /// paste from the Copy button, and a user's copy never contains snapshot bookkeeping.
+    /// These lines also carry the output path, which would make every baseline specific to
+    /// the machine that wrote it.
+    private static let exporterPrefix = "Snapshot export:"
+
     @MainActor
     private static func writeLog(to dir: URL, logger: LogStore) {
         let text = logger.plainText()
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .filter { !$0.contains(exporterPrefix) }
+            .joined(separator: "\n")
         let file = "log--\(label).txt"
         do {
             try text.write(to: dir.appendingPathComponent(file), atomically: true, encoding: .utf8)
@@ -134,6 +166,7 @@ enum ViewSnapshotExport {
 
         for variant in variants {
             expandGroups = variant.expand
+            notedPartition = false
             for (appearance, scheme) in [("light", ColorScheme.light), ("dark", ColorScheme.dark)] {
                 let screen = DeviceManagerView()
                     .environmentObject(settings)
@@ -171,14 +204,25 @@ enum ViewSnapshotExport {
             }
         }
 
-        writeLog(to: dir, logger: logger)
+        // One more hop before reading the log back.
+        //
+        // Rendering itself logs -- `notePartition` records the Aliases list's shape -- and
+        // `LogStore.log` appends through `DispatchQueue.main.async`, so those lines are still
+        // queued when the render loop returns. Reading the buffer here would miss exactly the
+        // lines this render produced, which is the same mistake the settle before `capture`
+        // already fixed once, one level further in.
+        DispatchQueue.main.async {
+            MainActor.assumeIsolated {
+                writeLog(to: dir, logger: logger)
 
-        if let data = try? JSONSerialization.data(withJSONObject: entries,
-                                                  options: [.prettyPrinted, .sortedKeys]) {
-            try? data.write(to: dir.appendingPathComponent("manifest-\(label).json"))
+                if let data = try? JSONSerialization.data(withJSONObject: entries,
+                                                          options: [.prettyPrinted, .sortedKeys]) {
+                    try? data.write(to: dir.appendingPathComponent("manifest-\(label).json"))
+                }
+
+                logger.log(.info, "Snapshot export: done, quitting")
+                NSApplication.shared.terminate(nil)
+            }
         }
-
-        logger.log(.info, "Snapshot export: done, quitting")
-        NSApplication.shared.terminate(nil)
     }
 }
