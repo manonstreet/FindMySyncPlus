@@ -32,7 +32,18 @@ enum ViewSnapshotExport {
     /// Renders are compared pixel by pixel, so everything except the code under test is
     /// pinned. Matches `ViewRenderTests`; the two must move together.
     private static let scale: CGFloat = 2
-    private static let size = CGSize(width: 900, height: 1200)
+    /// Width is fixed; height follows the content.
+    ///
+    /// Two earlier attempts were wrong in opposite directions. A fixed 1200 clipped the
+    /// *Aliases* section header off the bottom, so the two lists ran together and the render
+    /// read as one undivided list. An unbounded height let `SectionCard`'s `GeometryReader`
+    /// background expand and paint over the pane below, and the same header vanished under
+    /// it — nothing looked broken, a section title simply was not there.
+    ///
+    /// `SnapshotSafeVSplit` fixes its vertical size while rendering, which gives the stack a
+    /// definite ideal height. The image then ends where the content does: nothing clipped,
+    /// nothing overpainted, and no acres of empty card.
+    private static let renderWidth: CGFloat = 900
 
     private static let lightCanvas = Color(red: 1, green: 1, blue: 1)
     private static let darkCanvas  = Color(red: 0.12, green: 0.12, blue: 0.13)
@@ -128,7 +139,7 @@ enum ViewSnapshotExport {
                     .environmentObject(settings)
                     .environmentObject(app)
                     .environmentObject(logger)
-                    .frame(width: size.width, height: size.height)
+                    .frame(width: renderWidth)
                     .tint(.blue)                        // accentColor follows a system preference
                     .background(scheme == .dark ? darkCanvas : lightCanvas)
                     .environment(\.colorScheme, scheme) // LAST: a later modifier escapes this

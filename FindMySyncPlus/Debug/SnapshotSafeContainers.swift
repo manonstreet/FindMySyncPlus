@@ -26,7 +26,18 @@ struct SnapshotSafeVSplit<Content: View>: View {
     @ViewBuilder var content: Content
     var body: some View {
         if ViewSnapshotExport.isRendering {
+            // `.fixedSize` vertically is what makes the render fit its content.
+            //
+            // Without it the stack absorbs whatever height it is offered and hands each pane
+            // an equal share, so a short Unassigned list becomes a tall empty card. With an
+            // *unbounded* height instead, `SectionCard`'s `GeometryReader` background — which
+            // has no intrinsic height — expands and paints over the pane below, and the
+            // Aliases section header silently disappears under it.
+            //
+            // A definite ideal height avoids both: each pane asks for what it needs, the
+            // GeometryReader gets a real proposal, and the image ends where the content does.
             VStack(spacing: 0) { content }
+                .fixedSize(horizontal: false, vertical: true)
         } else {
             VSplitView { content }
         }
