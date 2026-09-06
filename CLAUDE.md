@@ -6,6 +6,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **FindMySyncPlus** is a macOS menu bar app (macOS 14.4+) that decrypts Apple Find My cache files and publishes device, item, and friend locations to Home Assistant. Supports **REST** (`device_tracker/see`) and **MQTT** (with HA auto-discovery and rich attributes) transports. It is a pure Swift/SwiftUI/AppKit project built entirely in Xcode — no package manager, no scripts.
 
+## Do not use git worktrees in this repository
+
+**Work directly in this checkout.** Do not call `EnterWorktree` and do not `git worktree
+add`, whatever a default workflow suggests.
+
+A worktree-isolated session cannot run git against this checkout — not `-C`, not
+`--git-dir`, not `git branch -f`. So the release branch here drifts behind while work
+happens elsewhere, nobody can fast-forward it from inside the worktree, and the stale
+branch then gets built and shipped from. That has happened twice; the second time a full
+test pass ran against a two-day-old binary before anyone noticed.
+
+There is one maintainer and no concurrent work to isolate, so the isolation costs
+everything and buys nothing.
+
 ## Build & Run
 
 Open and build in Xcode:
