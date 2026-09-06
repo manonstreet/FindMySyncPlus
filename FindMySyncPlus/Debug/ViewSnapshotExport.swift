@@ -43,6 +43,17 @@ enum ViewSnapshotExport {
     /// read it to substitute a plain stack for a container `ImageRenderer` cannot draw.
     @MainActor private(set) static var isRendering = false
 
+    /// Whether this render should show grouped children nested under their parent.
+    ///
+    /// Disclosure lives in `DeviceManagerView`'s `@State` and starts closed, so every screen
+    /// render was fully collapsed — and grouped nesting, which is what issues #22 and #24
+    /// were about, appeared in no baseline at all. The pieces were in the alias list and
+    /// hidden behind a chevron nothing could open.
+    ///
+    /// Both states are rendered: collapsed is what a user opens the window to, expanded is
+    /// where the feature is visible.
+    @MainActor private(set) static var expandGroups = false
+
     /// Called when a run finishes. Renders once, then terminates so the demo session's
     /// restore trap fires.
     /// How long to wait after the run before capturing.
@@ -104,40 +115,48 @@ enum ViewSnapshotExport {
 
         var entries: [[String: Any]] = []
         isRendering = true
-        defer { isRendering = false }
-        for (name, scheme) in [("light", ColorScheme.light), ("dark", ColorScheme.dark)] {
-            let screen = DeviceManagerView()
-                .environmentObject(settings)
-                .environmentObject(app)
-                .environmentObject(logger)
-                .frame(width: size.width, height: size.height)
-                .tint(.blue)                        // accentColor follows a system preference
-                .background(scheme == .dark ? darkCanvas : lightCanvas)
-                .environment(\.colorScheme, scheme) // LAST: a later modifier escapes this
+        defer { isRendering = false; expandGroups = false }
+        // Both disclosure states. Collapsed is what a user opens the window to; expanded is
+        // where grouped children are visible at all, and that is the feature these fixtures
+        // exist to exercise.
+        let variants: [(name: String, expand: Bool)] = [("collapsed", false), ("expanded", true)]
 
-            let renderer = ImageRenderer(content: screen)
-            renderer.scale = scale
-            guard let image = renderer.nsImage,
-                  let tiff = image.tiffRepresentation,
-                  let rep = NSBitmapImageRep(data: tiff),
-                  let png = rep.representation(using: .png, properties: [:]) else {
-                logger.log(.error, "Snapshot export: DeviceManagerView--\(name) produced no image")
-                continue
-            }
-            let file = "DeviceManagerView--\(label)--\(name).png"
-            do {
-                try png.write(to: dir.appendingPathComponent(file))
-                entries.append([
-                    "file": file, "tier": "screen", "view": "DeviceManagerView",
-                    "fixture": label, "appearance": name,
-                    "size": [rep.pixelsWide, rep.pixelsHigh], "scale": scale,
-                    "entries": app.lastLocatedEntries.count,
-                    "aliases": settings.aliases.count
-                ])
-                logger.log(.info, "Snapshot export: wrote \(file) "
-                    + "(\(rep.pixelsWide)x\(rep.pixelsHigh), \(app.lastLocatedEntries.count) entries)")
-            } catch {
-                logger.log(.error, "Snapshot export: cannot write \(file) — \(error.localizedDescription)")
+        for variant in variants {
+            expandGroups = variant.expand
+            for (appearance, scheme) in [("light", ColorScheme.light), ("dark", ColorScheme.dark)] {
+                let screen = DeviceManagerView()
+                    .environmentObject(settings)
+                    .environmentObject(app)
+                    .environmentObject(logger)
+                    .frame(width: size.width, height: size.height)
+                    .tint(.blue)                        // accentColor follows a system preference
+                    .background(scheme == .dark ? darkCanvas : lightCanvas)
+                    .environment(\.colorScheme, scheme) // LAST: a later modifier escapes this
+
+                let renderer = ImageRenderer(content: screen)
+                renderer.scale = scale
+                let file = "DeviceManagerView--\(label)--\(variant.name)--\(appearance).png"
+                guard let image = renderer.nsImage,
+                      let tiff = image.tiffRepresentation,
+                      let rep = NSBitmapImageRep(data: tiff),
+                      let png = rep.representation(using: .png, properties: [:]) else {
+                    logger.log(.error, "Snapshot export: \(file) produced no image")
+                    continue
+                }
+                do {
+                    try png.write(to: dir.appendingPathComponent(file))
+                    entries.append([
+                        "file": file, "tier": "screen", "view": "DeviceManagerView",
+                        "fixture": label, "variant": variant.name, "appearance": appearance,
+                        "size": [rep.pixelsWide, rep.pixelsHigh], "scale": scale,
+                        "entries": app.lastLocatedEntries.count,
+                        "aliases": settings.aliases.count
+                    ])
+                    logger.log(.info, "Snapshot export: wrote \(file) "
+                        + "(\(rep.pixelsWide)x\(rep.pixelsHigh), \(app.lastLocatedEntries.count) entries)")
+                } catch {
+                    logger.log(.error, "Snapshot export: cannot write \(file) — \(error.localizedDescription)")
+                }
             }
         }
 

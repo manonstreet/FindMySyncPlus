@@ -571,7 +571,8 @@ struct DeviceManagerView: View {
                         let isLast = idx == topLevel.count - 1
                         let parentNormalizedID = entry.point.id.normalized()
                         let kids = childrenByParent[parentNormalizedID] ?? []
-                        let isExpanded = expandedParents.contains(parentNormalizedID)
+                        let isExpanded = ViewSnapshotExport.expandGroups
+                            || expandedParents.contains(parentNormalizedID)
                         let disclosure: (isCollapsed: Bool, onToggle: () -> Void)? = kids.isEmpty
                             ? nil
                             : (!isExpanded, {
@@ -732,7 +733,10 @@ struct DeviceManagerView: View {
                             // Collapsed until opened, matching the Unassigned list
                             // exactly — same control, same default, so the same
                             // accessory behaves the same way in both places.
-                            let isCollapsed = !expandedAliasParents.contains(rec.alias)
+                            // A snapshot renders both states; see ViewSnapshotExport.expandGroups.
+                            let isCollapsed = ViewSnapshotExport.expandGroups
+                                ? false
+                                : !expandedAliasParents.contains(rec.alias)
                             ParentDisclosureRow(
                                 hasChildren: !kids.isEmpty,
                                 isCollapsed: isCollapsed,
