@@ -84,3 +84,6 @@ local_settings.plist
 ARCHITECTURE-NOTES.md
 docs/
 !FindMySyncPlus/Docs/
+
+# Worktrees created by tooling live here; they are checkouts, not sources.
+.claude/worktrees/
