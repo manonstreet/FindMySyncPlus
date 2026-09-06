@@ -42,13 +42,17 @@ class ViewRenderTests: XCTestCase {
     /// difference is exactly 0.000000 across all twelve variant/appearance pairs.
     private static let channelTolerance = 8
 
-    /// Fraction of pixels that may differ before two renders are called different.
+    /// Changed-pixel count that separates a match from a difference. **A count, not a
+    /// fraction.**
     ///
-    /// The measured floor at the tolerance above is zero, so this is margin rather than
-    /// headroom over observed noise: ~0.1% of a row render is about a hundred pixels, far
-    /// more than jitter and far less than any visible change. Comparing against exact zero
-    /// would be brittle across OS updates.
-    private static let threshold = 0.001
+    /// A fraction gets less sensitive as the render grows, and screen renders are much larger
+    /// than rows. It also missed a real change: a chevron flipping direction moves **131
+    /// pixels**, which is 0.055% of a row — under a 0.1% threshold, so it passed silently.
+    /// That is the failure this whole comparison exists to prevent.
+    ///
+    /// The measured floor at the tolerance above is exactly 0 pixels, so 16 is margin rather
+    /// than headroom over observed noise. Matches `tools/view-baselines/compare`.
+    private static let minPixels = 16
 
     /// Collected as renders happen and written once, so the index cannot disagree with the
     /// images it describes.
@@ -100,13 +104,15 @@ class ViewRenderTests: XCTestCase {
         return try XCTUnwrap(rep)
     }
 
-    /// Fraction of pixels differing by more than `channelTolerance` on any channel.
+    /// Count of pixels differing by more than `channelTolerance` on any channel.
     ///
-    /// Returns 1.0 for a size mismatch: a view that changed shape has not drifted, it has
-    /// changed, and no per-pixel number describes that usefully.
-    private func difference(_ a: NSBitmapImageRep, _ b: NSBitmapImageRep) -> Double {
-        guard a.pixelsWide == b.pixelsWide, a.pixelsHigh == b.pixelsHigh else { return 1.0 }
-        guard let pa = a.bitmapData, let pb = b.bitmapData else { return 1.0 }
+    /// A size mismatch returns every pixel: a view that changed shape has not drifted, it has
+    /// changed, and no smaller number describes that usefully.
+    private func difference(_ a: NSBitmapImageRep, _ b: NSBitmapImageRep) -> Int {
+        guard a.pixelsWide == b.pixelsWide, a.pixelsHigh == b.pixelsHigh else {
+            return a.pixelsWide * a.pixelsHigh
+        }
+        guard let pa = a.bitmapData, let pb = b.bitmapData else { return a.pixelsWide * a.pixelsHigh }
         let bytes = a.bytesPerRow * a.pixelsHigh
         let spp = max(1, a.samplesPerPixel)
         var differing = 0
@@ -122,7 +128,7 @@ class ViewRenderTests: XCTestCase {
             if pixelDiffers { differing += 1 }
             index += spp
         }
-        return Double(differing) / Double(max(1, bytes / spp))
+        return differing
     }
 
     private func png(_ rep: NSBitmapImageRep) throws -> Data {
@@ -142,10 +148,9 @@ class ViewRenderTests: XCTestCase {
             // The noise floor. A baseline is only meaningful if a rerun sits under the
             // threshold used to judge it.
             let noise = difference(rep, try pixels(view, scheme: scheme))
-            XCTAssertLessThan(noise, Self.threshold,
-                              String(format: "%@--%@ render-to-render noise %.5f exceeds the %.5f threshold",
-                                     variant, name, noise, Self.threshold),
-                              file: file, line: line)
+            XCTAssertLessThanOrEqual(noise, Self.minPixels,
+                                     "\(variant)--\(name) render-to-render noise \(noise) px exceeds \(Self.minPixels)",
+                                     file: file, line: line)
 
             guard let dir = baselineDir else { continue }
             Self.manifest.append([
@@ -156,7 +161,7 @@ class ViewRenderTests: XCTestCase {
                 "size": [rep.pixelsWide, rep.pixelsHigh],
                 "scale": Self.scale,
                 "channelTolerance": Self.channelTolerance,
-                "threshold": Self.threshold
+                "minPixels": Self.minPixels
             ])
             try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
             let url = dir.appendingPathComponent("\(variant)--\(name).png")
@@ -167,11 +172,10 @@ class ViewRenderTests: XCTestCase {
                 continue
             }
             let drift = difference(rep, stored)
-            if drift >= Self.threshold {
+            if drift > Self.minPixels {
                 let failed = dir.appendingPathComponent("\(variant)--\(name).failed.png")
                 try png(rep).write(to: failed)
-                XCTFail(String(format: "%@--%@ differs from baseline by %.5f (threshold %.5f) — wrote %@",
-                               variant, name, drift, Self.threshold, failed.lastPathComponent),
+                XCTFail("\(variant)--\(name) differs from baseline by \(drift) px (limit \(Self.minPixels)) — wrote \(failed.lastPathComponent)",
                         file: file, line: line)
             }
         }
@@ -265,7 +269,7 @@ class ViewRenderTests: XCTestCase {
                                   scheme: .dark)
         let encoded = try XCTUnwrap(rendered.representation(using: .png, properties: [:]))
         let decoded = try XCTUnwrap(NSBitmapImageRep(data: encoded))
-        XCTAssertEqual(difference(rendered, decoded), 0.0,
+        XCTAssertEqual(difference(rendered, decoded), 0,
                        "PNG round-trip altered pixels — baselines cannot be trusted")
     }
 
@@ -287,7 +291,7 @@ class ViewRenderTests: XCTestCase {
             ("long-name", row(lastSeen: "A very long device name that will not fit on one line",
                                       name: "A very long device name that will not fit on one line"))
         ]
-        var worst = 0.0
+        var worst = 0
         var report = "variant            appearance  noise\n"
         for (label, view) in cases {
             for (name, scheme) in [("light", ColorScheme.light), ("dark", ColorScheme.dark)] {
@@ -297,10 +301,10 @@ class ViewRenderTests: XCTestCase {
                 let c = try pixels(view, scheme: scheme)
                 let d = max(difference(a, b), max(difference(b, c), difference(a, c)))
                 worst = max(worst, d)
-                report += String(format: "%-18@ %-11@ %.6f\n", label as NSString, name as NSString, d)
+                report += String(format: "%-18@ %-11@ %d px\n", label as NSString, name as NSString, d)
             }
         }
-        report += String(format: "\nWORST %.6f   threshold %.6f\n", worst, Self.threshold)
+        report += String(format: "\nWORST %d px   limit %d px\n", worst, Self.minPixels)
         print(report)
         // The floor belongs next to the baselines it justifies.
         if let dir = baselineDir {
@@ -308,8 +312,8 @@ class ViewRenderTests: XCTestCase {
             try? report.write(to: dir.appendingPathComponent("noise-report.txt"),
                               atomically: true, encoding: .utf8)
         }
-        XCTAssertLessThan(worst, Self.threshold,
-                          "the measured floor is at or above the threshold, which makes every comparison meaningless")
+        XCTAssertLessThanOrEqual(worst, Self.minPixels,
+                                 "the measured floor has reached the limit, which makes every comparison meaningless")
     }
 
     // MARK: - Components
