@@ -30,7 +30,7 @@ class ViewRenderTests: XCTestCase {
     /// The canvas the row is drawn on.
     ///
     /// Explicit rather than `Color(nsColor: .controlBackgroundColor)` so a baseline does not
-    /// move because macOS restyled a control background. Dynamic colours resolve correctly
+    /// move because macOS restyled a control background. Dynamic colors resolve correctly
     /// either way — see the note on modifier order in `pixels(_:scheme:)`.
     private static let lightCanvas = Color(red: 1, green: 1, blue: 1)
     private static let darkCanvas  = Color(red: 0.12, green: 0.12, blue: 0.13)
@@ -256,10 +256,10 @@ class ViewRenderTests: XCTestCase {
 
     /// `SectionCard` reads `.controlBackgroundColor` and `.separatorColor`. It is covered
     /// here because those were once believed to block rendering, and do not.
-    @MainActor func testSectionCardDynamicColours() throws {
+    @MainActor func testSectionCardDynamicColors() throws {
         try verify(SectionCard(gutter: 0, innerTrailing: 0) {
             Text("Section content").font(.callout).padding(10)
-        }, "SectionCard--dynamic-colours")
+        }, "SectionCard--dynamic-colors")
     }
 
     /// PNG storage must not change a pixel, or a baseline is not what it claims to be.
