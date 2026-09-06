@@ -333,22 +333,24 @@ struct DeviceManagerView: View {
 
     var body: some View {
         ZStack {
-            VSplitView {
+            SnapshotSafeVSplit {
                 // --- Unassigned ---
                 VStack(spacing: 0) {
                     sectionHeader(
                         title: "Unassigned",
                         tip: "Link a device’s UUID to an alias. The alias becomes a stable Home Assistant entity that persists even when Apple rotates UUIDs.",
                         trailing: {
-                            Picker("", selection: $unassignedFilter) {
-                                ForEach(SourceFilter.allCases) { f in
-                                    Text(f.title).tag(f)
+                            SnapshotSafeMenuPicker(selectionTitle: unassignedFilter.title) {
+                                Picker("", selection: $unassignedFilter) {
+                                    ForEach(SourceFilter.allCases) { f in
+                                        Text(f.title).tag(f)
+                                    }
                                 }
+                                .pickerStyle(.menu)
+                                .controlSize(.small)
+                                .labelsHidden()
+                                .help("Filter unassigned entries by source")
                             }
-                            .pickerStyle(.menu)
-                            .controlSize(.small)
-                            .labelsHidden()
-                            .help("Filter unassigned entries by source")
                         }
                     )
                     SectionCard(gutter: 14, innerTrailing: 14) {
@@ -366,15 +368,17 @@ struct DeviceManagerView: View {
                         title: "Aliases",
                         tip: "Manage your tracked aliases. Apple rotates UUIDs periodically — add new ones here and the HA entity stays the same. Renaming an alias changes its HA entity ID.",
                         trailing: {
-                            Picker("", selection: $aliasesFilter) {
-                                ForEach(SourceFilter.allCases) { f in
-                                    Text(f.title).tag(f)
+                            SnapshotSafeMenuPicker(selectionTitle: aliasesFilter.title) {
+                                Picker("", selection: $aliasesFilter) {
+                                    ForEach(SourceFilter.allCases) { f in
+                                        Text(f.title).tag(f)
+                                    }
                                 }
+                                .pickerStyle(.menu)
+                                .controlSize(.small)
+                                .labelsHidden()
+                                .help("Filter aliases by source")
                             }
-                            .pickerStyle(.menu)
-                            .controlSize(.small)
-                            .labelsHidden()
-                            .help("Filter aliases by source")
                         }
                     )
                     SectionCard(gutter: 14, innerTrailing: 14) {
@@ -561,7 +565,7 @@ struct DeviceManagerView: View {
                     return topLevelIDs.contains(pid.normalized())
                 }, by: { $0.point.parentID!.normalized() })
 
-            ScrollView {
+            SnapshotSafeScroll {
                 LazyVStack(spacing: 0) {
                     ForEach(Array(topLevel.enumerated()), id: \.1.point.id) { idx, entry in
                         let isLast = idx == topLevel.count - 1
@@ -666,7 +670,7 @@ struct DeviceManagerView: View {
                     emptyState(img, msg)
                 }
             } else {
-                ScrollView {
+                SnapshotSafeScroll {
                     LazyVStack(spacing: 0) {
                         // Grouped accessories nest here as they already do in
                         // Unassigned. The join is the persisted `parentAlias`, not the

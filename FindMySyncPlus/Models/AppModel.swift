@@ -421,6 +421,11 @@ final class AppModel: NSObject, ObservableObject {
     func resetAfterRun() {
         self.isPerformingRun = false
         self.currentRunKind = self.isRunning ? .scheduled : .none
+        // Inert unless `demoRenderExport` is set. Renders the screens and quits, so a demo
+        // session against a fixture shape is headless end to end.
+        if let settings, let logger {
+            ViewSnapshotExport.exportIfRequested(app: self, settings: settings, logger: logger)
+        }
     }
 
     // MARK: - Error/warning handlers
