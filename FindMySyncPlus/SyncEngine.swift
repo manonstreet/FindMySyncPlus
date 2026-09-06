@@ -489,7 +489,8 @@ final class SyncEngine {
                     parents: devices.filter { parentIDs.contains($0.id) },
                     children: items,
                     rawDevices: groupRecords,
-                    rawItems: rawBySource[.items] ?? []
+                    rawItems: rawBySource[.items] ?? [],
+                    syncInterval: settings.updateIntervalSec
                 )
                 let points = backfilled.points
                 let backfilledByID = Dictionary(uniqueKeysWithValues: points.map { ($0.id, $0) })
