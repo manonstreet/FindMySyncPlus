@@ -439,10 +439,19 @@ final class SyncEngine {
             guard raw["itemGroup"] is [String: Any] else { return nil }
             return (raw["baUUID"] as? String).nonNullish
         })
-        let groupRecords = deviceRecords + groupParentRecords(
+        let adoptedFromItemGroups = groupParentRecords(
             fromItemGroups: rawBySource[.itemGroups] ?? [],
             existingParentIDs: deviceParentIDs)
+        let groupRecords = deviceRecords + adoptedFromItemGroups
         let groupParentIDs = buildGroupParentIDs(rawDevices: groupRecords)
+
+        // Which file the groups came from. Both sources are reduced to one shape above, so
+        // nothing downstream can tell them apart -- and neither could anyone reading a log.
+        // A Mac with no parent device record groups only through `ItemGroups.data`, which is
+        // how three of four measured machines read; if that path stopped working the group
+        // would simply vanish with nothing saying why.
+        logger.debug("Group sources: \(deviceParentIDs.count) embedded in Devices.data, "
+            + "\(adoptedFromItemGroups.count) adopted from ItemGroups.data")
 
         // Provisional: whether Apple re-clusters a group's members when a piece is
         // separated. Sizes only — [3] together, [2, 1] if it splits. Removed once the
