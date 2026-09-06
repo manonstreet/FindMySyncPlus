@@ -6,19 +6,33 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **FindMySyncPlus** is a macOS menu bar app (macOS 14.4+) that decrypts Apple Find My cache files and publishes device, item, and friend locations to Home Assistant. Supports **REST** (`device_tracker/see`) and **MQTT** (with HA auto-discovery and rich attributes) transports. It is a pure Swift/SwiftUI/AppKit project built entirely in Xcode — no package manager, no scripts.
 
-## Do not use git worktrees in this repository
+## Worktrees: land the branch before you finish
 
-**Work directly in this checkout.** Do not call `EnterWorktree` and do not `git worktree
-add`, whatever a default workflow suggests.
+Worktrees are fine, and useful for parallel work on separate features. **The rule is that a
+session does not end with its work stranded in one.**
 
-A worktree-isolated session cannot run git against this checkout — not `-C`, not
-`--git-dir`, not `git branch -f`. So the release branch here drifts behind while work
-happens elsewhere, nobody can fast-forward it from inside the worktree, and the stale
-branch then gets built and shipped from. That has happened twice; the second time a full
-test pass ran against a two-day-old binary before anyone noticed.
+Before finishing, land it:
 
-There is one maintainer and no concurrent work to isolate, so the isolation costs
-everything and buys nothing.
+```
+# from inside the worktree
+ExitWorktree(action: "keep")          # returns the session to this checkout
+git merge --ff-only <feature-branch>
+git push <remote> v1.4-beta
+```
+
+**Why this is a rule rather than a nicety.** A worktree-isolated session cannot run git
+against this checkout by any route — `-C` and `--git-dir` are blocked, `git branch -f` is
+refused because the branch is checked out here, and `update-ref` moves the pointer while
+leaving this checkout's files behind it, which is worse than stale. So a session that
+finishes inside a worktree leaves the release branch behind and **cannot fix it from where
+it is standing.**
+
+That drift then survives releases and gets built from. It happened across two, and a full
+test pass once ran against a two-day-old binary before anyone noticed.
+
+**`ExitWorktree` works even when the session never called `EnterWorktree`** — the tool's own
+description says otherwise. A previous session recorded "worktree isolation blocked the
+merge" and handed the problem on; it was never blocked.
 
 ## Build & Run
 
