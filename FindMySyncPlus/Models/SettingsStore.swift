@@ -92,8 +92,19 @@ final class SettingsStore: ObservableObject {
         // Nothing restored it at all until now: the sync lived in `didSet`, which does not
         // fire during initialization, so the value was written on every change and never
         // read back.
-        let stored = LogLevel(rawValue: storedLogLevel) ?? .info
-        self.logLevel = stored == .debug ? .info : stored
+        // `demoLogLevel` is the demo domain's way to preset a level the app deliberately
+        // does not persist. Read once, never written back, inert unless present — the same
+        // shape as `demoRoot`, and gone with the domain when a session restores.
+        //
+        // Without it a demo session could only ever capture Info, because the clamp below
+        // runs before anyone can reach the picker.
+        if let demo = UserDefaults.standard.object(forKey: "demoLogLevel") as? Int,
+           let level = LogLevel(rawValue: demo) {
+            self.logLevel = level
+        } else {
+            let stored = LogLevel(rawValue: storedLogLevel) ?? .info
+            self.logLevel = stored == .debug ? .info : stored
+        }
 
         self.loadAliasesFromStorage()
 
