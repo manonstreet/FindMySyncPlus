@@ -12,10 +12,15 @@ import CocoaMQTT
 /// payloads ordinary assertions.
 final class RecordingPublisher: MQTTPublishing {
     private(set) var messages: [CocoaMQTTMessage] = []
+    private(set) var subscribed: [String] = []
+    private(set) var unsubscribed: [String] = []
 
     func send(_ message: CocoaMQTTMessage) {
         messages.append(message)
     }
+
+    func subscribe(to topic: String) { subscribed.append(topic) }
+    func unsubscribe(from topic: String) { unsubscribed.append(topic) }
 
     var topics: [String] { messages.map(\.topic) }
 }

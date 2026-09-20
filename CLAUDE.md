@@ -41,7 +41,7 @@ Open and build in Xcode:
 open FindMySyncPlus.xcodeproj
 ```
 
-From the command line, `xcodebuild build` and `xcodebuild test` work with `-project FindMySyncPlus.xcodeproj -scheme FindMySyncPlus -destination 'platform=macOS'`. The maintainer's `build.sh` — debug run, release archive, DMG — sits one directory above the repo and is not part of it. For signing, create `Configs/Local.xcconfig` (gitignored) containing `DEVELOPMENT_TEAM = <your team id>`; `Configs/Signing.xcconfig` includes it if present. That is all `xcodebuild` needs; in Xcode, automatic signing then finds the team on its own.
+From the command line, `xcodebuild build` and `xcodebuild test` work with `-project FindMySyncPlus.xcodeproj -scheme FindMySyncPlus -destination 'platform=macOS'`. `scripts/build.sh [debug|harness|release|test]` wraps them: a Debug run, a Release build installed to `/Applications` for the harness, the release archive and DMG, or the test suite. It builds whichever checkout you are standing in, stamps that checkout's `HEAD` into the About window, and keeps its output under one `.build/` above the main checkout so the app's path — which macOS keys Local Network grants by — never changes. For signing, create `Configs/Local.xcconfig` (gitignored) containing `DEVELOPMENT_TEAM = <your team id>`; `Configs/Signing.xcconfig` includes it if present. That is all `xcodebuild` needs; in Xcode, automatic signing then finds the team on its own.
 
 ## Linting
 
@@ -111,7 +111,7 @@ Requires Full Disk Access to read the Find My cache. `FindMyRefresher.swift` can
 
 ## Testing
 
-Twenty-two test files. All use synthetic data — no real Find My files, no keys, no keychain reads. Trust
+Twenty-six test files. All use synthetic data — no real Find My files, no keys, no keychain reads. Trust
 `** TEST SUCCEEDED **` rather than counting `passed on` lines — xcodebuild interleaves
 timestamps into those, so a grep count drifts between identical runs.
 
@@ -139,6 +139,10 @@ timestamps into those, so a grep count drifts between identical runs.
 | `RicherAttributesTests` | The attributes chosen after measuring a real `Items.data`; keeps `streetAddress` and `floorLevel` struck |
 | `SyncStatusAndAvailabilityTests` | The 1.5b rules as pure functions — stable client id, availability, the status entity, skipping repeated locations and the movement threshold. The largest file, 45 tests |
 | `ViewRenderTests` | Offscreen renders of the Device Manager row views. Baseline comparison is opt-in via `FMS_BASELINE_DIR`; unset, it still asserts every variant renders and renders deterministically |
+| `AppleRecordFixtureTests` | Proves `AppleRecordFixture`, the measured record builder the other files draw on: the eleven-key `location`, the twenty-one-key item, `$null` placeholders, and `timeStamp` as an `NSNumber` that bridges to `Double` where a literal `Int` would not |
+| `RESTPayloadTests` | The `device_tracker/see` body — the six fields, `dev_id` and `host_name` equal, `mac` from the alias alone, battery as a whole percentage and absent when unreported. The REST path had no test while being every pre-MQTT user's migration path |
+| `MQTTRefreshTriggerTests` | The inbound control path through the recording publisher: a live press fires, a retained one is dropped, and switching the setting subscribes or unsubscribes now rather than at the next connection |
+| `StatusEntityTests` | `publishStatusEntity` as pure pieces — when it publishes, how the report sums the run, and the state-then-attributes sequence on the wire, both retained |
 
 Run via Xcode (Cmd+U) or xcodebuild test. A green suite is not sufficient for MQTT
 changes — verify those against the demo fixtures, which caught two defects the

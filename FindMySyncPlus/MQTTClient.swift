@@ -430,7 +430,17 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
             logger?.debug("MQTT: not connected; status entity not published this run")
             return
         }
+        publishStatus(client: client, report: report, lastSuccessfulSync: lastSuccessfulSync,
+                      prefix: prefix, iso: iso)
+    }
 
+    /// The state topic first, when there is a successful sync to name, then the attributes.
+    /// Both retained, so the entity keeps its values while the app is away.
+    func publishStatus(client: MQTTPublishing,
+                       report: SyncStatusReport,
+                       lastSuccessfulSync: Date?,
+                       prefix: String,
+                       iso: ISO8601DateFormatter) {
         if let lastSuccessfulSync {
             client.send(CocoaMQTTMessage(topic: Self.statusStateTopic(prefix: prefix),
                                          string: iso.string(from: lastSuccessfulSync),

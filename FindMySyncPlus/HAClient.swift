@@ -1,6 +1,8 @@
 import Foundation
 
-private struct HAPayload: Codable, Sendable {
+/// The body of a `device_tracker/see` call. Built by `RESTClient.payload(for:alias:)`, which
+/// is where its shape is asserted.
+struct HAPayload: Codable, Sendable {
     let dev_id: String
     let host_name: String
     let mac: String
@@ -120,6 +122,20 @@ final class RESTClient: TransportClient {
         }
     }
 
+    /// What one device becomes on the wire. `dev_id` and `host_name` are the same
+    /// `findmy_<alias>`, so the entity ID Home Assistant derives follows the alias; `mac` comes
+    /// from the alias alone, so the identity survives a UUID rotation. `battery` is a whole
+    /// percentage, and absent rather than zero when the device reports no level.
+    nonisolated static func payload(for device: DevicePoint, alias: String) -> HAPayload {
+        let dev = DeviceAlias.entityID(for: alias)
+        return HAPayload(dev_id: dev,
+                         host_name: dev,
+                         mac: macFromAlias(alias),
+                         gps: [device.latitude, device.longitude],
+                         gps_accuracy: device.accuracy,
+                         battery: device.battery.map { Int(($0 * 100).rounded()) })
+    }
+
     // MARK: - TransportClient
 
     func ensureConnected(settings: SettingsStore) async -> Bool {
@@ -188,17 +204,8 @@ final class RESTClient: TransportClient {
                         return result
                     }
 
-                    let dev = DeviceAlias.entityID(for: alias)
-                    let mac = macFromAlias(alias)
-
-                    let payload = HAPayload(
-                        dev_id: dev,
-                        host_name: dev,
-                        mac: mac,
-                        gps: [d.latitude, d.longitude],
-                        gps_accuracy: d.accuracy,
-                        battery: d.battery.map { Int(($0 * 100).rounded()) }
-                    )
+                    let payload = RESTClient.payload(for: d, alias: alias)
+                    let dev = payload.dev_id
 
                     guard let body = try? JSONEncoder().encode(payload) else {
                         result = .transient(id: d.id, reason: "Failed to encode JSON payload.")

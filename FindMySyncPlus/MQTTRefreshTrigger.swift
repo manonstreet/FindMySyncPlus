@@ -25,12 +25,16 @@ extension MQTTClient {
             logger?.info("MQTT: not connected — sync requests will be set up on the next connection")
             return
         }
+        applyRefreshTriggerSetting(client: client, enabled: enabled, prefix: prefix)
+    }
 
+    /// The connected half, on whichever connection is handed in.
+    func applyRefreshTriggerSetting(client: MQTTPublishing, enabled: Bool, prefix: String) {
         let topic = Self.refreshSyncTopic(prefix: prefix)
         if enabled {
-            client.subscribe(topic, qos: .qos1)
+            client.subscribe(to: topic)
         } else {
-            client.unsubscribe(topic)
+            client.unsubscribe(from: topic)
             logger?.info("MQTT unsubscribed from \(topic)")
         }
 
@@ -44,8 +48,12 @@ extension MQTTClient {
     /// can be asserted on; a delegate callback cannot be reached by a test.
     func handleInbound(topic: String, retained: Bool) {
         guard let settings else { return }
-        let refreshTopic = Self.refreshSyncTopic(prefix: settings.mqttTopicPrefix)
+        handleInbound(topic: topic, retained: retained,
+                      refreshTopic: Self.refreshSyncTopic(prefix: settings.mqttTopicPrefix))
+    }
 
+    /// The decision and what follows from it, with the refresh topic handed in.
+    func handleInbound(topic: String, retained: Bool, refreshTopic: String) {
         switch Self.inboundOutcome(topic: topic, retained: retained, refreshTopic: refreshTopic) {
         case .ignoredTopic:
             logger?.debug("MQTT: ignoring a message on \(topic)")
