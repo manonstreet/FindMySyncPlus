@@ -55,8 +55,9 @@ class ViewRenderTests: XCTestCase {
     private static let minPixels = 16
 
     /// Collected as renders happen and written once, so the index cannot disagree with the
-    /// images it describes.
-    private static var manifest: [[String: Any]] = []
+    /// images it describes. Appended from @MainActor tests and read in the class-level
+    /// tearDown, which XCTest runs on the main thread; hence `nonisolated(unsafe)`.
+    private nonisolated(unsafe) static var manifest: [[String: Any]] = []
 
     private var baselineDir: URL? {
         guard let p = ProcessInfo.processInfo.environment["FMS_BASELINE_DIR"], !p.isEmpty
@@ -181,7 +182,7 @@ class ViewRenderTests: XCTestCase {
         }
     }
 
-    private func row(tracked: Bool = true,
+    @MainActor private func row(tracked: Bool = true,
                      uuids: [String] = ["A1B2C3D4-0000-0000-0000-000000000001"],
                      lastSeen: String? = "Test AirTag",
                      badge: DeviceSource? = .item,

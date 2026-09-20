@@ -15,8 +15,8 @@ import Foundation
 struct GroupPositionAttributesTests {
 
     private static let parentID = "11111111-1111-1111-1111-111111111111"
-    private static let interval: TimeInterval = 300
-    private static let base = Date(timeIntervalSince1970: 1_600_000_000)
+    private nonisolated static let interval: TimeInterval = 300
+    private nonisolated static let base = Date(timeIntervalSince1970: 1_600_000_000)
 
     private func child(_ name: String, lat: Double, lon: Double,
                        accuracy: Double = 25, offset: TimeInterval = 0,
@@ -181,16 +181,16 @@ struct GroupPositionAttributesTests {
     // MARK: - where the pieces are, published only while they are apart
 
     @Test("each piece is listed with its address and how old that is")
-    func piecesCarryAddressAndAge() {
+    func piecesCarryAddressAndAge() throws {
         let summaries = SyncEngine.pieceSummaries([
             child("Case", lat: 43.0598, lon: -77.6425, address: "9 Aaaaaaa Aa, Aaaaaaaaa"),
             child("Right Bud", lat: 43.0650, lon: -77.6425, address: "99 Aaaa Aa, Aaaaaa")
         ])
-        let entries = try? #require(summaries)
-        #expect(entries?.count == 2)
-        #expect(entries?.first?["name"] == "Case")
-        #expect(entries?.first?["address"] == "9 Aaaaaaa Aa, Aaaaaaaaa")
-        #expect(entries?.first?["age"] != nil)
+        let entries = try #require(summaries)
+        #expect(entries.count == 2)
+        #expect(entries.first?["name"] == "Case")
+        #expect(entries.first?["address"] == "9 Aaaaaaa Aa, Aaaaaaaaa")
+        #expect(entries.first?["age"] != nil)
     }
 
     /// Not every record carries an address. The name and age are the useful half.

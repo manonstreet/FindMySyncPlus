@@ -17,8 +17,8 @@ import Foundation
 @MainActor
 struct DuplicateIdentityTests {
 
-    private static let sharedID = "24:F6:77:BC:53:DA"
-    private static let base = Date(timeIntervalSince1970: 1_600_000_000)
+    private nonisolated static let sharedID = "24:F6:77:BC:53:DA"
+    private nonisolated static let base = Date(timeIntervalSince1970: 1_600_000_000)
 
     private func record(_ name: String, prsId: String?, offset: TimeInterval = 0,
                         id: String = sharedID, type: String? = "Wifi") -> DevicePoint {
