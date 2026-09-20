@@ -17,21 +17,13 @@
 			containerPortal = 5DA3BFE52E5B3B8800B73B01 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = 5DA3BFEC2E5B3B8800B73B01;
-			remoteInfo = FindMySequoia;
-		};
-		5DA3C0062E5B3B8900B73B01 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 5DA3BFE52E5B3B8800B73B01 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 5DA3BFEC2E5B3B8800B73B01;
-			remoteInfo = FindMySequoia;
+			remoteInfo = FindMySyncPlus;
 		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		5DA3BFED2E5B3B8800B73B01 /* FindMySyncPlus.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FindMySyncPlus.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		5DA3BFFB2E5B3B8900B73B01 /* FindMySyncPlusTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FindMySyncPlusTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		5DA3C0052E5B3B8900B73B01 /* FindMySyncPlusUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FindMySyncPlusUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -77,13 +69,6 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		5DA3C0022E5B3B8900B73B01 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -101,7 +86,6 @@
 			children = (
 				5DA3BFED2E5B3B8800B73B01 /* FindMySyncPlus.app */,
 				5DA3BFFB2E5B3B8900B73B01 /* FindMySyncPlusTests.xctest */,
-				5DA3C0052E5B3B8900B73B01 /* FindMySyncPlusUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -129,7 +113,7 @@
 				5DAE2C4A2E73A82E00EF354B /* Ink */,
 				MQTT0002MQTT0002MQTT0002 /* CocoaMQTT */,
 			);
-			productName = FindMySequoia;
+			productName = FindMySyncPlus;
 			productReference = 5DA3BFED2E5B3B8800B73B01 /* FindMySyncPlus.app */;
 			productType = "com.apple.product-type.application";
 		};
@@ -152,29 +136,9 @@
 			name = FindMySyncPlusTests;
 			packageProductDependencies = (
 			);
-			productName = FindMySequoiaTests;
+			productName = FindMySyncPlusTests;
 			productReference = 5DA3BFFB2E5B3B8900B73B01 /* FindMySyncPlusTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
-		};
-		5DA3C0042E5B3B8900B73B01 /* FindMySyncPlusUITests */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = 5DA3C0152E5B3B8900B73B01 /* Build configuration list for PBXNativeTarget "FindMySyncPlusUITests" */;
-			buildPhases = (
-				5DA3C0012E5B3B8900B73B01 /* Sources */,
-				5DA3C0022E5B3B8900B73B01 /* Frameworks */,
-				5DA3C0032E5B3B8900B73B01 /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-				5DA3C0072E5B3B8900B73B01 /* PBXTargetDependency */,
-			);
-			name = FindMySyncPlusUITests;
-			packageProductDependencies = (
-			);
-			productName = FindMySequoiaUITests;
-			productReference = 5DA3C0052E5B3B8900B73B01 /* FindMySyncPlusUITests.xctest */;
-			productType = "com.apple.product-type.bundle.ui-testing";
 		};
 /* End PBXNativeTarget section */
 
@@ -190,10 +154,6 @@
 						CreatedOnToolsVersion = 16.4;
 					};
 					5DA3BFFA2E5B3B8900B73B01 = {
-						CreatedOnToolsVersion = 16.4;
-						TestTargetID = 5DA3BFEC2E5B3B8800B73B01;
-					};
-					5DA3C0042E5B3B8900B73B01 = {
 						CreatedOnToolsVersion = 16.4;
 						TestTargetID = 5DA3BFEC2E5B3B8800B73B01;
 					};
@@ -219,7 +179,6 @@
 			targets = (
 				5DA3BFEC2E5B3B8800B73B01 /* FindMySyncPlus */,
 				5DA3BFFA2E5B3B8900B73B01 /* FindMySyncPlusTests */,
-				5DA3C0042E5B3B8900B73B01 /* FindMySyncPlusUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -233,13 +192,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		5DA3BFF92E5B3B8900B73B01 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		5DA3C0032E5B3B8900B73B01 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -264,13 +216,6 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		5DA3C0012E5B3B8900B73B01 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -278,11 +223,6 @@
 			isa = PBXTargetDependency;
 			target = 5DA3BFEC2E5B3B8800B73B01 /* FindMySyncPlus */;
 			targetProxy = 5DA3BFFC2E5B3B8900B73B01 /* PBXContainerItemProxy */;
-		};
-		5DA3C0072E5B3B8900B73B01 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = 5DA3BFEC2E5B3B8800B73B01 /* FindMySyncPlus */;
-			targetProxy = 5DA3C0062E5B3B8900B73B01 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -501,7 +441,7 @@
 				INFOPLIST_FILE = "";
 				MACOSX_DEPLOYMENT_TARGET = 14.4;
 				MARKETING_VERSION = 1.5b;
-				PRODUCT_BUNDLE_IDENTIFIER = com.manonstreet.FindMySequoiaTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.manonstreet.FindMySyncPlusTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -522,52 +462,12 @@
 				INFOPLIST_FILE = "";
 				MACOSX_DEPLOYMENT_TARGET = 14.4;
 				MARKETING_VERSION = 1.5b;
-				PRODUCT_BUNDLE_IDENTIFIER = com.manonstreet.FindMySequoiaTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.manonstreet.FindMySyncPlusTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/FindMySyncPlus.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/FindMySyncPlus";
-			};
-			name = Release;
-		};
-		5DA3C0162E5B3B8900B73B01 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CODE_SIGN_STYLE = Manual;
-				CURRENT_PROJECT_VERSION = 1;
-				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_TEAM = "";
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = "";
-				MACOSX_DEPLOYMENT_TARGET = 14.4;
-				MARKETING_VERSION = 1.5b;
-				PRODUCT_BUNDLE_IDENTIFIER = com.manonstreet.FindMySequoiaUITests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				PROVISIONING_PROFILE_SPECIFIER = "";
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_VERSION = 5.0;
-				TEST_TARGET_NAME = FindMySequoia;
-			};
-			name = Debug;
-		};
-		5DA3C0172E5B3B8900B73B01 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CODE_SIGN_STYLE = Manual;
-				CURRENT_PROJECT_VERSION = 1;
-				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_TEAM = "";
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = "";
-				MACOSX_DEPLOYMENT_TARGET = 14.4;
-				MARKETING_VERSION = 1.5b;
-				PRODUCT_BUNDLE_IDENTIFIER = com.manonstreet.FindMySequoiaUITests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				PROVISIONING_PROFILE_SPECIFIER = "";
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_VERSION = 5.0;
-				TEST_TARGET_NAME = FindMySequoia;
 			};
 			name = Release;
 		};
@@ -597,15 +497,6 @@
 			buildConfigurations = (
 				5DA3C0132E5B3B8900B73B01 /* Debug */,
 				5DA3C0142E5B3B8900B73B01 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		5DA3C0152E5B3B8900B73B01 /* Build configuration list for PBXNativeTarget "FindMySyncPlusUITests" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				5DA3C0162E5B3B8900B73B01 /* Debug */,
-				5DA3C0172E5B3B8900B73B01 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
