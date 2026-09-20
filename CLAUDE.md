@@ -85,7 +85,10 @@ Requires Full Disk Access to read the Find My cache. `FindMyRefresher.swift` can
 | File | Role |
 |------|------|
 | `Models/AppModel.swift` | Scheduler, UI state, counters; delegates sync to `SyncEngine` |
-| `SyncEngine.swift` | Orchestrates one sync run via decomposed pipeline: `ensureKeys` → `readCaches` → `readFriends` → `enrichFriendNames` → `buildPlanAndLog` → `postAndReport`. Routes posting through `TransportClient` protocol. |
+| `SyncEngine.swift` | Orchestrates one sync run via decomposed pipeline: `ensureKeys` → `readCaches` → `readFriends` → `enrichFriendNames` → `buildPlanAndLog` → `postAndReport`. Routes posting through `TransportClient` protocol. The two big phases live in their own extension files below |
+| `SyncEngineParsing.swift` | `readAndParseCaches` as named steps: read and decrypt each cache, resolve group parents from both files, parse to `DevicePoint`, give groups their positions and separation state, publish the located entries to the UI |
+| `SyncEnginePlanning.swift` | `buildPlanAndLog` as named steps: a device pass and a friend pass into one `PlanAccumulator`, with auto-learn and group-membership persistence factored out; then the unaliased-child filter, dedupe, and the run's metrics |
+| `SyncEngineGrouping.swift` | Recognizing a group from either source, backfilling a parent's position from its pieces, separation, and the duplicate-id tie-break |
 | `TransportClient.swift` | Protocol defining `post()`, `ensureConnected()`, `testConnection()` + shared `PostSummary` type |
 | `HAClient.swift` | `RESTClient` — `@MainActor final class` conforming to `TransportClient`; HTTP posting + auth testing |
 | `MQTTClient.swift` | `MQTTClient` — `@MainActor final class` conforming to `TransportClient`; MQTT with HA auto-discovery, rich attributes, auto-reconnect |
