@@ -55,33 +55,18 @@ final class SyncEngineGroupingTests: XCTestCase {
     // MARK: - backfillParentLocations
 
     private func parentRaw(id: String, lat: Double, ts: Double, isOld: Bool) -> [String: Any] {
-        return [
-            "baUUID": id,
-            "name": id,
-            "itemGroup": ["items": [Any]()],
-            "location": [
-                "latitude": lat,
-                "longitude": lat,
-                "horizontalAccuracy": 1.0,
-                "timeStamp": ts,
-                "isOld": isOld
-            ]
-        ]
+        AppleRecordFixture.groupParent(
+            name: id, baUUID: id, members: [],
+            location: AppleRecordFixture.location(latitude: lat, longitude: lat, accuracy: 1.0,
+                                                  timeStampMs: ts, isOld: isOld))
     }
 
     private func childRaw(id: String, parentID: String, lat: Double, ts: Double) -> [String: Any] {
-        return [
-            "identifier": id,
-            "groupIdentifier": parentID,
-            "name": id,
-            "location": [
-                "latitude": lat,
-                "longitude": lat,
-                "horizontalAccuracy": 1.0,
-                "timeStamp": ts,
-                "isOld": false
-            ]
-        ]
+        AppleRecordFixture.item(
+            name: id, identifier: id,
+            location: AppleRecordFixture.location(latitude: lat, longitude: lat, accuracy: 1.0,
+                                                  timeStampMs: ts),
+            groupIdentifier: parentID, piece: id)
     }
 
     private func parsedDevicePoint(from raw: [String: Any], parentID: String? = nil) -> DevicePoint {

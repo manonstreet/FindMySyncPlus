@@ -46,25 +46,11 @@ struct RicherAttributesTests {
         return record
     }
 
-    /// The 19-sub-key shape measured 2026-08-30, trimmed to the keys that matter here.
-    /// `streetAddress` is the house number on purpose — that is what the real record
-    /// holds, and a fixture that made it a street line would hide why it was struck.
+    /// The nineteen-key shape, with `streetAddress` the house number — what the real record
+    /// holds, and why `mediumAddressModern` is the key that is read.
     private func realisticAddress() -> [String: Any] {
-        [
-            "streetAddress": "999",
-            "streetName": "Example St",
-            "locality": "Springfield",
-            "stateCode": "MA",
-            "countryCode": "US",
-            "label": "999 Example St",
-            "fullThroroughfare": "999 Example St",
-            "streetAddressModern": "Example St",
-            "smallAddressModern": "Example St, Springfield",
-            "mediumAddressModern": "999 Example St, Springfield",
-            "largeAddressModern": "999 Example St, Springfield, MA  01103",
-            "mapItemFullAddress": "999 Example St, Springfield, MA  01103",
-            "coarseAddressModern": "Springfield, MA"
-        ]
+        AppleRecordFixture.address(number: "999", street: "Example St", city: "Springfield",
+                                   state: "MA", zip: "01103", county: "Hampden County")
     }
 
     // MARK: - Parsing

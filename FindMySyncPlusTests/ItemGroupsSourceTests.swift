@@ -27,18 +27,7 @@ struct ItemGroupsSourceTests {
     /// The ten-key shape measured on a live cache, reproduced whole — a fixture that is
     /// a subset of the real record is how this release lost time five separate times.
     private func groupRecord(id: String, name: String, members: [String]) -> [String: Any] {
-        [
-            "identifier": id,
-            "name": name,
-            "state": 129,
-            "capabilities": 798,
-            "itemIdentifiers": members,
-            "groupedItemIdentifiers": members.isEmpty ? [] : [members[0]],
-            "items": members,
-            "groupedItems": members.isEmpty ? [] : [members[0]],
-            "itemPairingStateMap": members.isEmpty ? [:] : [members[0]: 1],
-            "lostMetadata": "$null"
-        ]
+        AppleRecordFixture.group(identifier: id, name: name, members: members)
     }
 
     private func child(id: String, parentID: String) -> DevicePoint {
