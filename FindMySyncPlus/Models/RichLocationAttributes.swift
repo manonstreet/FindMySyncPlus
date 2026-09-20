@@ -8,64 +8,39 @@ struct RichLocationAttributes: Sendable {
     let timestamp: Date?
     let motionActivityState: Int?
     let locationLabel: String?
-    /// Apple's own staleness flag for the fix, passed through rather than turned
-    /// into a rule of ours about what counts as stale. Absent stays absent: a
-    /// fabricated `false` would claim Apple called the fix current, which is a
-    /// different statement from Apple saying nothing.
+    /// Apple's own staleness flag, passed through rather than turned into a rule of ours.
+    /// Absent stays absent: a fabricated `false` would claim Apple called the fix current.
     let isOld: Bool?
     /// Apple's name for how the fix was obtained — `Wifi`, `GPS`, `crowdsourced`,
-    /// `ownedDeviceLocation` so far. Passed through verbatim: an unmapped value must
-    /// stay visible rather than be folded into a plausible-looking default.
-    ///
-    /// It matters most when a position came from the crowdsourced fallback, where the
-    /// source would otherwise be silently substituted.
+    /// `ownedDeviceLocation` so far. Passed through verbatim: an unmapped value must stay
+    /// visible rather than be folded into a plausible default.
     let positionType: String?
-    /// Apple's own accuracy judgement on the fix, passed through the same way `isOld`
-    /// is. Measured `false` on every item so far, so the `true` branch is unexercised —
-    /// which is a reason not to claim it is validated, not a reason to withhold it.
+    /// Apple's own accuracy judgement, passed through like `isOld`. The `true` branch has not
+    /// been observed, which is a reason not to claim it is validated, not to withhold it.
     let isInaccurate: Bool?
-    /// The category picked when an item is set up on iPhone — one of a fixed list
-    /// (Backpack, Keys, Wallet, …), with the emoji chosen beside it. Items only; a
-    /// device carries none.
-    ///
-    /// Absent when the owner typed a name instead of picking a category: Apple stores
-    /// the literal string "Custom Name" there, and the name they actually typed is the
-    /// item's `name`. `CacheDecryptor` drops that placeholder, so this is either a real
-    /// category or nothing.
+    /// The category picked when an item is set up on iPhone — Backpack, Keys, Wallet — with
+    /// the emoji chosen beside it. Items only. Absent when the owner typed a name instead:
+    /// Apple stores the literal "Custom Name" there, which `CacheDecryptor` drops.
     let role: String?
     let roleEmoji: String?
-    /// One pre-formatted address line, `address.mediumAddressModern` — house number,
-    /// street and city. Apple writes four widths and this is the one chosen; nothing is
-    /// assembled or parsed here.
-    ///
-    /// Deliberately not `streetAddress`, which is the house number alone, and not the
-    /// whole `address` dict, which is ~670 B churning on every position change.
+    /// One pre-formatted address line, `address.mediumAddressModern`. Not `streetAddress`,
+    /// which is the house number alone, and not the whole `address` dict, which churns on
+    /// every position change.
     let address: String?
-    /// Which piece a grouped entity's coordinate came from — `Case`, `Left Bud` — or
-    /// `self` when the group's own record supplied it.
-    ///
-    /// A group's position is sometimes its own and sometimes borrowed, and without this
-    /// the two are indistinguishable. `self` covers a coordinate Apple sourced elsewhere
-    /// too: it is still the group's record that holds it, and inferring otherwise would
-    /// mean cross-matching against other devices.
+    /// Which piece a grouped entity's coordinate came from — `Case`, `Left Bud` — or `self`
+    /// when the group's own record supplied it. Without this a borrowed position and an own
+    /// position are indistinguishable.
     let positionSource: String?
-    /// Whether the pieces of a grouped accessory are `together`, `separated`, or
-    /// `unknown` because at least one position is too stale to compare.
-    ///
-    /// Three states rather than a boolean: a stale piece 40 km away means it reported
-    /// yesterday, not that it is elsewhere now.
+    /// Whether the pieces of a grouped accessory are `together`, `separated`, or `unknown`
+    /// because a position is too stale to compare. Three states, not a boolean: a stale piece
+    /// 40 km away means it reported yesterday, not that it is elsewhere now.
     let separationStatus: String?
-    /// Where each piece of a separated group is: name, address and age, one entry per
-    /// piece.
-    ///
-    /// Carried only while `separationStatus` is `separated`, because that is the moment a
-    /// piece has been left somewhere and the question "which one, and where" has an
-    /// answer worth publishing. A tracker entity per piece answers it badly — it is
-    /// permanent, and the question is momentary.
+    /// Where each piece of a separated group is: name, address and age. Carried only while
+    /// `separationStatus` is `separated` — the moment a piece has been left somewhere and
+    /// "which one, and where" has an answer worth publishing.
     let pieces: [[String: String]]?
 
-    /// Explicit rather than memberwise so `isOld` can default — every other field
-    /// is a `let` with no default, so adding one would otherwise break all five
+    /// Explicit rather than memberwise so the later fields can default without breaking
     /// existing call sites.
     init(verticalAccuracy: Double?,
          altitude: Double?,
@@ -101,14 +76,10 @@ struct RichLocationAttributes: Sendable {
         self.pieces = pieces
     }
 
-    /// Overlay `other`'s populated fields onto these, field by field.
-    ///
-    /// A family device appears in both caches: FMIP gives the location plus
-    /// `timestamp` and `isOld`, and the friend record in LocalStorage gives the
-    /// richer fields — altitude, speed, course, motion state, location label. The
-    /// friend record wins wherever it has a value, which preserves the behavior
-    /// from when it replaced the device's attributes outright; ours fill the gaps
-    /// it does not cover, `isOld` in particular, which only FMIP reports.
+    /// Overlay `other`'s populated fields onto these. A family device appears in both caches:
+    /// FMIP gives the location, `timestamp` and `isOld`; the LocalStorage friend record gives
+    /// the richer fields. The friend record wins wherever it has a value; ours fill the gaps,
+    /// `isOld` in particular, which only FMIP reports.
     func mergedPreferring(_ other: RichLocationAttributes) -> RichLocationAttributes {
         RichLocationAttributes(
             verticalAccuracy: other.verticalAccuracy ?? verticalAccuracy,
@@ -120,9 +91,8 @@ struct RichLocationAttributes: Sendable {
             locationLabel: other.locationLabel ?? locationLabel,
             isOld: other.isOld ?? isOld,
             positionType: other.positionType ?? positionType,
-            // Only FMIP records carry these four — a friend record has no role and no
-            // address — so in practice ours always survive. Merged the same way
-            // regardless, so the rule stays one rule.
+            // Only FMIP records carry these — a friend record has no role or address — so ours
+            // survive in practice. Merged the same way regardless, so the rule stays one rule.
             isInaccurate: other.isInaccurate ?? isInaccurate,
             role: other.role ?? role,
             roleEmoji: other.roleEmoji ?? roleEmoji,
@@ -133,11 +103,8 @@ struct RichLocationAttributes: Sendable {
         )
     }
 
-    /// A copy naming where a grouped entity's coordinate came from.
-    ///
-    /// The backfill already decides this — it either keeps the parent's own position or
-    /// takes a child's — so the value is recorded at the point of the decision rather
-    /// than reconstructed afterwards.
+    /// A copy naming where a grouped entity's coordinate came from, recorded at the point
+    /// the backfill decides it rather than reconstructed afterwards.
     func namingSource(_ source: String) -> RichLocationAttributes {
         RichLocationAttributes(
             verticalAccuracy: verticalAccuracy, altitude: altitude,
@@ -179,10 +146,9 @@ struct RichLocationAttributes: Sendable {
         case 5: return "Cycling"
         case .none: return "Unknown"
         case .some(let raw):
-            // Apple has added activity types before. Folding an unmapped value into
-            // "Unknown" makes it indistinguishable from a genuine 0 and impossible to
-            // notice, so the raw value stays visible — the same reasoning as
-            // `decodeLocationLabel` passing unrecognized input through unchanged.
+            // Apple has added activity types before. Folding an unmapped value into "Unknown"
+            // makes it indistinguishable from a genuine 0, so the raw value stays visible — the
+            // same reasoning as `decodeLocationLabel` passing unrecognized input through.
             return "Unmapped(\(raw))"
         }
     }

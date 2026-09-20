@@ -3,33 +3,23 @@ import Foundation
 /// Splits the Aliases list into top-level rows, their nested children, and headers for
 /// groups that are not themselves aliased.
 ///
-/// The Aliases list is persisted config: it holds rows for devices that did not report
-/// this cycle, which is normal for anything offline. So the join for an **aliased**
-/// parent is the persisted `parentAlias` rather than the run-scoped `parentID` map the
-/// Unassigned list uses — joining persisted rows against live UUIDs would go flat for
-/// every offline group, and UUIDs rotate while aliases do not.
+/// The Aliases list is persisted config and holds rows for devices that did not report
+/// this cycle, so an aliased parent joins on the persisted `parentAlias`, not the run-scoped
+/// `parentID` map the Unassigned list uses — UUIDs rotate, aliases do not, and a live join
+/// would go flat for every offline group. A row nests exactly when its `parentAlias` names
+/// another row in the list.
 ///
-/// A row nests exactly when its `parentAlias` names another row present in the list.
-/// That is the whole rule: the "once every member is aliased" condition earlier drafts
-/// described needs no evaluating, because a list of aliases contains only aliases.
+/// Headers cover the case that rule cannot reach: `parentAlias` is written only when both
+/// ends are aliased, so a user who aliased the children and never the group has nothing
+/// stored. The header is drawn from the live grouping instead, which is sound because an
+/// unaliased parent only reaches the list through a reporting child.
 ///
-/// **Headers cover the case that rule cannot reach.** `parentAlias` is written only when
-/// both ends are aliased, so a user who aliased the children and never the group has no
-/// stored value (issue #22). Those rows would otherwise sit flat. A header is drawn
-/// from the live grouping instead, since it is the only source available; that is sound
-/// rather than a compromise, because an unaliased parent with no position of its own
-/// only reaches the list through revival, and revival needs a reporting child. Whenever
-/// a child is present to nest, the parent is present to nest under.
-///
-/// Pure and value-typed so it can be tested away from the view — the cases it has to
-/// survive come from three real systems, not from imagination. See `AliasNestingTests`.
+/// Pure and value-typed so it can be tested away from the view — see `AliasNestingTests`.
 struct AliasPartition {
 
-    /// A group that is not itself aliased, shown so its aliased children can nest.
-    ///
-    /// Not an alias and not pretending to be one: it carries no entity, no tracking and
-    /// no rename or delete. Assigning it is the Unassigned pane's job, and once assigned
-    /// a real row replaces it in place.
+    /// A group that is not itself aliased, shown so its aliased children can nest. Not an
+    /// alias: it carries no entity, tracking, rename or delete. Assigning it is the Unassigned
+    /// pane's job; once assigned, a real row replaces it in place.
     struct Header: Equatable {
         /// The parent's normalized id — stable within a run, and what the children join on.
         let id: String
@@ -65,11 +55,8 @@ struct AliasPartition {
 
         // An alias that owns one of those ids is the parent itself, not one of its own
         // children — without this it would nest under a header bearing its own name.
-        //
-        // Matched on `knownUUIDs` rather than on a live lookup, so an aliased parent
-        // still supersedes a header when it did not report. Checking `liveGroups` alone
-        // drew both a real row and a header for one group as soon as the persisted
-        // fallback below could fire.
+        // Matched on `knownUUIDs` rather than a live lookup, so an aliased parent still
+        // supersedes a header when it did not report.
         let parentAliasByGroupID: [String: String] = Dictionary(
             aliases.flatMap { row in
                 row.knownUUIDs.filter { knownGroupIDs.contains($0) }.map { ($0, row.alias) }
@@ -86,11 +73,9 @@ struct AliasPartition {
                 continue
             }
 
-            // No `parentAlias`, but the group's own row exists and owns this id. That is
-            // the state left by aliasing a group *after* its children — the join was
-            // observed when the group had no alias to record, so only the id was stored.
-            // Nest under the real row: a header beside it would draw the same group
-            // twice, and top level would lose the nesting the user just created.
+            // No `parentAlias`, but the group's own row exists and owns this id — the state
+            // left by aliasing a group after its children. Nest under the real row; a header
+            // beside it would draw the same group twice.
             if let groupID = row.parentGroupID,
                let parent = parentAliasByGroupID[groupID],
                parent != row.alias {
@@ -108,11 +93,9 @@ struct AliasPartition {
                 continue
             }
 
-            // Nothing live: use what the child persisted about its group. This is what
-            // makes a header behave like the rest of this list — present whether or not
-            // anything reported — and it covers two states the live path cannot. A group
-            // whose alias was deleted leaves its children pointing at a row that is
-            // gone, and a group that has never reported has no live entry to find.
+            // Nothing live: use what the child persisted. This is what makes a header present
+            // whether or not anything reported, and covers a group whose alias was deleted
+            // and a group that has never reported.
             if let groupID = row.parentGroupID,
                !row.knownUUIDs.contains(groupID),
                !aliasedParentIDs.contains(groupID) {
@@ -156,10 +139,8 @@ struct AliasPartition {
         childrenByHeader[id] ?? []
     }
 
-    /// True when nothing nests — every row is top-level, with no headers either.
-    ///
-    /// The normal state on a Mac where no device record carries an `itemGroup` and the
-    /// group is only described in `ItemGroups.data`: no join is ever observed, so no
-    /// child acquires a `parentAlias` and no live grouping exists to draw a header from.
+    /// True when nothing nests. The normal state on a Mac where no device record carries an
+    /// `itemGroup` and the group lives only in `ItemGroups.data`: no join is observed, so no
+    /// child acquires a `parentAlias` and there is no live grouping to draw a header from.
     var isFlat: Bool { childrenByParent.isEmpty && childrenByHeader.isEmpty }
 }

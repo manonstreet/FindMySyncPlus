@@ -1,20 +1,12 @@
 import SwiftUI
 import AppKit
 
-/// Renders the app's screens to PNGs after a sync run, then quits.
-///
-/// Inert unless `demoRenderExport` is set, the same contract as `demoRoot`
-/// (`CacheDecryptor.swift`) and `demoLogLevel` (`SettingsStore.swift`). It is deliberately
-/// **not** `#if DEBUG`: the demo session runs the installed release build, so debug-only code
-/// would not be there to fire.
-///
-/// Pointed at a fixture tree through `demoRoot`, this makes a run headless end to end —
-/// generate a shape, launch, render, quit — with nothing driving the UI. Nothing is clicked;
-/// `ImageRenderer` draws a view value offscreen, so no window is ever shown.
-///
-/// The screens rendered here differ from `ViewRenderTests` in the one way that matters: the
-/// app computes what they show from the cache, so a change to parsing, grouping or backfill
-/// moves the picture. A component render draws the values it was handed and cannot.
+/// Renders the app's screens to PNGs after a sync run, then quits. Inert unless
+/// `demoRenderExport` is set, the same contract as `demoRoot` and `demoLogLevel`; not
+/// `#if DEBUG`, because the demo session runs the installed release build. Nothing is
+/// clicked — `ImageRenderer` draws offscreen. Unlike `ViewRenderTests`, what these screens
+/// show is computed from the cache, so a change to parsing, grouping or backfill moves the
+/// picture.
 enum ViewSnapshotExport {
 
     /// Where to write. Absent means do nothing.
@@ -25,19 +17,11 @@ enum ViewSnapshotExport {
         return URL(fileURLWithPath: path)
     }
 
-    /// Screens to render besides the Device Manager, comma-separated. Empty means none.
-    ///
-    /// Set by the driver for **one** case only: these screens show settings and status, not
-    /// device data, so they do not vary with the fixture and rendering them ten times would
-    /// be ten copies of the same picture.
-    ///
-    /// **Their AppKit-drawn controls render as placeholders** — every `Toggle` with
-    /// `.toggleStyle(.switch)`, every `Stepper`, and `ToolTipOverlay`. That is expected and it
-    /// does not make the baseline worthless: the placeholder is deterministic, so it never
-    /// causes a false failure, and everything around it is real. A card vanishing, a label
-    /// changing, wrong data or a broken layout all still show. Partial coverage of a screen
-    /// beats none, and the fix when it is wanted is a custom `ToggleStyle` in the shape of
-    /// `CompactSwitchStyle`, which already renders correctly.
+    /// Screens to render besides the Device Manager, comma-separated. Set by the driver for
+    /// one case only: these screens show settings and status, not device data. Their
+    /// AppKit-drawn controls (`.switch` toggles, steppers, `ToolTipOverlay`) render as a
+    /// deterministic placeholder, so they never cause a false failure and everything around
+    /// them is real.
     static var extraScreens: [String] {
         (UserDefaults.standard.string(forKey: "demoRenderScreens") ?? "")
             .split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
@@ -52,17 +36,9 @@ enum ViewSnapshotExport {
     /// Renders are compared pixel by pixel, so everything except the code under test is
     /// pinned. Matches `ViewRenderTests`; the two must move together.
     private static let scale: CGFloat = 2
-    /// Width is fixed; height follows the content.
-    ///
-    /// Two earlier attempts were wrong in opposite directions. A fixed 1200 clipped the
-    /// *Aliases* section header off the bottom, so the two lists ran together and the render
-    /// read as one undivided list. An unbounded height let `SectionCard`'s `GeometryReader`
-    /// background expand and paint over the pane below, and the same header vanished under
-    /// it — nothing looked broken, a section title simply was not there.
-    ///
-    /// `SnapshotSafeVSplit` fixes its vertical size while rendering, which gives the stack a
-    /// definite ideal height. The image then ends where the content does: nothing clipped,
-    /// nothing overpainted, and no acres of empty card.
+    /// Width is fixed; height follows the content. `AppVSplit` fixes its vertical size while
+    /// rendering, which gives the stack a definite ideal height, so the image ends where the
+    /// content does — nothing clipped, nothing overpainted.
     private static let renderWidth: CGFloat = 900
 
     private static let lightCanvas = Color(red: 1, green: 1, blue: 1)
@@ -70,25 +46,18 @@ enum ViewSnapshotExport {
 
     @MainActor private static var didExport = false
 
-    /// True only while a render is in flight. `SnapshotSafeVSplit` and `SnapshotSafeScroll`
-    /// read it to substitute a plain stack for a container `ImageRenderer` cannot draw.
+    /// True only while a render is in flight. `AppVSplit` and `AppScroll` read it to
+    /// substitute a plain stack for a container `ImageRenderer` cannot draw.
     @MainActor private(set) static var isRendering = false
 
+    /// How long to wait after the run before capturing. Not padding: the run's log lines
+    /// are appended through `DispatchQueue.main.async` and are still queued when the run
+    /// returns, so an immediate capture logged a run that stopped at pre-flight beside a
+    /// fully rendered device list. The wait also lets MQTT publishes reach the broker.
+    private static let settleSeconds: TimeInterval = 3
 
     /// Called when a run finishes. Renders once, then terminates so the demo session's
     /// restore trap fires.
-    /// How long to wait after the run before capturing.
-    ///
-    /// **Not padding.** `resetAfterRun` is a `defer`, so it runs while the log lines the run
-    /// produced are still queued: `LogStore.log` appends through `DispatchQueue.main.async`,
-    /// and those blocks do not execute until the current work item yields. Capturing
-    /// immediately produced a log that stopped at pre-flight and a broker that had seen zero
-    /// publishes, while the renders showed a fully parsed device list — the state was right
-    /// and the record of how it got there was missing.
-    ///
-    /// The wait also lets the run's MQTT publishes reach the broker before the app quits.
-    private static let settleSeconds: TimeInterval = 3
-
     @MainActor
     static func exportIfRequested(app: AppModel, settings: SettingsStore, logger: LogStore) {
         guard outputDirectory != nil else { return }
@@ -100,22 +69,10 @@ enum ViewSnapshotExport {
         }
     }
 
-    /// The run's log, in the Status window's Copy format.
-    ///
-    /// This is what closes the loop: fixtures control the input, the renders show what the UI
-    /// made of it, and this shows what the engine said while doing it. Numbers a render cannot
-    /// show — how many records were discovered, what was dropped and why, what was posted —
-    /// are all here, and a guard that fired silently is visible by its absence.
-    ///
-    /// Byte-identical to the Copy button because both call `LogStore.plainText()`, so a
-    /// headless run produces the same artifact a reporter would paste into an issue.
     /// Records the Aliases list's shape while a snapshot is in flight, once per render.
-    ///
-    /// Headers and nesting exist only in the UI. Without this a case can assert every field
-    /// of every payload and still not notice the list going flat, which is exactly what
-    /// issue #22 reported and what §6.1 was built to fix.
-    ///
-    /// Returns `false` so it can sit in a `let _ =` inside a `ViewBuilder`.
+    /// Headers and nesting exist only in the UI, so a case can assert every payload field and
+    /// still not notice the list going flat. Returns `false` so it can sit in a `let _ =`
+    /// inside a `ViewBuilder`.
     @MainActor
     @discardableResult
     static func notePartition(topLevel: Int, headers: [String], nested: Int,
@@ -174,14 +131,14 @@ enum ViewSnapshotExport {
         }
     }
 
-    /// The exporter's own lines, which do not belong in the artifact.
-    ///
-    /// The log is meant to be what the *run* produced — byte-identical to what a user would
-    /// paste from the Copy button, and a user's copy never contains snapshot bookkeeping.
-    /// These lines also carry the output path, which would make every baseline specific to
-    /// the machine that wrote it.
+    /// The exporter's own lines, which do not belong in the artifact: a user's copy never
+    /// contains snapshot bookkeeping, and these carry the output path, which would make every
+    /// baseline specific to the machine that wrote it.
     private static let exporterPrefix = "Snapshot export:"
 
+    /// The run's log, in the Status window's Copy format. Byte-identical to the Copy button
+    /// because both call `LogStore.plainText()`, so a headless run produces the artifact a
+    /// reporter would paste — and a guard that fired silently is visible by its absence.
     @MainActor
     private static func writeLog(to dir: URL, logger: LogStore) {
         let text = logger.plainText()
@@ -259,13 +216,9 @@ enum ViewSnapshotExport {
 
         renderExtraScreens(to: dir, app: app, settings: settings, logger: logger)
 
-        // One more hop before reading the log back.
-        //
-        // Rendering itself logs -- `notePartition` records the Aliases list's shape -- and
-        // `LogStore.log` appends through `DispatchQueue.main.async`, so those lines are still
-        // queued when the render loop returns. Reading the buffer here would miss exactly the
-        // lines this render produced, which is the same mistake the settle before `capture`
-        // already fixed once, one level further in.
+        // One more hop before reading the log back: rendering itself logs, and `LogStore.log`
+        // appends through `DispatchQueue.main.async`, so those lines are still queued when the
+        // render loop returns.
         DispatchQueue.main.async {
             MainActor.assumeIsolated {
                 writeLog(to: dir, logger: logger)

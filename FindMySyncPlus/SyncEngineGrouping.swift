@@ -1,29 +1,17 @@
 import Foundation
 
 // Grouped accessories: recognizing a group, nesting its children, and giving it a
-// position. Split out of `SyncEngine.swift` when that file crossed SwiftLint's
-// 1000-line limit, following the split `SyncEngineDiagnostics.swift` already made.
-//
-// A group reaches here from one of two files. `Devices.data` may carry an embedded
-// `itemGroup` on the parent's own record; `ItemGroups.data` describes the same group
-// as a standalone record. Both are reduced to one shape by `groupParentRecords`, so
-// everything below sees a single kind of parent regardless of how Apple wrote it.
+// position. A group reaches here from one of two files — `Devices.data` may carry an
+// embedded `itemGroup` on the parent's own record, `ItemGroups.data` describes the same
+// group as a standalone record — and `groupParentRecords` reduces both to one shape.
 
 extension SyncEngine {
 
     /// The cluster sizes in a group's `groupedItemIdentifiers`, or nil if it has none.
-    ///
-    /// **Provisional, and here to answer one question.** The field measured as an array of
-    /// arrays holding a single cluster of every piece while they were together — the shape
-    /// you would expect if it meant "these are with each other". Whether Apple splits it
-    /// when a piece is genuinely separated has never been observed, because everything
-    /// available here lives in one case.
-    ///
-    /// If it does split, the flag beats inferring separation from how far apart the
-    /// coordinates are. **If it does not, there is nothing worth logging and this comes
-    /// out** — committed as provisional on issue #24 for exactly that reason.
-    ///
-    /// Sizes only. The identifiers themselves say nothing this question needs.
+    /// Logged as a diagnostic only: Apple does split the array when pieces separate, but
+    /// around twenty minutes late, and it stays split after they are back together — so the
+    /// geometry decides separation and this is not consulted. Sizes only; the identifiers
+    /// say nothing the log needs.
     nonisolated static func clusterSizes(_ group: [String: Any]) -> [Int]? {
         guard let raw = group["groupedItemIdentifiers"] as? [Any], !raw.isEmpty else { return nil }
         if raw.allSatisfy({ $0 is [Any] }) {
@@ -35,36 +23,13 @@ extension SyncEngine {
 
     /// Are the pieces of a group in the same place?
     ///
-    /// **Distance is geometry, not a tuned constant.** Two positions disagree when they are
-    /// further apart than the sum of their accuracy radii — their error circles do not
-    /// overlap, so no single point satisfies both. That scales on its own when Apple's
-    /// accuracy is poor, where a fixed meter threshold would not.
-    ///
-    /// Measured margin is wide: pieces in one case sit 5–6 m apart with 24–30 m accuracy
-    /// each, roughly 5 m against a 54 m sum.
-    ///
-    /// **Two positions are only comparable if they describe the same moment.** Fixes taken
-    /// hours apart say nothing about where the pieces are relative to each other now,
-    /// however accurate each one is. `syncInterval` is the window the app itself treats as
-    /// one observation, so positions inside it came from the same refresh and positions
-    /// outside it did not.
-    ///
-    /// **This deliberately does not consult `isOld`.** That flag was the original guard,
-    /// and issue #28 showed it reading `false` on a position nearly three hours old with
-    /// `positionType: lastConnected` — so it does not mean "recent" for every position
-    /// type. Comparability is a property of the *pair* and can be stated directly, which
-    /// removes the dependency on a flag whose meaning varies.
-    /// Are the pieces of a group in the same place?
-    ///
-    /// Compared **child to child**, not against the group's own coordinate. Whether the
-    /// pieces are apart is a property of the pieces; comparing against the group would
-    /// make this depend on a position that, once the status picks the anchor, depends on
-    /// this. It also removes a false positive: a parent holding a stale position of its
-    /// own reads as separated from its own children, masked today only because the
-    /// backfill happens to revive it first.
-    ///
-    /// Positions taken too far apart in time are not compared — a piece that reported
-    /// yesterday is not evidence of where it is now.
+    /// Two positions disagree when they are further apart than the sum of their accuracy
+    /// radii — their error circles do not overlap — which scales on its own when Apple's
+    /// accuracy is poor. Only positions inside one `syncInterval` of each other are
+    /// compared: fixes taken hours apart say nothing about where the pieces are now.
+    /// Compared child to child, not against the group's own coordinate, which the status
+    /// itself decides. Deliberately not `isOld`: that flag reads `false` on positions hours
+    /// old for some position types, so comparability is stated on the pair directly.
     nonisolated func separationStatus(children: [DevicePoint],
                                       syncInterval: TimeInterval) -> String {
         let dated = children.compactMap { child -> (point: DevicePoint, at: Date)? in
@@ -87,16 +52,10 @@ extension SyncEngine {
         return compared ? "together" : "unknown"
     }
 
-    /// Which child's position the group should take.
-    ///
-    /// While the pieces are together, "freshest" is a recency choice among positions that
-    /// all describe the same place, so it cannot be wrong. While they are apart it is the
-    /// one rule guaranteed to pick arbitrarily between different places — measured on a
-    /// live cache, the freshest child flipped five times in seventeen runs between points
-    /// 766 m apart, which on this path swings the entity between `home` and `not_home`.
-    ///
-    /// So while separated, anchor to the case. `name` is AirPods vocabulary and we have
-    /// measured one product's values for it, hence the fallback rather than a guarantee.
+    /// Which child's position the group should take. Together, "freshest" cannot be wrong —
+    /// every piece describes the same place. Separated, freshest picks arbitrarily between
+    /// different places and swings the entity between `home` and `not_home`, so the group
+    /// anchors to the case. `name` is AirPods vocabulary, hence the fallback.
     nonisolated func anchorChild(among children: [DevicePoint],
                                  freshest: DevicePoint,
                                  syncInterval: TimeInterval?) -> DevicePoint {
@@ -119,32 +78,21 @@ extension SyncEngine {
         return 2 * earthRadius * asin(min(1, sqrt(h)))
     }
 
-    /// What `backfillParentLocations` produced, and what it could not.
-    ///
-    /// The unresolved list exists because dropping a grouped child silently is how a run
-    /// where every group keeps a wrong position looks completely normal. The function is
-    /// `nonisolated` and pure, so it reports rather than logs — the caller does that.
+    /// What `backfillParentLocations` produced, and what it could not. The unresolved list
+    /// exists because dropping a grouped child silently is how a run where every group keeps a
+    /// wrong position looks completely normal. Pure, so it reports; the caller logs.
     struct BackfillResult {
         let points: [DevicePoint]
         let unresolvedChildren: [(id: String, groupIdentifier: String)]
     }
 
-    /// Adapts `ItemGroups.data` records into the shape a device record that owns an
-    /// `itemGroup` already has, so `buildGroupParentIDs`, `revivedParents` and
-    /// `backfillParentLocations` handle both sources with no changes of their own.
+    /// Adapts `ItemGroups.data` records into the shape a device record with an `itemGroup`
+    /// already has, so the parent-handling functions serve both sources unchanged. Apple
+    /// writes the group record; only two of its keys are needed, and its id is the same id a
+    /// device record carries on a machine that describes the group the other way.
     ///
-    /// This is not synthesizing a parent — the framing that got this deferred and was
-    /// wrong about its own subject. Apple writes the group record; only two of its ten
-    /// keys are needed, and the id it carries is the *same id* a device record would
-    /// have carried on a machine that described the group the other way.
-    ///
-    /// Two guards, both from measurement rather than caution:
-    ///
-    /// - **An empty group must never become an entity.** mini carries a second record
-    ///   with no members at all.
-    /// - **Dedup by id.** If one machine ever describes a group both ways it is still
-    ///   one group. Keying on the id does this without name matching, which would be a
-    ///   guess.
+    /// Two guards: an empty group must never become an entity (records with no members
+    /// exist), and dedup by id, since a group described both ways is one group.
     nonisolated func groupParentRecords(
         fromItemGroups rawGroups: [[String: Any]],
         existingParentIDs: Set<String>
@@ -169,11 +117,9 @@ extension SyncEngine {
         return adapted
     }
 
-    /// Maps each grouped child's `groupIdentifier` to the parent device's id.
-    /// A parent device entry in Devices.data is identified by the presence of
-    /// an `itemGroup` dict; the parent's id is its `baUUID`. The child's
-    /// `groupIdentifier` field carries the same string, so the map's key and
-    /// value are identical.
+    /// Maps each grouped child's `groupIdentifier` to the parent device's id. A parent is a
+    /// record carrying an `itemGroup` dict, keyed by its `baUUID`; the child's
+    /// `groupIdentifier` carries the same string, so key and value are identical.
     func buildGroupParentIDs(rawDevices: [[String: Any]]) -> [String: String] {
         var map: [String: String] = [:]
         for raw in rawDevices {
@@ -184,13 +130,9 @@ extension SyncEngine {
         return map
     }
 
-    /// Returns `points` with unaliased grouped children removed. A "child" is
-    /// any DevicePoint with a non-nil `parentID`; "aliased" means an entry in
-    /// `aliasByUUID` exists for the child's id (normalized). Aliased children
-    /// are always preserved so existing user setups continue to publish
-    /// unchanged. Unaliased children are dropped because the parent group
-    /// entity (e.g. "AirPods Pro") is the canonical entity for the pair —
-    /// users opt sub-items in by aliasing them.
+    /// Returns `points` with unaliased grouped children removed. A child is any point with a
+    /// `parentID`; it stays when `aliasByUUID` has an entry for its normalized id. The group
+    /// entity is the canonical one for the pair — users opt pieces in by aliasing them.
     nonisolated func filterUnaliasedGroupedChildren(
         _ points: [DevicePoint],
         aliasByUUID: [String: String]
@@ -201,21 +143,11 @@ extension SyncEngine {
         }
     }
 
-    /// Returns `parents` with each parent's location replaced by its freshest
-    /// child's location when the parent's own location is unreliable. A
-    /// parent location is considered unreliable when its `isOld` flag is true
-    /// or when at least one child reports a `timeStamp` newer by ≥ 60_000 ms.
-    /// Group parents that produced no point of their own, rebuilt from their freshest
-    /// child.
-    ///
-    /// A parent can carry `$null` on both `location` and `crowdSourcedLocation`, so it
-    /// never survives `parseDeviceArray` and would otherwise never appear — taking its
-    /// whole group with it, since children nest under a row that has to exist.
-    ///
-    /// Its record is real; only the position is missing, and the freshest child is
-    /// already the answer given to every other parent. The child's rich attributes
-    /// travel with it, because the position *is* the child's and its timestamp and
-    /// staleness describe it accurately.
+    /// Group parents that produced no point of their own, rebuilt from their anchor child.
+    /// A parent can carry `$null` on both `location` and `crowdSourcedLocation`, so it never
+    /// survives `parseDeviceArray` and would take its whole group with it — children nest
+    /// under a row that has to exist. The child's rich attributes travel with the position,
+    /// because they describe it accurately.
     nonisolated private func revivedParents(
         rawDevices: [[String: Any]],
         alreadyParsed: Set<String>,
@@ -259,22 +191,13 @@ extension SyncEngine {
         let collisions: [Collision]
     }
 
-    /// One record per entity.
-    ///
-    /// Some accessory records carry no `baUUID`, so the id chain falls through to
-    /// `deviceDiscoveryId` — a Bluetooth MAC. Two records for one physical accessory then
-    /// collapse onto a single id and both publish to the same entity in one run, so Home
-    /// Assistant renders one and the other overwrites it a moment later. That is issue #27.
-    ///
-    /// Sending one instead of two is unambiguous. Choosing which is settled by the
-    /// reporter's own observation — the primary user's location is the right one, the
-    /// family member's is bogus — and Apple marks that itself: `prsId` is the literal
-    /// `"owner"` on this account's records and a DSID on a family member's.
-    ///
-    /// Three collision shapes exist and only this one is the bug; see
-    /// `data/fmip-record-reference.md`. A family member's accessory can appear several
-    /// times with no `owner` among the candidates at all, which is why the fall-through
-    /// matters rather than being defensive padding.
+    /// One record per entity. Accessory records without a `baUUID` fall through to
+    /// `deviceDiscoveryId`, a Bluetooth MAC, so two records for one physical accessory can
+    /// share an id and both publish to the same entity in one run — Home Assistant shows one
+    /// and the other overwrites it a moment later. The primary user's copy is the right one,
+    /// and Apple marks it: `prsId` is the literal `"owner"` on this account's records and a
+    /// DSID on a family member's. A family member's accessory can appear several times with
+    /// no `owner` among the candidates, which is why the fall-through matters.
     nonisolated static func dedupeByEntity(_ points: [DevicePoint]) -> DedupeResult {
         // Indices, not the points themselves: the colliding records carry the *same* id,
         // which is what made them collide, so nothing about their contents identifies one.
@@ -305,12 +228,10 @@ extension SyncEngine {
             collisions: collisions.sorted { $0.entity < $1.entity })
     }
 
-    /// `owner` first, then the newest position, then the lowest `prsId`.
-    ///
-    /// The last step exists because the choice must not vary between runs — that would be
-    /// the flapping again by another route. It cannot key on the identifier, which is
-    /// identical across the candidates by definition; `prsId` differs, because the records
-    /// belong to different people. Position in the cache decides only if even that ties.
+    /// `owner` first, then the newest position, then the lowest `prsId`. The last step is
+    /// there because the choice must not vary between runs; the identifier is identical across
+    /// candidates by definition, and `prsId` differs because the records belong to different
+    /// people. Position in the cache decides only if even that ties.
     nonisolated static func preferredIndex(among indices: [Int], in points: [DevicePoint]) -> Int {
         let owned = indices.filter { points[$0].prsId == "owner" }
         let pool = owned.isEmpty ? indices : owned
@@ -331,12 +252,10 @@ extension SyncEngine {
         let unresolved: [(id: String, groupIdentifier: String)]
     }
 
-    /// Children arranged the two ways the backfill needs them: all of a parent's pieces,
-    /// for the anchor decision, and the freshest one, for the position itself.
-    ///
-    /// Also collects children that no parsed point matches. That is the failure mode
-    /// behind issue #24 — the group then sees no children and keeps its own stale
-    /// position — so it is returned rather than dropped silently.
+    /// Children arranged the two ways the backfill needs them: all of a parent's pieces, for
+    /// the anchor decision, and the freshest one, for the position itself. Also collects
+    /// children that no parsed point matches — the group then sees no children and keeps a
+    /// stale position — so they are returned rather than dropped silently.
     nonisolated private func indexChildren(
         children: [DevicePoint],
         rawItems: [[String: Any]]
@@ -373,6 +292,9 @@ extension SyncEngine {
                           unresolved: unresolved)
     }
 
+    /// Gives each group parent its position: its own when current, else its anchor child's.
+    /// Stale means `isOld`, or a child newer by a minute. Parents with no point at all are
+    /// revived from their children first.
     nonisolated func backfillParentLocations(
         parents: [DevicePoint],
         children: [DevicePoint],

@@ -5,27 +5,16 @@ struct DeviceAlias: Equatable, Identifiable, Codable {
     var tracked: Bool                     // whether this alias is currently posted
     var knownUUIDs: [String]              // most-recent-first list of UUIDs
     var lastSeenName: String?             // latest Apple device name (informational)
-    /// The alias of the group this one belongs to, when a join has been observed.
-    ///
-    /// Keyed on the **alias, not the UUID**. `knownUUIDs` is explicitly the unstable
-    /// identity — auto-learn appends to it whenever a device reappears under a new one
-    /// — so a cached `uuid -> uuid` parent map goes stale on every rotation. Both ends
-    /// keep their aliases whatever their UUIDs do.
-    ///
-    /// Written on observe, read always: the relationship is a property of the pair, not
-    /// of this run, so a group still nests when nothing reported this cycle.
+    /// The alias of the group this one belongs to, when a join has been observed. Keyed on
+    /// the alias, not the UUID: `knownUUIDs` rotates, aliases do not. Written on observe, read
+    /// always — the relationship is a property of the pair, not of this run, so a group still
+    /// nests when nothing reported this cycle.
     var parentAlias: String?
-    /// The group's own identity, persisted on the **child**.
-    ///
-    /// `parentAlias` is written only when both ends are aliased, so it cannot describe a
-    /// group the user never aliased — and a header for such a group therefore had to be
-    /// drawn from the live grouping, making it the one part of a persisted list that
-    /// needed something to have reported this cycle.
-    ///
-    /// These two carry what a header needs — the id to join on and Apple's name to show
-    /// — so it survives the accessory being offline, and survives the group's own alias
-    /// being deleted. Written on observe whenever a child is aliased and grouped,
-    /// whatever the parent's alias state.
+    /// The group's own identity, persisted on the child. `parentAlias` needs both ends
+    /// aliased, so it cannot describe a group the user never aliased; these two carry what a
+    /// header needs — the id to join on and Apple's name to show — and survive the accessory
+    /// being offline or the group's alias being deleted. Written whenever a child is aliased
+    /// and grouped.
     var parentGroupID: String?
     var parentGroupName: String?
     var id: String { alias }
@@ -37,14 +26,9 @@ struct DeviceAlias: Equatable, Identifiable, Codable {
     static func entityID(for alias: String) -> String { "findmy_\(alias)" }
 
     /// The full Home Assistant entity ID this alias resolves to, e.g.
-    /// "device_tracker.findmy_ohrapfel_case".
-    ///
-    /// `entityID(for:)` above is the dev_id — the topic key and `unique_id`,
-    /// which keeps hyphens. This is what HA actually names the entity, and it is
-    /// the single source of truth for both the `default_entity_id` we publish and
-    /// the value Device Manager displays and copies. Those must not drift apart:
-    /// showing an entity ID the app does not publish would be worse than showing
-    /// none at all.
+    /// "device_tracker.findmy_airpods_case". `entityID(for:)` is the dev_id — the topic key
+    /// and `unique_id`, which keeps hyphens. This is what HA names the entity, and the one
+    /// source for both the `default_entity_id` we publish and what Device Manager shows.
     static func haEntityID(for alias: String) -> String {
         haEntityID(forDevId: entityID(for: alias))
     }

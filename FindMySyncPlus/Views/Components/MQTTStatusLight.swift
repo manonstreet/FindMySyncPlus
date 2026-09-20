@@ -1,22 +1,8 @@
 import SwiftUI
 
-/// The MQTT connection state, as a quiet last row of the sidebar.
-///
-/// Until this existed the app never showed whether MQTT was connected anywhere,
-/// so every message about a deferred or failed action had to carry that news
-/// itself — which is why each one had invented its own wording. With the state
-/// visible, those messages only state their own outcome.
-///
-/// Built on `Label` with the same icon-column width as `SidebarRow`, so its text
-/// lands in the sidebar's label column rather than its icon column. An earlier
-/// version used its own layout and semibold caption text: every element looked
-/// fine alone, but it shared a left edge and a type style with nothing around it.
-///
-/// The dot follows the Scheduler card's existing `Status ● Stopped` idiom rather
-/// than inventing a second status treatment. Regular weight, secondary — the dot
-/// carries the state, the text names what it is about.
-///
-/// Only shown on the MQTT transport: REST has no connection to report.
+/// The MQTT connection state, as a quiet last row of the sidebar. The dot follows the
+/// Scheduler card's `Status ● Stopped` idiom rather than inventing a second status
+/// treatment. Only shown on the MQTT transport — REST has no connection to report.
 struct MQTTStatusLight: View {
     let connected: Bool
     let host: String
@@ -31,11 +17,8 @@ struct MQTTStatusLight: View {
 
     var body: some View {
         Button(action: onTap) {
-            // Not a Label with the nav rows' icon column: a 7pt dot in the slot a
-            // .title2 symbol needs leaves it stranded in a gap, and this is footer
-            // chrome rather than a navigation row — it does not owe them that
-            // alignment. The dot starts where their icons do; the text follows it
-            // closely, which is what makes the pair read as one status line.
+            // Not a Label in the nav rows' icon column: a 7pt dot in a .title2 symbol's slot
+            // is stranded in a gap. This is footer chrome; the dot starts where their icons do.
             HStack(spacing: 6) {
                 Circle()
                     .fill(tint)
@@ -56,9 +39,8 @@ struct MQTTStatusLight: View {
         }
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
-        // The host lives here rather than on a second line: the sidebar is
-        // otherwise single-line throughout, and Home already shows the endpoint
-        // under Configuration Summary.
+        // The host lives here, not on a second line: the sidebar is single-line throughout
+        // and Home already shows the endpoint.
         .help(connected
               ? "Connected to \(host):\(port) — open Access settings"
               : "Not connected to \(host):\(port) — open Access settings")

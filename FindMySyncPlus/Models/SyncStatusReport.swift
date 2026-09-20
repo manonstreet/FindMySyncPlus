@@ -2,18 +2,9 @@ import Foundation
 
 /// One run, as Home Assistant sees it.
 ///
-/// Every field here is state the app already holds and already puts on screen — the key
-/// statuses, `LogStore.needsFullDiskAccess`, the fatal-error message, and the counts the
-/// plan and result lines print every run. Publishing them is reading properties that
-/// exist; the only work was carrying `RunMetrics` far enough to reach the transport.
-///
-/// **This is what makes skipping repeated locations legible.** Availability answers *is
-/// the app alive*. It does not answer *did it look at my tracker and decide nothing had
-/// changed*, and without these counts those two look identical from Home Assistant.
-///
-/// It also discharges what #14's close-out comment promised: that reporter would have
-/// seen `LocalStorage key: missing` in Home Assistant rather than filing a log line
-/// nobody could act on.
+/// Every field is state the app already holds and shows on screen. Availability says
+/// whether the app is alive; these counts say what it did — without them, "nothing changed"
+/// and "broken" look identical from Home Assistant.
 struct SyncStatusReport {
     let version: String
     let runSeconds: Double
@@ -25,40 +16,26 @@ struct SyncStatusReport {
     let noLocation: Int
     let unassigned: Int
     let sleptDuringRun: Bool
-    /// Whether this run actually relaunched Find My.
-    ///
-    /// Half of the freshness question. The cache advances because we launch Find My, so
+    /// Whether this run relaunched Find My. The cache advances because we launch Find My, so
     /// "did the cache move" only means something beside "did we ask it to".
     let findMyLaunched: Bool
-    /// When Apple last wrote the newest cache we read.
-    ///
-    /// Published raw rather than turned into a freshness verdict: mtime answers "a write
-    /// happened", never "a position arrived" — a write four seconds after the previous one
-    /// carrying an identical digest has been measured. Beside `find_my_launched` and
-    /// `skipped_unchanged` it separates the three cases a support thread would otherwise
-    /// be opened to distinguish: we asked and it wrote and nothing was new, we asked and
-    /// it never wrote, or we never asked.
+    /// When Apple last wrote the newest cache we read. Published raw, never as a freshness
+    /// verdict: mtime says a write happened, not that a position arrived. Beside
+    /// `find_my_launched` and `skipped_unchanged` it separates "asked, wrote, nothing new"
+    /// from "asked, never wrote" from "never asked".
     let cacheWritten: Date?
     let keys: String
     let fullDiskAccess: Bool
     let lastError: String?
 
-    /// The attribute payload, exactly as published.
-    ///
-    /// **People template against these, so a rename after shipping is a breaking
-    /// change.** The set is settled: three separate reasons a device did not publish
-    /// coexist — `no_location`, `unassigned` and `skipped_unchanged` — and a single
-    /// `skipped` would not say which.
-    ///
-    /// Per-device staleness deliberately stays on each device's own attributes. A
-    /// per-device map here would recreate exactly the churn this release removes.
+    /// The attribute payload, exactly as published. People template against these, so a
+    /// rename after shipping is a breaking change. Three reasons a device did not publish
+    /// coexist — `no_location`, `unassigned`, `skipped_unchanged` — and a single `skipped`
+    /// would not say which. Per-device staleness stays on each device's own attributes.
     var attributes: [String: Any] {
         [
             "version": version,
-            // Raw, like `gps_accuracy`. Rounding to hundredths was tried and bought
-            // nothing: Foundation serializes any Double that is not exactly representable
-            // at full precision, so `5.11` went on the wire as `5.1100000000000003`
-            // anyway — the same shape `gps_accuracy` has shipped with all along.
+            // Raw, like `gps_accuracy`; Foundation serializes inexact Doubles at full precision anyway.
             "run_seconds": runSeconds,
             "discovered": discovered,
             "located": located,
@@ -67,10 +44,7 @@ struct SyncStatusReport {
             "skipped_unchanged": skippedUnchanged,
             "no_location": noLocation,
             "unassigned": unassigned,
-            // What survives of the sleep work. The scheduler no longer stops on
-            // `willSleep`, but a run that overlapped a sleep looks broken and is not:
-            // `run_seconds: 961` on its own is a support thread, and with this beside
-            // it the question answers itself.
+            // A run that overlapped a sleep looks broken and is not; this says why it took so long.
             "slept_during_run": sleptDuringRun,
             "find_my_launched": findMyLaunched,
             // Built here rather than held as a static: `ISO8601DateFormatter` is not
@@ -84,12 +58,9 @@ struct SyncStatusReport {
         ]
     }
 
-    /// `fmip ok, fmf missing` — one line naming every key's state.
-    ///
-    /// Ordered fixed rather than by status so the string is stable run to run, and
-    /// `localstorage` and `fmf` are reported even when Friends is switched off: "you
-    /// have no key for this" and "you have this switched off" are different answers,
-    /// and folding them together is what made #14 unanswerable.
+    /// `fmip ok, fmf missing` — one line naming every key's state. Fixed order so the string
+    /// is stable run to run; `fmf` and `localstorage` are reported even with Friends off,
+    /// because "no key" and "switched off" are different answers.
     static func keysDescription(fmip: KeyStatus, fmf: KeyStatus, localStorage: KeyStatus) -> String {
         [("fmip", fmip), ("fmf", fmf), ("localstorage", localStorage)]
             .map { "\($0.0) \(describe($0.1))" }

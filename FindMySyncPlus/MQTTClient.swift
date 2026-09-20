@@ -29,12 +29,9 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
     /// the active connection. Compared as a token because `CocoaMQTT` is not `Sendable`.
     private var activeClientToken: ObjectIdentifier?
 
-    /// The availability topic this connection registered its will against.
-    ///
-    /// Held rather than recomputed so the `online` publish, the will and the `offline`
-    /// on quit all name the same topic even if the user edits `mqttTopicPrefix`
-    /// mid-session — otherwise a retained `online` would be stranded under the old
-    /// prefix with nothing left to clear it.
+    /// The availability topic this connection registered its will against. Held rather than
+    /// recomputed so `online`, the will and `offline` all name the same topic even if the user
+    /// edits `mqttTopicPrefix` mid-session — otherwise a retained `online` would be stranded.
     private var availabilityTopicInUse: String?
 
     /// Set once this session has published the app-level singletons — the status entity
@@ -51,11 +48,9 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
     /// non-retained request arrived on the right topic.
     var onRefreshRequested: (@MainActor () -> Void)?
 
-    /// Last published attributes payload per devId, for suppressing repeats.
-    ///
-    /// Cleared on reconnect beside `publishedDiscoveryIds`: retained discovery is
-    /// republished then, and a suppression map that survived would leave an entity
-    /// with a fresh config and no state behind it.
+    /// Last published attributes payload per devId, for suppressing repeats. Cleared on
+    /// reconnect beside `publishedDiscoveryIds`: discovery is republished then, and a
+    /// surviving suppression map would leave an entity with a fresh config and no state.
     private var lastPublishedAttributes: [String: PublishedState] = [:]
 
     /// When the in-flight attempt started, so a stalled one is replaced rather than
@@ -144,9 +139,8 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
     ///   `false` and relies on the will instead, having nothing it can wait for.
     func disconnect(resetBackoff: Bool = true, announce: Bool = true) {
         // A clean DISCONNECT makes the broker discard the will, so an intentional close has
-        // to say `offline` itself or Home Assistant reads Connected while the app's own
-        // status light reads disconnected. An unexpected drop has no client to publish
-        // through and is covered by the will.
+        // to say `offline` itself or Home Assistant keeps reading Connected. An unexpected
+        // drop has no client to publish through and is covered by the will.
         let announcing = announce && connectionState == .connected
         if announcing {
             publishAvailability(Self.availabilityOffline)
@@ -161,11 +155,8 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
         if announcing, let dying = client {
             // Hold the client alive until its writes land: both frames are written
             // asynchronously, so dropping the last reference in the same turn can
-            // deallocate it before either reaches the socket. Measured — the app logged
-            // `offline` at 5:30:37 and Home Assistant reacted at 5:32:56, a keepalive
-            // timeout firing the will, which is what happens when the broker receives
-            // neither. Safe only here, where the process stays alive and nothing
-            // reconnects; quitting can wait for nothing and uses the will.
+            // deallocate it before either reaches the socket. Safe only here, where the
+            // process stays alive; quitting can wait for nothing and uses the will.
             Task { @MainActor in
                 try? await Task.sleep(for: .milliseconds(Self.goodbyeGraceMilliseconds))
                 dying.disconnect()
@@ -186,14 +177,9 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
     // MARK: - Availability
 
     /// Publish the discovery configs that belong to the app rather than to any tracker.
-    ///
-    /// **At connect, not at the end of a run.** These need no run data, and a sync can
-    /// return early half a dozen ways — sources disabled, pre-flight failure, no usable
-    /// cache. Published from the run, a machine whose syncs fail would get a retained
-    /// `online` on the availability topic and no Connected sensor reading it.
-    ///
-    /// The Connected sensor carries no state of its own: the topic it reads is already
-    /// retained, so it resolves the moment Home Assistant subscribes.
+    /// At connect, not at the end of a run: a sync can return early half a dozen ways, and
+    /// published from the run, a machine whose syncs fail would get a retained `online` with
+    /// no Connected sensor reading it. The topic it reads is retained, so it resolves at once.
     private func publishAppEntityDiscovery() {
         guard !publishedAppEntities, let client, let settings else { return }
         let prefix = settings.mqttTopicPrefix
@@ -214,10 +200,8 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
                      + "and binary_sensor.\(Self.connectedSensorId)")
     }
 
-    /// Publish the app-level availability state, retained.
-    ///
-    /// Retained on purpose: a subscriber that connects later must learn the current
-    /// state rather than wait for the next transition.
+    /// Publish the app-level availability state, retained so a subscriber that connects
+    /// later learns the current state rather than waiting for the next transition.
     private func publishAvailability(_ state: String) {
         guard let target = availabilityPublisher, let topic = availabilityTopicInUse else {
             // Silence left a user unable to tell "the app never said it" from "the broker
@@ -229,11 +213,8 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
         logger?.info("MQTT: published \(state) to \(topic)")
     }
 
-    /// Where availability goes. Normally the socket; in tests, a recorder.
-    ///
-    /// `connect()` and `disconnect()` hold a concrete `CocoaMQTT` that no test can build, so
-    /// the connection lifecycle had no coverage — and shipping a retained `online` that
-    /// outlived the connection is what that gap cost.
+    /// Where availability goes. Normally the socket; in tests, a recorder — `connect()` and
+    /// `disconnect()` hold a concrete `CocoaMQTT` that no test can build.
     private var availabilityPublisher: MQTTPublishing? {
         #if DEBUG
         if let testPublisher { return testPublisher }
@@ -344,13 +325,10 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
 
             let devId = DeviceAlias.entityID(for: alias)
 
-            // Publish HA auto-discovery config (once per session). The
-            // `device` block groups all FindMySync+ entities under a single
-            // device card in HA's Devices & Services view. No `state_topic`
-            // on purpose — HA derives tracker state from latitude/longitude
-            // in json_attributes_topic (device_tracker.mqtt + source_type=gps);
-            // publishing state messages on every sync caused home → not_home
-            // → home flapping that reset zone-duration counters (commit 4c28f0d).
+            // Publish HA auto-discovery config once per session. No `state_topic` on
+            // purpose: HA derives tracker state from latitude/longitude in the attributes
+            // topic, and publishing state on every sync caused home → not_home → home
+            // flapping that reset zone-duration counters.
             if !publishedDiscoveryIds.contains(devId) {
                 let configTopic = Self.discoveryTopic(forDevId: devId)
                 let configPayload = Self.discoveryPayload(
@@ -376,12 +354,9 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
             }
         }
 
-        // Never silent: with skipping on, "working as intended" and "broken" look
-        // identical from the outside, and this line plus `skipped_unchanged` on the
-        // status entity are the two things that tell them apart.
-        // Names both reasons. With skipping on, "working as intended" and "broken" look
-        // identical from the outside, and the split is what tells them apart: nothing
-        // changed, against a move the threshold decided was near enough.
+        // Never silent, and names both reasons: with skipping on, "working as intended" and
+        // "broken" look identical from the outside, and the split — nothing changed, against
+        // a move the threshold decided was near enough — is what tells them apart.
         let skipped = identicalCount + withinThresholdCount
         if skipped > 0 {
             var reasons = ["\(identicalCount) identical"]
@@ -399,14 +374,10 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
                            skippedUnchangedCount: skipped)
     }
 
-    /// Build and publish one device's attributes, skipping a payload identical to the
-    /// one already retained on the broker.
-    ///
-    /// The comparison is the whole payload rather than a coordinate check, and that is
-    /// only sound because `last_update` now carries the fix time instead of `Date()` —
-    /// see `buildAttributes`. A record Apple gives no timestamp for keeps the publish
-    /// time and so never matches itself, which is the safe direction: it publishes,
-    /// loudly, rather than going quiet on a record we cannot reason about.
+    /// Build and publish one device's attributes, skipping a payload that repeats the last.
+    /// Sound only because `last_update` carries the fix time — see `buildAttributes`. A
+    /// record Apple gives no timestamp for keeps the publish time and so never matches
+    /// itself: it publishes, loudly, rather than going quiet on a record we cannot reason about.
     private func publishAttributes(client: MQTTPublishing,
                                    device: DevicePoint,
                                    devId: String,
@@ -446,16 +417,10 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
 
     // MARK: - Status entity
 
-    /// Publish the sync status entity: its discovery config once per session, then its
-    /// state and attributes.
-    ///
-    /// **Every sync, not hourly.** It is one entity against ~25, so payload cost is not
-    /// the constraint, and an hourly heartbeat cannot tell you the app died 50 minutes
-    /// ago.
-    ///
-    /// - Parameter lastSuccessfulSync: `nil` when this run published nothing, which
-    ///   leaves the previous timestamp standing rather than advancing it — the state is
-    ///   "last successful sync", and a failed run is precisely when a user must be able
+    /// Publish the sync status entity's state and attributes. Every sync, not hourly: an
+    /// hourly heartbeat cannot tell you the app died 50 minutes ago.
+    /// - Parameter lastSuccessfulSync: `nil` when this run published nothing, which leaves
+    ///   the previous timestamp standing — a failed run is precisely when a user must be able
     ///   to see how long ago the last good one was.
     func publishStatus(_ report: SyncStatusReport,
                        lastSuccessfulSync: Date?,
@@ -485,18 +450,13 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
 
     // MARK: - Re-registration
 
-    /// Delete an entity's discovery config and immediately recreate it, so Home
-    /// Assistant registers it afresh and applies `default_entity_id`.
+    /// Delete an entity's discovery config and immediately recreate it, so Home Assistant
+    /// registers it afresh and applies `default_entity_id` — which HA consults only at first
+    /// registration, so the registry entry has to go before a correct ID can be assigned.
     ///
-    /// This is the only way to fix an entity whose ID was assigned before HA
-    /// removed `object_id` in Core 2026.4. `default_entity_id` is consulted only
-    /// at first registration — `entity_platform` resolves a known `unique_id` to
-    /// its existing entry and keeps that entry's ID — so the registry entry has to
-    /// go before a correct ID can be assigned.
-    ///
-    /// **Destructive by design.** Removing the discovery config removes the
-    /// registry entry, taking any rename, icon or area the user set with it. Only
-    /// ever call this from an explicit, confirmed user action.
+    /// Destructive by design: removing the config removes the registry entry, taking any
+    /// rename, icon or area the user set with it. Only ever call this from an explicit,
+    /// confirmed user action.
     func reRegister(devId: String,
                     displayName: String,
                     settings: SettingsStore,
@@ -519,11 +479,9 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
         return true
     }
 
-    /// The publish sequence itself: clear, wait, republish.
-    ///
-    /// Split from the guards above so it can be asserted on with a recording
-    /// publisher — the ordering *is* the behavior, and nothing else can check it.
-    /// `delay` is a parameter for the same reason; production always uses 0.5s.
+    /// The publish sequence itself: clear, wait, republish. Split from the guards so it can
+    /// be asserted on with a recording publisher — the ordering is the behavior. `delay` is
+    /// a parameter for the same reason; production always uses 0.5s.
     func performReRegister(client: MQTTPublishing,
                            devId: String,
                            displayName: String,
@@ -551,10 +509,9 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
 
     // MARK: - Attribute building
 
-    /// - Parameter now: the fallback for a record Apple gave no fix time. A parameter
-    ///   only so a test can advance it: the whole point of that branch is that such a
-    ///   record keeps publishing rather than matching itself, and a fixed clock is the
-    ///   only way to show it.
+    /// - Parameter now: the fallback for a record Apple gave no fix time. A parameter so a
+    ///   test can advance it — such a record must keep publishing rather than match itself,
+    ///   and a fixed clock is the only way to show that.
     func buildAttributes(for device: DevicePoint,
                          iso: ISO8601DateFormatter,
                          now: Date = Date()) -> [String: Any] {
@@ -562,17 +519,9 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
             "latitude": device.latitude,
             "longitude": device.longitude,
             "gps_accuracy": device.accuracy,
-            // The fix time, not the publish time.
-            //
-            // This was `Date()`, which meant Home Assistant saw an attribute change
-            // every cycle and every entity's "last updated" always read as fresh —
-            // a 43-hour-old position presented as if it had just arrived. It is also
-            // the only reason the payload was unstable per cycle, so nothing could be
-            // compared against the previous one.
-            //
-            // Falls back to now when Apple supplied no timestamp, which keeps the
-            // field present for anyone templating on it and keeps such a record
-            // publishing every cycle rather than silently matching itself.
+            // The fix time, not the publish time — the publish time made every entity's
+            // "last updated" read as fresh and the payload unstable every cycle. Falls back
+            // to now when Apple supplied no timestamp, so the field stays present.
             "last_update": iso.string(from: device.richAttributes?.timestamp ?? now)
         ]
         // Four attributes, split by meaning rather than by Apple's key name. A single
@@ -583,10 +532,9 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
             attrs["battery_level_raw"] = level
         }
         if let code = device.batteryStatusCode {
-            // Deliberately not normalized into a percentage. The same ordinal means
-            // different things across manufacturers — observed values 0, 1, 2, 4, 5 and
-            // 100 from Apple, Sitecom and World Tag hardware, on scales that cannot be
-            // reconciled. Passing it through lets a user map their own.
+            // Deliberately not normalized into a percentage: the same ordinal means
+            // different things across manufacturers, on scales that cannot be reconciled.
+            // Passing it through lets a user map their own.
             attrs["battery_status_raw"] = code
         }
         // Travels beside the raw ordinal, never instead of it, so a user who disagrees
@@ -605,10 +553,8 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
             if let ts = rich.timestamp {
                 attrs["location_timestamp"] = iso.string(from: ts)
             }
-            // Apple's own flag for whether the fix is stale, passed through rather
-            // than turned into a staleness rule of ours — the threshold is the
-            // user's to pick, which is what issue #17 asked for. Absent stays
-            // absent: a fabricated false would claim Apple called the fix current.
+            // Apple's own staleness flag, passed through rather than turned into a rule of
+            // ours. Absent stays absent: a fabricated false would claim Apple called it current.
             if let isOld = rich.isOld {
                 attrs["is_old"] = isOld
             }
@@ -656,11 +602,9 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
 
     // MARK: - Helpers
 
-    /// Clear the retained topics of aliases that were renamed, deleted or
-    /// untracked, then drop them from the retired list.
-    ///
-    /// Filtered against the devIds being published this cycle, so an alias renamed
-    /// away and back is never cleared while it is in use.
+    /// Clear the retained topics of aliases that were renamed, deleted or untracked, then
+    /// drop them from the retired list. Filtered against the devIds being published this
+    /// cycle, so an alias renamed away and back is never cleared while in use.
     private func drainRetiredDevIds(client: MQTTPublishing,
                                     aliasByUUID: [String: String],
                                     settings: SettingsStore,
@@ -686,24 +630,18 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
         }
     }
 
-    /// Clear retired entities now, outside a sync run.
-    ///
-    /// Renaming, deleting or untracking an alias is a user action, and waiting up to
-    /// a full sync interval for the old entity to disappear from Home Assistant reads
-    /// as a bug. The caller is responsible for connecting first; this returns nothing
-    /// if there is no connection, leaving the persisted list for the next sync.
+    /// Clear retired entities now, outside a sync run: waiting a full interval for a renamed
+    /// entity to disappear reads as a bug. The caller connects first; with no connection this
+    /// returns nothing and leaves the persisted list for the next sync.
     func flushRetirements(retired: [String], liveDevIds: Set<String>, prefix: String) -> [String] {
         guard connectionState == .connected, let client else { return [] }
         return publishTombstones(client: client, retired: retired,
                                  liveDevIds: liveDevIds, prefix: prefix)
     }
 
-    /// Clear the retained topics of every retired dev_id that is not live again,
-    /// and report which ones were cleared.
-    ///
-    /// Takes plain values rather than a `SettingsStore`: the test target is hosted
-    /// by the app bundle and shares the user's real UserDefaults, so a test must
-    /// never construct one. The caller reads and writes the stored list around this.
+    /// Clear the retained topics of every retired dev_id that is not live again, and report
+    /// which were cleared. Takes plain values rather than a `SettingsStore`, which a test must
+    /// never construct; the caller reads and writes the stored list around this.
     @discardableResult
     func publishTombstones(client: MQTTPublishing,
                            retired: [String],
@@ -716,28 +654,20 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
         return tombstones
     }
 
-    /// Clear every retained topic for a dev_id.
-    ///
-    /// A zero-length retained payload is HA's signal to drop a discovered entity,
-    /// and removes the retained message from the broker. Order matters: the
-    /// discovery config goes first so HA drops the entity, then the attributes
-    /// topic, so the device's last latitude/longitude does not linger behind under
-    /// a name the user removed.
+    /// Clear every retained topic for a dev_id. Order matters: the discovery config goes
+    /// first so HA drops the entity, then the attributes topic, so the last latitude and
+    /// longitude do not linger under a name the user removed.
     func clearRetainedTopics(client: MQTTPublishing, devId: String, prefix: String) {
         clearDiscoveryConfigs(client: client, devId: devId)
-        // Retirement clears the attributes topic as well: the alias is gone, and
-        // its last latitude/longitude must not sit on the broker under a name the
-        // user deliberately removed. Re-registration deliberately does NOT do this.
+        // Retirement clears the attributes topic as well; re-registration deliberately
+        // does not.
         send(client, empty: Self.attributesTopic(forDevId: devId, prefix: prefix))
     }
 
-    /// Clear only the two discovery configs, leaving the attributes topic intact.
-    ///
-    /// This is what re-registration wants. Emptying the discovery config is what
-    /// makes HA drop the entity and its registry entry; the retained attributes
-    /// message is independent, and leaving it means HA subscribes on re-creation
-    /// and restores the position immediately. Clearing it too — which this used to
-    /// do — left the recreated entity with no location until the next sync.
+    /// Clear only the two discovery configs, leaving the attributes topic intact. That is
+    /// what re-registration wants: emptying the config makes HA drop the entity and its
+    /// registry entry, and the retained attributes message lets it restore the position the
+    /// moment it re-subscribes.
     private func clearDiscoveryConfigs(client: MQTTPublishing, devId: String) {
         send(client, empty: Self.discoveryTopic(forDevId: devId))
         send(client, empty: Self.batterySensorTopic(forDevId: devId))
@@ -752,12 +682,9 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
         client.send(CocoaMQTTMessage(topic: topic, string: "", qos: .qos1, retained: true))
     }
 
-    /// Publish the battery sensor's discovery config, once per session per device.
-    ///
-    /// Gated on its own set rather than `publishedDiscoveryIds`: tracker discovery
-    /// fires on the first sync, but a device's battery can be absent then and
-    /// present on a later one, and a shared set would mean the sensor never
-    /// appeared for it.
+    /// Publish the battery sensor's discovery config, once per session per device. Gated on
+    /// its own set: a device's battery can be absent on the first sync and present on a later
+    /// one, and a set shared with tracker discovery would mean the sensor never appeared.
     func publishBatterySensorIfNeeded(client: MQTTPublishing,
                                       device: DevicePoint,
                                       devId: String,
@@ -787,21 +714,10 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
         client.send(CocoaMQTTMessage(topic: topic, string: json, qos: .qos1, retained: retain))
     }
 
-    /// Exponential from 250ms: 0.25, 0.5, 1, 2, 4, 8, 16, 32, 60…
-    ///
-    /// The faults this recovers from are short. macOS denies local network access with
-    /// EHOSTUNREACH while it establishes a grant for a newly-signed binary — which
-    /// happens on first launch after every update — and the window measured ~320ms. A
-    /// 5s first retry turned that into a 5s outage plus a discarded sync run, because
-    /// the pre-flight gave up at exactly the moment the backoff was due to fire.
     /// Decides whether a sync run should start a connection, or leave it to whatever is
-    /// already trying.
-    ///
-    /// Reconnection has two possible drivers — the retry chain and the scheduler's
-    /// pre-flight — and only one may own it at a time. `connect()` tears down the
-    /// current client and cancels any pending retry, so a pre-flight that fires while a
-    /// retry is queued silently restarts the backoff schedule. Left unguarded, the
-    /// schedule resets every sync cycle and never reaches its attempt limit.
+    /// already trying. Reconnection has two drivers — the retry chain and the scheduler's
+    /// pre-flight — and only one may own it: `connect()` cancels any pending retry, so an
+    /// unguarded pre-flight would reset the backoff every cycle and never reach the limit.
     nonisolated static func shouldStartNewConnection(state: MQTTConnectionState,
                                                      retryPending: Bool,
                                                      connectingSince: Date?,
@@ -816,6 +732,10 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
         return true
     }
 
+    /// Exponential from 250ms: 0.25, 0.5, 1, 2, 4, 8, 16, 32, 60… The faults this recovers
+    /// from are short — macOS denies local network access for a few hundred milliseconds
+    /// while it grants a newly signed binary — and a 5s first retry turned that into a lost
+    /// sync run.
     nonisolated static func backoffDelay(forAttempt attempt: Int) -> TimeInterval {
         min(0.25 * pow(2.0, Double(max(1, attempt) - 1)), 60.0)
     }
@@ -830,12 +750,7 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
             reconnectTask = nil
             return
         }
-        // Exponential from 250ms: 0.25, 0.5, 1, 2, 4, 8, 16, 32, 60…
-        // The faults this recovers from are short. A measured case: the process got
-        // ENETDOWN for ~320ms while the system network path reported satisfied. A raw
-        // NWConnection rode it out and was ready 320ms later; CocoaMQTT treated it as
-        // fatal, and a 5s first retry turned that into a 5s outage plus a discarded
-        // sync run — the pre-flight gave up at the moment the backoff was due to fire.
+        // Same schedule as `backoffDelay(forAttempt:)`.
         let delay = min(0.25 * pow(2.0, Double(reconnectAttempts - 1)), 60.0)
         connectionState = .connecting
         logger?.warn(String(format: "MQTT reconnecting (attempt %d, %.2fs)", reconnectAttempts, delay))
