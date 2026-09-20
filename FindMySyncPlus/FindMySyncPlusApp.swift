@@ -56,7 +56,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
     func activateMainWindow() -> Bool {
         guard let controller = mainWindowController, let win = controller.window else { return false }
         policy.becomeRegular()
-        NSRunningApplication.current.activate(options: [.activateIgnoringOtherApps])
+        NSRunningApplication.current.activate(options: [])
         win.makeKeyAndOrderFront(nil)
         win.orderFrontRegardless()
         win.deminiaturize(nil)
@@ -88,7 +88,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
         controller.showWindow(nil)
         win.center()
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-            NSRunningApplication.current.activate(options: [.activateIgnoringOtherApps, .activateAllWindows])
+            NSRunningApplication.current.activate(options: [.activateAllWindows])
             win.makeKeyAndOrderFront(nil)
             win.orderFrontRegardless()
             win.deminiaturize(nil)
@@ -291,7 +291,7 @@ final class WindowCoordinator {
         if !windows.hasOpenUserWindows {
             policy.becomeAccessory()
         }
-        NSRunningApplication.current.activate(options: [.activateIgnoringOtherApps])
+        NSRunningApplication.current.activate(options: [])
         if let settings, let app, let logger {
             DevicesWindowController.shared.show(settings: settings, app: app, logger: logger)
         }

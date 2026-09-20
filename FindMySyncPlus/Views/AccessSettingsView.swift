@@ -130,7 +130,7 @@ struct AccessSettingsView: View {
             Coordinator(selection: $selection)
         }
 
-        final class Coordinator: NSObject {
+        @MainActor final class Coordinator: NSObject {
             let selection: Binding<T>
             init(selection: Binding<T>) { self.selection = selection }
 
@@ -529,7 +529,7 @@ struct AccessSettingsView: View {
     private func keyStatusRow(_ name: String, status: KeyStatus, kind: KeyKind? = nil,
                               applicability: KeyApplicability = .reported) -> some View {
         let notApplicable = applicability.isNotApplicable
-        return HStack(spacing: 6) {
+        HStack(spacing: 6) {
             if notApplicable {
                 // Deliberately not a warning icon: the key is not missing, it serves a
                 // feature that will not run here.

@@ -641,7 +641,7 @@ struct DeviceManagerView: View {
                       source: entry.source,
                       onAssign: {
             if isUpdate, let match = matching.first {
-                settings.updateAliasWithCap(match.alias, addUUID: d.id, lastSeenName: d.name)
+                _ = settings.updateAliasWithCap(match.alias, addUUID: d.id, lastSeenName: d.name)
                 logger.info("Alias \"\(match.alias)\" updated with UUID \(d.id.normalized())")
             } else {
                 assignUUID = d.id

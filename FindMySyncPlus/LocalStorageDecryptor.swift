@@ -98,7 +98,7 @@ actor LocalStorageDecryptor {
         var buffer = [CChar](repeating: 0, count: 1024)
         let length = confstr(_CS_DARWIN_USER_DIR, &buffer, buffer.count)
         guard length > 0, length <= buffer.count else { return nil }
-        let path = String(cString: buffer)
+        let path = String(decoding: buffer.prefix(Int(length) - 1).map { UInt8(bitPattern: $0) }, as: UTF8.self)
         guard !path.isEmpty else { return nil }
         return URL(fileURLWithPath: path, isDirectory: true)
     }

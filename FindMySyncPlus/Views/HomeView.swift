@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 
 extension Notification.Name {
     static let navigateToStatus = Notification.Name("NavigateToStatus")
