@@ -182,7 +182,8 @@ class ViewRenderTests: XCTestCase {
         }
     }
 
-    @MainActor private func row(tracked: Bool = true,
+    @MainActor
+    private func row(tracked: Bool = true,
                      uuids: [String] = ["A1B2C3D4-0000-0000-0000-000000000001"],
                      lastSeen: String? = "Test AirTag",
                      badge: DeviceSource? = .item,
