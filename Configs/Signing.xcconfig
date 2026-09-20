@@ -1,0 +1,9 @@
+// Signing for local builds. Tracked, and contains nothing private.
+//
+// Put your Apple Developer team in Configs/Local.xcconfig, which version control ignores:
+//
+//     DEVELOPMENT_TEAM = ABCDE12345
+//
+// Without it, Xcode's automatic signing asks you to pick a team the first time, and
+// xcodebuild needs DEVELOPMENT_TEAM=... on the command line. With it, both just work.
+#include? "Local.xcconfig"

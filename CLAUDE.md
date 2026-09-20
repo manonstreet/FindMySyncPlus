@@ -41,7 +41,7 @@ Open and build in Xcode:
 open FindMySyncPlus.xcodeproj
 ```
 
-From the command line, `xcodebuild build` and `xcodebuild test` work with `-project FindMySyncPlus.xcodeproj -scheme FindMySyncPlus -destination 'platform=macOS'`. The maintainer's `build.sh` — debug run, release archive, DMG — sits one directory above the repo and is not part of it. For signing, enable "Automatically manage signing" and set a personal Team under Signing & Capabilities.
+From the command line, `xcodebuild build` and `xcodebuild test` work with `-project FindMySyncPlus.xcodeproj -scheme FindMySyncPlus -destination 'platform=macOS'`. The maintainer's `build.sh` — debug run, release archive, DMG — sits one directory above the repo and is not part of it. For signing, create `Configs/Local.xcconfig` (gitignored) containing `DEVELOPMENT_TEAM = <your team id>`; `Configs/Signing.xcconfig` includes it if present. That is all `xcodebuild` needs; in Xcode, automatic signing then finds the team on its own.
 
 ## Linting
 

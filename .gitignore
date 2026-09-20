@@ -86,3 +86,6 @@ docs/
 
 # Worktrees created by tooling live here; they are checkouts, not sources.
 .claude/worktrees/
+
+# Per-machine signing team; see Configs/Signing.xcconfig
+Configs/Local.xcconfig

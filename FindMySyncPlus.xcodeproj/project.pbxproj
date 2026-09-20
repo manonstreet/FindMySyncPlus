@@ -24,6 +24,7 @@
 /* Begin PBXFileReference section */
 		5DA3BFED2E5B3B8800B73B01 /* FindMySyncPlus.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FindMySyncPlus.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		5DA3BFFB2E5B3B8900B73B01 /* FindMySyncPlusTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FindMySyncPlusTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		5DC0F1600000000000000001 /* Signing.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Signing.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -78,6 +79,7 @@
 				5DA3BFEF2E5B3B8800B73B01 /* FindMySyncPlus */,
 				FA110001FA110001FA110001 /* FindMySyncPlusTests */,
 				5DA3BFEE2E5B3B8800B73B01 /* Products */,
+				5DC0F1600000000000000002 /* Configs */,
 			);
 			sourceTree = "<group>";
 		};
@@ -88,6 +90,14 @@
 				5DA3BFFB2E5B3B8900B73B01 /* FindMySyncPlusTests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		5DC0F1600000000000000002 /* Configs */ = {
+			isa = PBXGroup;
+			children = (
+				5DC0F1600000000000000001 /* Signing.xcconfig */,
+			);
+			path = Configs;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -229,6 +239,7 @@
 /* Begin XCBuildConfiguration section */
 		5DA3C00D2E5B3B8900B73B01 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 5DC0F1600000000000000001 /* Signing.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
@@ -263,7 +274,6 @@
 				COPY_PHASE_STRIP = NO;
 				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
-				DEVELOPMENT_TEAM = BY8NM7T2V6;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -297,6 +307,7 @@
 		};
 		5DA3C00E2E5B3B8900B73B01 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 5DC0F1600000000000000001 /* Signing.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
@@ -331,7 +342,6 @@
 				COPY_PHASE_STRIP = NO;
 				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				DEVELOPMENT_TEAM = BY8NM7T2V6;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -367,7 +377,6 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -404,7 +413,6 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -436,7 +444,6 @@
 				CODE_SIGN_STYLE = Manual;
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "";
 				MACOSX_DEPLOYMENT_TARGET = 14.4;
@@ -457,7 +464,6 @@
 				CODE_SIGN_STYLE = Manual;
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "";
 				MACOSX_DEPLOYMENT_TARGET = 14.4;
