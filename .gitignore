@@ -25,7 +25,6 @@ project.xcworkspace/xcuserdata/
 # ============================================
 .swiftpm/
 .build/
-Package.resolved
 Packages/
 
 # ============================================
