@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**FindMySyncPlus** is a macOS menu bar app (macOS 14.4+) that decrypts Apple Find My cache files and publishes device, item, and friend locations to Home Assistant. Supports **REST** (`device_tracker/see`) and **MQTT** (with HA auto-discovery and rich attributes) transports. It is a pure Swift/SwiftUI/AppKit project built entirely in Xcode — no package manager, no scripts.
+**FindMySyncPlus** is a macOS menu bar app (macOS 14.4+) that decrypts Apple Find My cache files and publishes device, item, and friend locations to Home Assistant. Supports **REST** (`device_tracker/see`) and **MQTT** (with HA auto-discovery and rich attributes) transports. It is a Swift/SwiftUI/AppKit project built in Xcode, with two Swift package dependencies (CocoaMQTT, Ink) pinned in `Package.resolved`.
 
 ## Worktrees: land the branch before you finish
 
@@ -17,7 +17,7 @@ Before finishing, land it:
 # from inside the worktree
 ExitWorktree(action: "keep")          # returns the session to this checkout
 git merge --ff-only <feature-branch>
-git push <remote> v1.4-beta
+git push <remote> <release-branch>      # the repo's default branch, one per minor
 ```
 
 **Why this is a rule rather than a nicety.** A worktree-isolated session cannot run git
@@ -41,7 +41,7 @@ Open and build in Xcode:
 open FindMySyncPlus.xcodeproj
 ```
 
-There is no CLI build or test runner script. All development happens through Xcode. For signing, enable "Automatically manage signing" and set a personal Team under Signing & Capabilities.
+From the command line, `xcodebuild build` and `xcodebuild test` work with `-project FindMySyncPlus.xcodeproj -scheme FindMySyncPlus -destination 'platform=macOS'`. The maintainer's `build.sh` — debug run, release archive, DMG — sits one directory above the repo and is not part of it. For signing, enable "Automatically manage signing" and set a personal Team under Signing & Capabilities.
 
 ## Linting
 
@@ -108,7 +108,7 @@ Requires Full Disk Access to read the Find My cache. `FindMyRefresher.swift` can
 
 ## Testing
 
-Fourteen test files. All use synthetic data — no real Find My files required. Trust
+Twenty-two test files. All use synthetic data — no real Find My files, no keys, no keychain reads. Trust
 `** TEST SUCCEEDED **` rather than counting `passed on` lines — xcodebuild interleaves
 timestamps into those, so a grep count drifts between identical runs.
 
@@ -128,6 +128,14 @@ timestamps into those, so a grep count drifts between identical runs.
 | `FriendsAvailabilityTests` | The macOS 15 gate and its spoof override. `resolve` is pure so the 14.x branch is testable without a test writing to the app's real `UserDefaults` |
 | `LocationDiagnosticsTests` | The two no-location buckets and the summary wording. Asserts absences too — "Share My Location" and "powered off" must not come back |
 | `TextSanitizationTests` | slugify, normalizeID |
+| `AliasHeaderPersistenceTests` | A header for an unaliased group is drawn from persisted `parentAlias`, not only from the live grouping — the Aliases list is config and must survive devices being offline |
+| `DuplicateIdentityTests` | Two records for one accessory landing on the same id (#27); the tie-break prefers this account's copy, which Apple marks `prsId == "owner"` |
+| `GroupPositionAttributesTests` | `position_source` and `separation_status` — which piece a group's coordinate came from, and whether that piece stands for the group |
+| `ItemGroupsSourceTests` | `ItemGroups.data` as a second group source, carrying the same identity as an embedded `itemGroup` |
+| `RecordIdentityTests` | One id-resolution chain for building a `DevicePoint` and looking it up again — the `baUUID`-vs-`identifier` precedence disagreement behind #24 |
+| `RicherAttributesTests` | The attributes chosen after measuring a real `Items.data`; keeps `streetAddress` and `floorLevel` struck |
+| `SyncStatusAndAvailabilityTests` | The 1.5b rules as pure functions — stable client id, availability, the status entity, skipping repeated locations and the movement threshold. The largest file, 45 tests |
+| `ViewRenderTests` | Offscreen renders of the Device Manager row views. Baseline comparison is opt-in via `FMS_BASELINE_DIR`; unset, it still asserts every variant renders and renders deterministically |
 
 Run via Xcode (Cmd+U) or xcodebuild test. A green suite is not sufficient for MQTT
 changes — verify those against the demo fixtures, which caught two defects the
