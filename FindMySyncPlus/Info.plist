@@ -20,6 +20,8 @@
 	<true/>
 	<key>GitCommit</key>
 	<string>$(GIT_COMMIT)</string>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.utilities</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 </dict>
