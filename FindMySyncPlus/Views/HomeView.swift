@@ -245,9 +245,6 @@ struct HomeView: View {
             .frame(maxWidth: .infinity, alignment: .center)
         }
         .onAppear(perform: setupAnimations)
-        .onAppear {
-            NotificationCenter.default.post(name: .homeViewDidAppear, object: nil)
-        }
         .onChange(of: app.isPerformingRun) { setupAnimations() }
         .onReceive(timer) { _ in
             now = Date()

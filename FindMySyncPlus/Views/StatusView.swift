@@ -45,7 +45,6 @@ struct StatusView: View {
         .safeAreaInset(edge: .bottom) { bottomBar }
         .onAppear {
             logger.minimumLevel = settings.logLevel
-            NotificationCenter.default.post(name: .statusViewDidAppear, object: nil)
         }
         .onReceive(NotificationCenter.default.publisher(for: .toolbarRunNowRequested)) { _ in
             let ok = app.runNowIfIdle()

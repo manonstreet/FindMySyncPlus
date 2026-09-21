@@ -31,26 +31,10 @@ final class WindowManager: NSObject, NSWindowDelegate {
     private weak var mainWindowController: NSWindowController?
     var hasMainWindow: Bool { mainWindowController?.window != nil }
     var hasOpenUserWindows: Bool { return !controllers.isEmpty }
-    var onDeviceManagerRequested: (() -> Void)?
 
     init(policy: PolicyController) {
         self.policy = policy
         super.init()
-        NotificationCenter.default.addObserver(self, selector: #selector(homeViewDidAppear), name: .homeViewDidAppear, object: nil)
-        NotificationCenter.default.addObserver(self, selector: #selector(statusViewDidAppear), name: .statusViewDidAppear, object: nil)
-        NotificationCenter.default.addObserver(self, selector: #selector(clearToolbarItems), name: .clearToolbarItems, object: nil)
-    }
-
-    deinit {
-        NotificationCenter.default.removeObserver(self)
-    }
-
-    func registerExternalWindowController(_ controller: NSWindowController) {
-        controllers.insert(controller)
-    }
-
-    func unregisterExternalWindowController(_ controller: NSWindowController) {
-        controllers.remove(controller)
     }
 
     func activateMainWindow() -> Bool {
@@ -67,19 +51,18 @@ final class WindowManager: NSObject, NSWindowDelegate {
         policy.becomeRegular()
 
         let hosting = NSHostingController(rootView: AnyView(content()))
+        // SwiftUI supplies the window title and the toolbar items from the root view's
+        // `navigationTitle` and `toolbar`; the separator under the toolbar shows only while
+        // content is scrolled beneath it.
+        hosting.sceneBridgingOptions = [.toolbars, .title]
         let win = NSWindow(contentViewController: hosting)
         win.title = title
         win.setContentSize(NSSize(width: 800, height: 810))
         win.delegate = self
         win.isReleasedWhenClosed = false
         win.styleMask.insert(.fullSizeContentView)
-
-        // Create a proper toolbar with toggle button
-        let toolbar = NSToolbar(identifier: "MainToolbar")
-        toolbar.displayMode = .iconOnly
-        toolbar.delegate = self
-        win.toolbar = toolbar
         win.toolbarStyle = .unified
+        win.titlebarSeparatorStyle = .automatic
 
         let controller = NSWindowController(window: win)
         self.mainWindowController = controller
@@ -93,63 +76,6 @@ final class WindowManager: NSObject, NSWindowDelegate {
             win.orderFrontRegardless()
             win.deminiaturize(nil)
         }
-    }
-
-    private func currentToolbar() -> NSToolbar? {
-        return mainWindowController?.window?.toolbar
-    }
-
-    private func setHomeToolbarItems() {
-        removeToolbarItems([.runNow, .dryRun])
-
-        guard let toolbar = currentToolbar() else { return }
-        if !toolbar.items.contains(where: { $0.itemIdentifier == .deviceManager }) {
-            toolbar.insertItem(withItemIdentifier: .deviceManager, at: 0)
-        }
-    }
-
-    private func setStatusToolbarItems() {
-        guard let toolbar = currentToolbar() else { return }
-
-        let needed: [NSToolbarItem.Identifier] = [.runNow, .dryRun, .deviceManager]
-        let current = toolbar.items.map { $0.itemIdentifier }
-
-        // Add missing items
-        var insertIndex = 0
-        for id in needed where !current.contains(id) {
-            toolbar.insertItem(withItemIdentifier: id, at: insertIndex)
-            insertIndex += 1
-        }
-    }
-
-    @objc private func clearToolbarItems() {
-        removeToolbarItems([.runNow, .dryRun, .deviceManager])
-    }
-
-    private func removeToolbarItems(_ identifiers: [NSToolbarItem.Identifier]) {
-        guard let toolbar = currentToolbar() else { return }
-        for index in stride(from: toolbar.items.count - 1, through: 0, by: -1) {
-            if identifiers.contains(toolbar.items[index].itemIdentifier) {
-                toolbar.removeItem(at: index)
-            }
-        }
-    }
-
-    @objc private func homeViewDidAppear() {
-        // Delay ensures mainWindowController is set after window initialization completes
-        DispatchQueue.main.async { [weak self] in
-            self?.setHomeToolbarItems()
-        }
-    }
-
-    @objc private func statusViewDidAppear() {
-        DispatchQueue.main.async { [weak self] in
-            self?.setStatusToolbarItems()
-        }
-    }
-
-    @objc private func didTapDeviceManager() {
-        onDeviceManagerRequested?()
     }
 
     func windowWillClose(_ notification: Notification) {
@@ -168,74 +94,11 @@ final class WindowManager: NSObject, NSWindowDelegate {
     }
 }
 
-private extension NSToolbarItem.Identifier {
-    static let runNow = NSToolbarItem.Identifier("RunNow")
-    static let dryRun = NSToolbarItem.Identifier("DryRun")
-    static let deviceManager = NSToolbarItem.Identifier("DeviceManager")
-}
-
 extension Notification.Name {
-    static let homeViewDidAppear = Notification.Name("HomeViewDidAppear")
-    static let statusViewDidAppear = Notification.Name("StatusViewDidAppear")
+    /// Posted by the Status pane's toolbar items; the pane runs them, with its toast when
+    /// a run is already going.
     static let toolbarRunNowRequested = Notification.Name("ToolbarRunNowRequested")
     static let toolbarDryRunRequested = Notification.Name("ToolbarDryRunRequested")
-    static let clearToolbarItems = Notification.Name("ClearToolbarItems")
-}
-
-extension WindowManager: NSToolbarDelegate {
-    func toolbar(_ toolbar: NSToolbar, itemForItemIdentifier itemIdentifier: NSToolbarItem.Identifier, willBeInsertedIntoToolbar flag: Bool) -> NSToolbarItem? {
-        if itemIdentifier == .toggleSidebar {
-            let item = NSToolbarItem(itemIdentifier: .toggleSidebar)
-            item.isBordered = true
-            item.target = nil
-            item.action = #selector(NSSplitViewController.toggleSidebar(_:))
-            return item
-        } else if itemIdentifier == .runNow {
-            let item = NSToolbarItem(itemIdentifier: .runNow)
-            item.label = "Run Now"
-            item.paletteLabel = "Run Now"
-            item.toolTip = "Run Now"
-            item.image = NSImage(systemSymbolName: "play.fill", accessibilityDescription: nil)
-            item.target = self
-            item.action = #selector(didTapRunNow)
-            return item
-        } else if itemIdentifier == .dryRun {
-            let item = NSToolbarItem(itemIdentifier: .dryRun)
-            item.label = "Dry Run"
-            item.paletteLabel = "Dry Run"
-            item.toolTip = "Dry Run"
-            item.image = NSImage(systemSymbolName: "umbrella.fill", accessibilityDescription: nil)
-            item.target = self
-            item.action = #selector(didTapDryRun)
-            return item
-        } else if itemIdentifier == .deviceManager {
-            let item = NSToolbarItem(itemIdentifier: .deviceManager)
-            item.label = "Device Manager"
-            item.paletteLabel = "Device Manager"
-            item.toolTip = "Device Manager"
-            item.image = NSImage(systemSymbolName: "rectangle.stack.person.crop", accessibilityDescription: nil)
-            item.target = self
-            item.action = #selector(didTapDeviceManager)
-            return item
-        }
-        return nil
-    }
-
-    func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        return [.toggleSidebar, .flexibleSpace, .runNow, .dryRun, .deviceManager]
-    }
-
-    func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        return [.toggleSidebar]
-    }
-
-    @objc private func didTapRunNow() {
-        NotificationCenter.default.post(name: .toolbarRunNowRequested, object: nil)
-    }
-
-    @objc private func didTapDryRun() {
-        NotificationCenter.default.post(name: .toolbarDryRunRequested, object: nil)
-    }
 }
 
 @MainActor
@@ -253,11 +116,6 @@ final class WindowCoordinator {
     init(policy: PolicyController, settings: SettingsStore, logger: LogStore, app: AppModel) {
         self.policy = policy
         self.windows = WindowManager(policy: policy)
-
-        windows.onDeviceManagerRequested = { [weak self] in
-            self?.openDeviceManager()
-        }
-
         self.settings = settings
         self.logger = logger
         self.app = app
@@ -286,28 +144,6 @@ final class WindowCoordinator {
         refreshDockOverlay()
     }
 
-    func openDeviceManager() {
-        // If no primary user windows are open, ensure we remain accessory (no Dock)
-        if !windows.hasOpenUserWindows {
-            policy.becomeAccessory()
-        }
-        NSRunningApplication.current.activate(options: [])
-        if let settings, let app, let logger {
-            DevicesWindowController.shared.show(settings: settings, app: app, logger: logger)
-        }
-    }
-
-    func registerExternalWindow(_ controller: NSWindowController) {
-        windows.registerExternalWindowController(controller)
-    }
-
-    func unregisterExternalWindow(_ controller: NSWindowController) {
-        windows.unregisterExternalWindowController(controller)
-        // If no user windows remain, return to accessory policy
-        if !windows.hasOpenUserWindows {
-            policy.becomeAccessory()
-        }
-    }
 }
 
 // MARK: - Menu Items
@@ -533,14 +369,6 @@ struct FindMySyncPlusApp: App {
                     .disabled(true)
                     .help(nextRunTooltipText)
                 }
-            }
-
-            Button {
-                Task { @MainActor in
-                    WindowCoordinator.shared?.openDeviceManager()
-                }
-            } label: {
-                Label("Device Manager", systemImage: "rectangle.stack.person.crop")
             }
 
             Divider()

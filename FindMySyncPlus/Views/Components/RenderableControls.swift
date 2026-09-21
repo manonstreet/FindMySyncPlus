@@ -111,37 +111,3 @@ struct AppLink: View {
         })
     }
 }
-
-/// The last rows of the log, drawn the way `StatusView` draws them, for renders only: the
-/// log is a raw `ScrollView`, which renders as nothing.
-struct StatusLogLikeness: View {
-    @EnvironmentObject var logger: LogStore
-
-    var body: some View {
-        let entries = Array(logger.entries.suffix(28))
-        let even = Color(nsColor: NSColor.alternatingContentBackgroundColors[0])
-        let odd  = Color(nsColor: NSColor.alternatingContentBackgroundColors[1])
-        VStack(alignment: .leading, spacing: 0) {
-            ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
-                HStack(alignment: .top, spacing: 8) {
-                    Text(entry.timestampString)
-                        .foregroundStyle(.secondary)
-                    Text(entry.message)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Spacer(minLength: 0)
-                }
-                .font(.system(size: 11, design: .monospaced))
-                .padding(.vertical, 3)
-                .padding(.leading, 8)
-                .padding(.trailing, 12)
-                .background(index.isMultiple(of: 2) ? even : odd)
-                .overlay(alignment: .leading) {
-                    Rectangle().fill(entry.level.accentColor).frame(width: 2)
-                }
-            }
-        }
-        // The real log is inset from the pane's edges; the likeness has to be too.
-        .padding(.horizontal, 16)
-        .padding(.top, 4)
-    }
-}

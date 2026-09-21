@@ -41,16 +41,58 @@ enum Dest: String, CaseIterable, Hashable {
     }
 }
 
+/// The main window: a split view with a fixed sidebar, the section name as the window
+/// title, and the pane's actions as toolbar items. The window's own title bar and toolbar
+/// draw the chrome, so on macOS 26 and later the toolbar is glass with content scrolling
+/// under it, and 14 and 15 draw their plainer toolbar from the same code.
 struct RootView: View {
-    @EnvironmentObject var logger: LogStore
-    @State private var selection: Dest? = .home
+    @State private var selection: Dest = .home
+    @State private var columnVisibility: NavigationSplitViewVisibility = .all
+    /// The Tracking help, a sheet over the main window like Third-Party Notices on About.
+    /// The state is here, not in the toolbar button: a sheet is attached to the pane.
+    @State private var showTrackingHelp = false
+    // Deliberately no environment objects here. The app model publishes every second while
+    // the scheduler counts down, and a shell that observed it re-rendered on each tick,
+    // which kept every scroll view's overlay scroller awake. The few views that need model
+    // state observe it themselves.
+
+    private static let sidebarWidth: CGFloat = 190
+
     var body: some View {
-        NavigationSplitView {
+        NavigationSplitView(columnVisibility: $columnVisibility) {
             Sidebar(selection: $selection)
+                .navigationSplitViewColumnWidth(Self.sidebarWidth)
         } detail: {
-            Detail(selection: selection)
+            // The pane's scroll view is the detail's top-level content, so it reaches under
+            // the toolbar and the OS blurs it there. A stack around it would keep it below.
+            pane
+                // White under the toolbar too, so content scrolls under it on one ground.
+                .background(Color(nsColor: .controlBackgroundColor).ignoresSafeArea())
+                .navigationTitle(selection.title)
+                .toolbar {
+                    // On every pane, so the toolbar keeps one height and the sidebar's
+                    // header lines up with it: with no items SwiftUI drops the toolbar to a
+                    // bare title bar.
+                    ToolbarItem(placement: .navigation) {
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                columnVisibility = columnVisibility == .detailOnly ? .all : .detailOnly
+                            }
+                        } label: {
+                            Label("Hide or show the sidebar", systemImage: "sidebar.leading")
+                        }
+                        .help("Hide or show the sidebar")
+                    }
+                    ToolbarItemGroup(placement: .primaryAction) {
+                        PaneToolbarActions(selection: selection, showHelp: $showTrackingHelp)
+                    }
+                }
+                .sheet(isPresented: $showTrackingHelp) {
+                    DeviceManagementHelpSheet().frame(width: 650, height: 500)
+                }
         }
-        .frame(minWidth: 600, minHeight: 450)
+        // Wide enough for the Tracking lists' own 480 pt minimum beside the sidebar.
+        .frame(minWidth: 780, minHeight: 520)
         .onReceive(NotificationCenter.default.publisher(for: .navigateToStatus)) { _ in
             selection = .status
         }
@@ -59,175 +101,145 @@ struct RootView: View {
         }
     }
 
-    private func toggleSidebar() {
-        NSApp.keyWindow?.firstResponder?.tryToPerform(
-            #selector(NSSplitViewController.toggleSidebar(_:)),
-            with: nil
-        )
-    }
-}
-
-private struct PillWidthPreferenceKey: PreferenceKey {
-    static let defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = max(value, nextValue())
-    }
-}
-
-struct SidebarRow: View {
-    let destination: Dest
-    let title: String
-    let systemImage: String
-
-    var body: some View {
-        NavigationLink(value: destination) {
-            Label {
-                Text(title)
-                    .padding(.leading, 4)
-            } icon: {
-                Image(systemName: systemImage)
-                    .font(.title2)
-            }
-        }
-    }
-}
-
-struct Sidebar: View {
-    @Binding var selection: Dest?
-    @EnvironmentObject var logger: LogStore
-    @EnvironmentObject var settings: SettingsStore
-    @EnvironmentObject var app: AppModel
-    @State private var pillWidth: CGFloat = 0
-
-    private var baseMin: CGFloat { 140 }
-    private var baseIdeal: CGFloat { 160 }
-    private var baseMax: CGFloat { 300 }
-
-    private var computedMinWidth: CGFloat {
-        if logger.needsFullDiskAccess {
-            // Ensure pill fits with a little leading/trailing padding
-            let desired = pillWidth + 16 // ~8pt padding on each side
-            return max(baseMin, desired)
-        } else {
-            return baseMin
-        }
-    }
-
-    private var computedIdealWidth: CGFloat {
-        if logger.needsFullDiskAccess {
-            return max(baseIdeal, computedMinWidth)
-        } else {
-            return baseIdeal
-        }
-    }
-
-    private var computedMaxWidth: CGFloat {
-        if logger.needsFullDiskAccess {
-            // Allow max to be at least the ideal/min to avoid clamping
-            return max(baseMax, computedIdealWidth)
-        } else {
-            return baseMax
-        }
-    }
-
-    var body: some View {
-        VStack(spacing: 0) {
-            sidebarList
-            // A real footer below the list rather than an overlay on it, so the
-            // divider separates it from the navigation instead of floating over it.
-            if settings.transportMode == .mqtt {
-                // Inset to match the sidebar's own group dividers. Full width was
-                // the only edge-to-edge line in the panel, which read as "separate
-                // region below" rather than "another group" — most likely what made
-                // the footer look like a recessed well.
-                Divider()
-                    .padding(.horizontal, 10)
-                MQTTStatusLight(connected: app.mqttConnected,
-                                host: settings.mqttHost,
-                                port: settings.mqttPort,
-                                onTap: { selection = .access })
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 6)
-                    // No background of our own: the footer sits outside the List
-                    // and so does not inherit its material. Painting anything here
-                    // makes the strip read as a recessed well rather than a last
-                    // row of the sidebar.
-                    .background(Color.clear)
-            }
-        }
-        .navigationSplitViewColumnWidth(
-            min: computedMinWidth,
-            ideal: computedIdealWidth,
-            max: computedMaxWidth
-        )
-    }
-
-    private var sidebarList: some View {
-        List(selection: $selection) {
-            Text("SYNCHRONIZATION")
-                .font(.caption)
-                .fontWeight(.semibold)
-                .foregroundStyle(.secondary)
-                .padding(.top, 8)
-
-            SidebarRow(destination: .home, title: "Home", systemImage: "house")
-            SidebarRow(destination: .status, title: "Status", systemImage: "waveform.path.ecg.magnifyingglass")
-
-            Divider()
-                .padding(.vertical, 4)
-
-            Text("SETTINGS")
-                .font(.caption)
-                .fontWeight(.semibold)
-                .foregroundStyle(.secondary)
-
-            SidebarRow(destination: .access, title: "Access", systemImage: "key")
-            SidebarRow(destination: .tracking, title: "Tracking", systemImage: "scope")
-            SidebarRow(destination: .general, title: "General", systemImage: "gearshape.2")
-
-            Divider()
-                .padding(.vertical, 4)
-
-            SidebarRow(destination: .about, title: "About", systemImage: "info.circle")
-        }
-        .listStyle(.sidebar)
-        .overlay(alignment: .bottom) {
-            if logger.needsFullDiskAccess {
-                FullDiskAccessPill()
-                    .fixedSize()
-                    .background(
-                        GeometryReader { geo in
-                            Color.clear.preference(key: PillWidthPreferenceKey.self, value: geo.size.width)
-                        }
-                    )
-                    .padding(.bottom, 8)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                    .zIndex(1)
-            }
-        }
-        .animation(.spring(response: 0.28, dampingFraction: 0.9), value: logger.needsFullDiskAccess)
-        .animation(.spring(response: 0.28, dampingFraction: 0.9), value: pillWidth)
-        .onPreferenceChange(PillWidthPreferenceKey.self) { newWidth in
-            // Use the max to avoid jitter; width changes only when pill content changes
-            pillWidth = max(0, newWidth)
-        }
-    }
-}
-
-struct Detail: View {
-    @EnvironmentObject var settings: SettingsStore
-    @EnvironmentObject var logger: LogStore
-    @EnvironmentObject var app: AppModel
-    let selection: Dest?
-    @ViewBuilder var body: some View {
+    @ViewBuilder private var pane: some View {
         switch selection {
         case .home:     HomeView()
         case .status:   StatusView()
         case .tracking: DeviceManagerView()
-        case .access: AccessSettingsView()
+        case .access:   AccessSettingsView()
         case .general:  GeneralSettingsView()
         case .about:    AboutView()
-        case .none:     HomeView()
         }
+    }
+}
+
+/// A real sidebar list, so the OS draws the selection, the material and the collapse: one
+/// row per destination, a tinted tile and the name, no section headers. The MQTT light is
+/// the footer, and the Full Disk Access pill floats above it while access is missing.
+struct Sidebar: View {
+    @Binding var selection: Dest
+
+    var body: some View {
+        List(selection: Binding<Dest?>(
+            get: { selection },
+            set: { if let dest = $0 { selection = dest } }
+        )) {
+            ForEach(Dest.allCases, id: \.self) { dest in
+                HStack(spacing: 12) {
+                    DestTile(dest: dest)
+                    Text(dest.title).font(.title3)
+                }
+                .padding(.vertical, 4)
+                .tag(dest)
+            }
+        }
+        .listStyle(.sidebar)
+        .overlay(alignment: .bottom) {
+            FullDiskAccessBadge()
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            SidebarFooterLight(onTap: { selection = .access })
+        }
+    }
+}
+
+/// The pill shown while Full Disk Access is missing. Its own view, so the sidebar itself
+/// does not observe the log store.
+private struct FullDiskAccessBadge: View {
+    @EnvironmentObject var logger: LogStore
+
+    var body: some View {
+        Group {
+            if logger.needsFullDiskAccess {
+                FullDiskAccessPill()
+                    .fixedSize()
+                    .padding(.bottom, 8)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .animation(.spring(response: 0.28, dampingFraction: 0.9), value: logger.needsFullDiskAccess)
+    }
+}
+
+/// The MQTT light as the sidebar's last row. MQTT only; REST has no connection to report.
+private struct SidebarFooterLight: View {
+    let onTap: () -> Void
+    @EnvironmentObject var settings: SettingsStore
+    @EnvironmentObject var app: AppModel
+
+    var body: some View {
+        if settings.transportMode == .mqtt {
+            VStack(spacing: 0) {
+                Divider().padding(.horizontal, 10)
+                MQTTStatusLight(connected: app.mqttConnected,
+                                host: settings.mqttHost,
+                                port: settings.mqttPort,
+                                onTap: onTap)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 6)
+            }
+        }
+    }
+}
+
+/// The pane's actions as toolbar items, icon only, which the OS styles. Status gets Run Now
+/// and Dry Run and handles the notifications itself, with its toast when a run is already
+/// going. Tracking gets Run Now, straight to the model, because the Unassigned list is
+/// built from the last sync, and its help.
+private struct PaneToolbarActions: View {
+    let selection: Dest
+    @Binding var showHelp: Bool
+    @EnvironmentObject var app: AppModel
+
+    var body: some View {
+        switch selection {
+        case .status:
+            Button {
+                NotificationCenter.default.post(name: .toolbarRunNowRequested, object: nil)
+            } label: {
+                Label("Run Now", systemImage: "play.fill")
+            }
+            .help("Run Now")
+            .disabled(app.isPerformingRun)
+            Button {
+                NotificationCenter.default.post(name: .toolbarDryRunRequested, object: nil)
+            } label: {
+                Label("Dry Run", systemImage: "umbrella.fill")
+            }
+            .help("Dry Run")
+            .disabled(app.isPerformingRun)
+        case .tracking:
+            Button {
+                showHelp = true
+            } label: {
+                Label("Device Management Help", systemImage: "questionmark.app.fill")
+            }
+            .help("Device Management Help")
+            Button {
+                _ = app.runNowIfIdle()
+            } label: {
+                Label("Run Now", systemImage: "play.fill")
+            }
+            .help("Run Now")
+            .disabled(app.isPerformingRun)
+        default:
+            EmptyView()
+        }
+    }
+}
+
+/// The Tracking help as a sheet, the shape of the Third-Party Notices sheet: the same
+/// markdown view over `DEVICE-MANAGEMENT.md`, a Done button, presented at the same size.
+private struct DeviceManagementHelpSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        DeviceManagerHelpView()
+            .navigationTitle("Device Management Help")
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
     }
 }

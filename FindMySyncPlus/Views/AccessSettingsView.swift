@@ -56,9 +56,6 @@ struct AccessSettingsView: View {
             .frame(maxWidth: PaneLayout.formMaxWidth)
             .frame(maxWidth: .infinity, alignment: .center)
         }
-        .onAppear {
-            NotificationCenter.default.post(name: .clearToolbarItems, object: nil)
-        }
         .alert("Switch Transport?",
                isPresented: $showTransportSwitchAlert,
                presenting: pendingTransportMode) { mode in
