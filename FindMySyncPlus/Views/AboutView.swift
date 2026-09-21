@@ -5,10 +5,6 @@ import Foundation
 struct AboutView: View {
     @State private var showLicenses = false
 
-    private var appIcon: Image {
-        Image(nsImage: NSApplication.shared.applicationIconImage)
-    }
-
     /// `Version 1.5b (0423d49)`.
     ///
     /// The commit in preference to `CFBundleVersion`, which has read a hardcoded 1 since
@@ -31,24 +27,6 @@ struct AboutView: View {
         let commit = Bundle.main.object(forInfoDictionaryKey: "GitCommit") as? String
         let stamped = (commit?.isEmpty == false) ? commit : nil
         return "Version \(short) (\(stamped ?? build))"
-    }
-
-    // Subtle card used for sections to match app styling
-    private struct InfoCard<Content: View>: View {
-        let content: Content
-        init(@ViewBuilder content: () -> Content) { self.content = content() }
-        var body: some View {
-            content
-                .padding(16)
-                .background(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(Color(nsColor: .controlBackgroundColor))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .stroke(Color.secondary.opacity(0.12), lineWidth: 1)
-                )
-        }
     }
 
     private struct CreditLink: View {
@@ -83,103 +61,115 @@ struct AboutView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            .onAppear {
-                NotificationCenter.default.post(name: .clearToolbarItems, object: nil)
-            }
         }
     }
 
     var body: some View {
-        AppScroll {
-            VStack(spacing: 24) {
-                VStack(spacing: 12) {
-                    appIcon
-                        .resizable()
-                        .interpolation(.high)
-                        .antialiased(true)
-                        .frame(width: 96, height: 96)
-                        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-
-                    Text("FindMySync+")
-                        .font(.largeTitle)
-                        .fontWeight(.bold)
-
-                    Text(versionString)
-                        .font(.title3)
-                        .foregroundStyle(.secondary)
-                        .textSelection(.enabled)
-
-                    Button("Third-Party Notices") { showLicenses = true }
-                        .buttonStyle(.link)
-
-                    Text("A macOS utility to decrypt the local Find My cache and post device locations to a Home Assistant endpoint.")
-                        .multilineTextAlignment(.center)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .textSelection(.enabled)
-                }
-
-                Divider()
-
-                Text("Author")
-                    .font(.title2)
-                    .fontWeight(.semibold)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                VStack(spacing: 12) {
-                    Image("logo-grayscale")
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 250, height: 250)
-                        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                                .stroke(Color.secondary.opacity(0.15), lineWidth: 0.5)
-                        )
-                        .shadow(color: .black.opacity(0.08), radius: 6, y: 2)
-                }
-                .frame(maxWidth: .infinity)
-
-                Divider()
-
-                Text("Acknowledgments")
-                    .font(.title2)
-                    .fontWeight(.semibold)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                InfoCard {
-                    VStack(alignment: .leading, spacing: 18) {
-                        CreditLink(
-                            title: "FindMySync",
-                            author: "Martin Pham",
-                            url: "https://github.com/MartinPham/FindMySync",
-                            description: "The original application, icon, and conceptual inspiration for this project's core functionality."
-                        )
-                        CreditLink(
-                            title: "findmy-cache-decryptor",
-                            author: "Pnut-GGG",
-                            url: "https://github.com/Pnut-GGG/findmy-cache-decryptor",
-                            description: "Provided the reverse-engineered methodology for decrypting the Find My cache files in newer versions of MacOS."
-                        )
-                        CreditLink(
-                            title: "FMIPDataManager-extractor",
-                            author: "Pnut-GGG",
-                            url: "https://github.com/Pnut-GGG/FMIPDataManager-extractor",
-                            description: "The original method for extracting FMIP decryption keys from the macOS Keychain."
-                        )
-                    }
-                }
-
-                Spacer(minLength: 0)
-            }
-            .contentMargins(.top, 0)
-            .padding(.top, 0)
-            .padding(24)
-            .frame(maxWidth: 610)
-            .frame(maxWidth: .infinity, alignment: .center)
+        PaneColumn {
+            Card { identity }
+            authorCard
+            acknowledgments
         }
+        .safeAreaInset(edge: .bottom, spacing: 0) { utilityBar }
         .sheet(isPresented: $showLicenses) {
             LicensesView()
                 .frame(width: 650, height: 500)
         }
+    }
+
+    /// Icon left, name and version right, the blurb beneath.
+    private var identity: some View {
+        HStack(alignment: .top, spacing: 18) {
+            Image(nsImage: NSApplication.shared.applicationIconImage)
+                .resizable()
+                .interpolation(.high)
+                .antialiased(true)
+                .frame(width: 84, height: 84)
+                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            VStack(alignment: .leading, spacing: 4) {
+                Text("FindMySync+").font(.title).fontWeight(.bold)
+                Text(versionString).font(.body).foregroundStyle(.secondary).textSelection(.enabled)
+                Text("Decrypts the local Find My cache and publishes device, item and friend locations to Home Assistant.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .textSelection(.enabled)
+                    .padding(.top, 4)
+            }
+            Spacer(minLength: 0)
+        }
+    }
+
+    /// The artwork at a size worth looking at, with the credit line beside it.
+    private var authorCard: some View {
+        Card {
+            HStack(alignment: .center, spacing: 22) {
+                Image("logo-grayscale")
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 220, height: 220)
+                    .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 20, style: .continuous)
+                            .stroke(Color.secondary.opacity(0.15), lineWidth: 0.5)
+                    )
+                    .shadow(color: .black.opacity(0.08), radius: 6, y: 2)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Author").font(.title2).fontWeight(.semibold)
+                    Text("Based on FindMySync by Martin Pham and the decryption research by Pnut-GGG.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 0)
+            }
+        }
+    }
+
+    private var acknowledgments: some View {
+        TitledCard(title: "Acknowledgments") {
+            VStack(alignment: .leading, spacing: 18) {
+                CreditLink(
+                    title: "FindMySync",
+                    author: "Martin Pham",
+                    url: "https://github.com/MartinPham/FindMySync",
+                    description: "The original application, icon, and conceptual inspiration for this project's core functionality."
+                )
+                CreditLink(
+                    title: "findmy-cache-decryptor",
+                    author: "Pnut-GGG",
+                    url: "https://github.com/Pnut-GGG/findmy-cache-decryptor",
+                    description: "Provided the reverse-engineered methodology for decrypting the Find My cache files in newer versions of MacOS."
+                )
+                CreditLink(
+                    title: "FMIPDataManager-extractor",
+                    author: "Pnut-GGG",
+                    url: "https://github.com/Pnut-GGG/FMIPDataManager-extractor",
+                    description: "The original method for extracting FMIP decryption keys from the macOS Keychain."
+                )
+            }
+        }
+    }
+
+    /// Quit on the left, the rest on the right. About only.
+    private var utilityBar: some View {
+        VStack(spacing: 0) {
+            Divider()
+            HStack(spacing: 18) {
+                AppLink(title: "Quit") { NSApplication.shared.terminate(nil) }
+                Spacer()
+                AppLink(title: "Third-Party Notices") { showLicenses = true }
+                AppLink(title: "Report a Bug") {
+                    if let url = URL(string: "https://github.com/manonstreet/FindMySyncPlus/issues") {
+                        NSWorkspace.shared.open(url)
+                    }
+                }
+            }
+            .font(.callout)
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 22)
+            .padding(.vertical, 9)
+        }
+        .background(.bar)
     }
 }
