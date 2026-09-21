@@ -34,25 +34,26 @@ struct AccessSettingsView: View {
     @State private var pendingTransportMode: TransportMode?
     @State private var showTransportSwitchAlert: Bool = false
 
+    private let endpointTip = "REST uses HTTP POST to device_tracker/see. MQTT uses HA auto-discovery with richer attributes.\n\n"
+        + "Switching transport modes creates new entities in Home Assistant. "
+        + "Old entities from the previous mode will become stale and should be removed manually."
+
     var body: some View {
         AppScroll {
-            VStack(spacing: 16) {
-                SectionHeader(
-                    title: "ENDPOINT",
-                    tip: "REST uses HTTP POST to device_tracker/see. MQTT uses HA auto-discovery with richer attributes.\n\n"
-                        + "Switching transport modes creates new entities in Home Assistant. "
-                        + "Old entities from the previous mode will become stale and should be removed manually."
-                )
-                endpointCard
+            VStack(spacing: 22) {
+                PaneHero(dest: .access,
+                         text: "Where locations are sent, the connection test, decryption keys, and Full Disk Access.")
+                VStack(alignment: .leading, spacing: 8) {
+                    FloatingLabel(title: "Endpoint", tip: endpointTip)
+                    endpointCard
+                }
                 connectionTestCard
-
-                SectionHeader(title: "LOCAL", tip: "Local key and macOS permissions required for decryption.")
-                    .padding(.top, 8)
                 keysCard
                 permissionStatusCard
             }
             .padding(.horizontal, 18)
-            .frame(maxWidth: 610)
+            .padding(.bottom, 16)
+            .frame(maxWidth: PaneLayout.formMaxWidth)
             .frame(maxWidth: .infinity, alignment: .center)
         }
         .onAppear {
@@ -79,21 +80,14 @@ struct AccessSettingsView: View {
         }
     }
 
-    // Small labeled section header used between groups of cards
-    private struct SectionHeader: View {
-        let title: String
-        let tip: String
-        var body: some View {
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text(title)
-                    .font(.callout)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(.secondary)
-                InfoTip(message: tip)
-                Spacer()
-            }
-            .padding(.top, 4)
-            .padding(.bottom, -4)
+    /// A field group's title inside the endpoint card, a size under the floating label.
+    private func subheading(_ title: String, tip: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Text(title)
+                .font(.headline)
+                .fontWeight(.semibold)
+            InfoTip(message: tip)
+            Spacer()
         }
     }
 
@@ -171,12 +165,7 @@ struct AccessSettingsView: View {
 
                 if settings.transportMode == .rest {
                     // -- URL --
-                    HStack(alignment: .firstTextBaseline, spacing: 6) {
-                        Text("URL")
-                            .font(.title3).fontWeight(.semibold)
-                        InfoTip(message: "Home Assistant device tracker endpoint used for POST requests.")
-                        Spacer()
-                    }
+                    subheading("URL", tip: "Home Assistant device tracker endpoint used for POST requests.")
                     HStack(spacing: 8) {
                         TextField("http://homeassistant.local:8123/api/services/device_tracker/see", text: $settings.endpointURL)
                             .textFieldStyle(.roundedBorder)
@@ -187,12 +176,7 @@ struct AccessSettingsView: View {
                     }
 
                     // -- Authorization --
-                    HStack(alignment: .firstTextBaseline, spacing: 6) {
-                        Text("Authorization")
-                            .font(.title3).fontWeight(.semibold)
-                        InfoTip(message: "Exact string sent in the authorization header.")
-                        Spacer()
-                    }
+                    subheading("Authorization", tip: "Exact string sent in the authorization header.")
                     .padding(.top, 4)
                     HStack(spacing: 8) {
                         let authBinding = Binding<String>(
@@ -220,12 +204,7 @@ struct AccessSettingsView: View {
                     }
                 } else {
                     // -- Broker --
-                    HStack(alignment: .firstTextBaseline, spacing: 6) {
-                        Text("Broker")
-                            .font(.title3).fontWeight(.semibold)
-                        InfoTip(message: "MQTT broker connection details. HA's built-in Mosquitto add-on typically runs on port 1883 (or 8883 with TLS).")
-                        Spacer()
-                    }
+                    subheading("Broker", tip: "MQTT broker connection details. HA's built-in Mosquitto add-on typically runs on port 1883 (or 8883 with TLS).")
                     HStack(spacing: 8) {
                         TextField("homeassistant.local", text: $settings.mqttHost)
                             .textFieldStyle(.roundedBorder)
@@ -251,12 +230,7 @@ struct AccessSettingsView: View {
                     }
 
                     // -- Credentials --
-                    HStack(alignment: .firstTextBaseline, spacing: 6) {
-                        Text("Credentials")
-                            .font(.title3).fontWeight(.semibold)
-                        InfoTip(message: "MQTT broker username and password. Leave blank for anonymous access.")
-                        Spacer()
-                    }
+                    subheading("Credentials", tip: "MQTT broker username and password. Leave blank for anonymous access.")
                     .padding(.top, 4)
                     HStack(spacing: 8) {
                         TextField("Username", text: $settings.mqttUsername)
@@ -287,12 +261,7 @@ struct AccessSettingsView: View {
                     }
 
                     // -- Topic Prefix --
-                    HStack(alignment: .firstTextBaseline, spacing: 6) {
-                        Text("Topic Prefix")
-                            .font(.title3).fontWeight(.semibold)
-                        InfoTip(message: "Prefix for MQTT discovery and state topics. Must match the prefix configured in Home Assistant's MQTT integration.")
-                        Spacer()
-                    }
+                    subheading("Topic Prefix", tip: "Prefix for MQTT discovery and state topics. Must match the prefix configured in Home Assistant's MQTT integration.")
                     .padding(.top, 4)
                     HStack(spacing: 8) {
                         TextField("findmysyncplus/", text: $settings.mqttTopicPrefix)
@@ -306,16 +275,11 @@ struct AccessSettingsView: View {
 
     // MARK: - Connection Test (generic for REST/MQTT)
     private var connectionTestCard: some View {
-        Card {
+        TitledCard(title: "Connection Test",
+                   tip: settings.transportMode == .rest
+                       ? "Performs a GET request on the base /api/ endpoint to verify the Authorization header."
+                       : "Attempts to connect to the MQTT broker to verify host, port, and credentials.") {
             VStack(alignment: .leading, spacing: 12) {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text("Connection Test")
-                        .font(.title3).fontWeight(.semibold)
-                    InfoTip(message: settings.transportMode == .rest
-                            ? "Performs a GET request on the base /api/ endpoint to verify the Authorization header."
-                            : "Attempts to connect to the MQTT broker to verify host, port, and credentials.")
-                    Spacer()
-                }
                 HStack {
                     connectionTestStatusDisplay
                     Spacer()
@@ -420,15 +384,9 @@ struct AccessSettingsView: View {
 
     // MARK: - Decryption Keys (segmented)
     private var keysCard: some View {
-        Card {
+        TitledCard(title: "Decryption Keys",
+                   tip: "Import key files exported by the key extractor.\nKeys are stored securely in your Keychain.\nRight-click a key to clear it.") {
             VStack(alignment: .leading, spacing: 12) {
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text("Decryption Keys")
-                        .font(.title3).fontWeight(.semibold)
-                    InfoTip(message: "Import key files exported by the key extractor.\nKeys are stored securely in your Keychain.\nRight-click a key to clear it.")
-                    Spacer()
-                }
-
                 FullWidthSegmentedControl<KeyTab>(
                     selection: $selectedKeyTab,
                     labels: ["All", "Find My", "FMF", "LocalStorage"]
@@ -596,14 +554,9 @@ struct AccessSettingsView: View {
 
     // MARK: - Permissions
     private var permissionStatusCard: some View {
-        Card {
+        TitledCard(title: "Permission Status",
+                   tip: "Grant Full Disk Access so the app can read the Find My cache files.") {
             VStack(alignment: .leading, spacing: 12) {
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text("Permission Status")
-                        .font(.title3).fontWeight(.semibold)
-                    InfoTip(message: "Grant Full Disk Access so the app can read the Find My cache files.")
-                    Spacer()
-                }
                 HStack {
                     HStack(spacing: 6) {
                         if logger.needsFullDiskAccess {

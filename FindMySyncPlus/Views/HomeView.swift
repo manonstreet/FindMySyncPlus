@@ -20,26 +20,31 @@ struct HomeView: View {
     private var statusText: String { app.statusText }
     private var statusColor: Color { app.statusColor }
 
+    private var schedulerBinding: Binding<Bool> {
+        Binding(get: { app.isRunning }, set: { newVal in newVal ? app.start() : app.stop() })
+    }
+
     var body: some View {
         AppScroll {
-            VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: 22) {
                 // --- Status Card ---
                 Card {
                     VStack(alignment: .leading, spacing: 12) {
-                        Toggle(isOn: Binding(
-                            get: { app.isRunning },
-                            set: { newVal in newVal ? app.start() : app.stop() }
-                        )) {
-                            Text("Scheduler").font(.title2).bold()
+                        // The card's own header, the switch at its trailing edge.
+                        HStack(spacing: 8) {
+                            CardHeader(title: "Scheduler", systemImage: "clock.arrow.2.circlepath")
+                            Spacer()
+                            Toggle("", isOn: schedulerBinding)
+                                .toggleStyle(.switch)
+                                .controlSize(.mini)
+                                .labelsHidden()
                         }
-                        .toggleStyle(.switch)
-                        Divider()
                         Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 16, verticalSpacing: 6) {
                             statusGridRow
                             GridRow { Text("Last Run").fontWeight(.semibold); Text(app.lastRunText).monospacedDigit() }
                             GridRow { Text("Next Run").fontWeight(.semibold); Text(nextRunDisplayText()).monospacedDigit() }
                         }
-                        Divider()
+                        .innerBox()
                         HStack(spacing: 12) {
                             Button {
                                 _ = app.runNowIfIdle()
@@ -82,7 +87,6 @@ struct HomeView: View {
                             .buttonStyle(.plain)
                             .help("Reset counters: Runs, Warning Runs, Posts")
                         }
-                        Divider()
                         Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 16, verticalSpacing: 6) {
                             GridRow { Text("Uptime").fontWeight(.semibold); Text(uptimeText).monospacedDigit() }
                             GridRow { Text("Successful Runs").fontWeight(.semibold); Text("\(app.totalRunsCount)").monospacedDigit() }
@@ -93,6 +97,7 @@ struct HomeView: View {
                                 GridRow { Text("Learned UUIDs").fontWeight(.semibold); Text("\(app.learnedUUIDsCount)").monospacedDigit() }
                             }
                         }
+                        .innerBox()
                     }
                 }
 
@@ -100,7 +105,6 @@ struct HomeView: View {
                 Card {
                     VStack(alignment: .leading, spacing: 12) {
                         CardHeader(title: "Configuration Summary", systemImage: "gearshape")
-                        Divider()
                         Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 16, verticalSpacing: 6) {
                             GridRow {
                                 Text("Auto-start").fontWeight(.semibold)
@@ -227,6 +231,7 @@ struct HomeView: View {
                                 Text("\(settings.aliases.filter { $0.tracked }.count)").monospacedDigit()
                             }
                         }
+                        .innerBox()
                     }
                 }
 
@@ -235,7 +240,8 @@ struct HomeView: View {
             .contentMargins(.top, 8)
             .padding(.top, 8)
             .padding(.horizontal, 18)
-            .frame(maxWidth: 610)
+            .padding(.bottom, 16)
+            .frame(maxWidth: PaneLayout.formMaxWidth)
             .frame(maxWidth: .infinity, alignment: .center)
         }
         .onAppear(perform: setupAnimations)

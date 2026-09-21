@@ -522,7 +522,9 @@ struct DeviceManagerView: View {
     private func sectionHeader<Trailing: View>(title: String, tip: String, @ViewBuilder trailing: () -> Trailing = { EmptyView() }) -> some View {
         VStack(spacing: 6) {
             HStack(spacing: 8) {
-                Text(title).font(.title3).fontWeight(.semibold)
+                // The pane's name is in the toolbar, so these read as sections, in the
+                // small secondary style.
+                Text(title.uppercased()).font(.callout).fontWeight(.semibold).foregroundStyle(.secondary)
                 InfoTip(message: tip)
                 Spacer()
                 trailing()

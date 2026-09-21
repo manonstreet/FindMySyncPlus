@@ -1,7 +1,45 @@
 import SwiftUI
 import AppKit
 
-enum Dest: Hashable { case home, status, access, extras, about }
+/// The six destinations, in sidebar order. Tracking is the Device Manager, embedded: the
+/// name fits Items and Friends as well as Devices (#23).
+enum Dest: String, CaseIterable, Hashable {
+    case home, status, tracking, access, general, about
+
+    var title: String {
+        switch self {
+        case .home: "Home"
+        case .status: "Status"
+        case .tracking: "Tracking"
+        case .access: "Access"
+        case .general: "General"
+        case .about: "About"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .home: "house.fill"
+        case .status: "waveform.path.ecg"
+        case .tracking: "scope"
+        case .access: "key.fill"
+        case .general: "gearshape.fill"
+        case .about: "info.circle.fill"
+        }
+    }
+
+    /// The sidebar tile's color, System Settings-style.
+    var tint: Color {
+        switch self {
+        case .home: .blue
+        case .status: .green
+        case .tracking: .orange
+        case .access: .purple
+        case .general: .gray
+        case .about: .teal
+        }
+    }
+}
 
 struct RootView: View {
     @EnvironmentObject var logger: LogStore
@@ -144,7 +182,8 @@ struct Sidebar: View {
                 .foregroundStyle(.secondary)
 
             SidebarRow(destination: .access, title: "Access", systemImage: "key")
-            SidebarRow(destination: .extras, title: "General", systemImage: "gearshape.2")
+            SidebarRow(destination: .tracking, title: "Tracking", systemImage: "scope")
+            SidebarRow(destination: .general, title: "General", systemImage: "gearshape.2")
 
             Divider()
                 .padding(.vertical, 4)
@@ -184,8 +223,9 @@ struct Detail: View {
         switch selection {
         case .home:     HomeView()
         case .status:   StatusView()
+        case .tracking: DeviceManagerView()
         case .access: AccessSettingsView()
-        case .extras:   GeneralSettingsView()
+        case .general:  GeneralSettingsView()
         case .about:    AboutView()
         case .none:     HomeView()
         }

@@ -28,9 +28,9 @@ struct StatusView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            logList
-        }
+        // The log's scroll view is the pane's top-level content, so it can reach under the
+        // window's toolbar; a stack around it kept it below.
+        logList
         .overlay(alignment: .topTrailing) {
             if let toastMessage {
                 Text(toastMessage)
