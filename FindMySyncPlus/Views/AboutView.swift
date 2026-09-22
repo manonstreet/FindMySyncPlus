@@ -116,7 +116,7 @@ struct AboutView: View {
                     .shadow(color: .black.opacity(0.08), radius: 6, y: 2)
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Author").font(.title2).fontWeight(.semibold)
-                    Text("Based on FindMySync by Martin Pham and the decryption research by Pnut-GGG.")
+                    Text("I am an information security professional and Home Assistant enthusiast who values privacy. I built this app for me, hopefully you find it useful too.")
                         .font(.callout)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -151,25 +151,28 @@ struct AboutView: View {
         }
     }
 
-    /// Quit on the left, the rest on the right. About only.
+    /// The links, trailing. About only. The same height as the sidebar's footer, so the two
+    /// dividers meet: 6 pt of padding, the light's own 5 pt, and its caption line.
     private var utilityBar: some View {
         VStack(spacing: 0) {
             Divider()
             HStack(spacing: 18) {
-                AppLink(title: "Quit") { NSApplication.shared.terminate(nil) }
                 Spacer()
+                AppLink(title: "GitHub") { open("https://github.com/manonstreet/FindMySyncPlus") }
+                AppLink(title: "Changelog") { open("https://github.com/manonstreet/FindMySyncPlus/blob/HEAD/CHANGELOG.md") }
                 AppLink(title: "Third-Party Notices") { showLicenses = true }
-                AppLink(title: "Report a Bug") {
-                    if let url = URL(string: "https://github.com/manonstreet/FindMySyncPlus/issues") {
-                        NSWorkspace.shared.open(url)
-                    }
-                }
+                AppLink(title: "Report a Bug") { open("https://github.com/manonstreet/FindMySyncPlus/issues") }
             }
             .font(.callout)
-            .foregroundStyle(.secondary)
             .padding(.horizontal, 22)
-            .padding(.vertical, 9)
+            .frame(height: 35)
         }
         .background(.bar)
+    }
+
+    private func open(_ address: String) {
+        if let url = URL(string: address) {
+            NSWorkspace.shared.open(url)
+        }
     }
 }
