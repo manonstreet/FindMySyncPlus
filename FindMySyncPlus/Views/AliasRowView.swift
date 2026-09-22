@@ -9,17 +9,19 @@ struct CompactSwitchStyle: ToggleStyle {
         let on = configuration.isOn
         return ZStack {
             // Track
-            RoundedRectangle(cornerRadius: 9, style: .continuous)
+            RoundedRectangle(cornerRadius: 6.5, style: .continuous)
                 .fill(on ? Color.accentColor : Color.secondary.opacity(0.35))
-                .frame(width: 34, height: 18)
+                .frame(width: 25, height: 13)
 
             // Knob
             Circle()
                 .fill(Color.white)
                 .shadow(color: .black.opacity(0.12), radius: 0.5, y: 0.5)
-                .frame(width: 16, height: 16)
-                .frame(width: 34, alignment: on ? .trailing : .leading)
+                .frame(width: 11, height: 11)
+                // Before the positioning frame, not after: padding applied after it widens
+                // the knob's container past the track, leaving the knob flush with its end.
                 .padding(.horizontal, 1)
+                .frame(width: 25, alignment: on ? .trailing : .leading)
                 .animation(.snappy(duration: 0.15), value: on)
         }
         .contentShape(Rectangle())

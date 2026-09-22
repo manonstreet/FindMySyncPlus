@@ -37,7 +37,7 @@ struct HomeView: View {
                             Spacer()
                             Toggle("", isOn: schedulerBinding)
                                 .toggleStyle(.switch)
-                                .controlSize(.mini)
+                                .controlSize(.small)
                                 .labelsHidden()
                         }
                         Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 16, verticalSpacing: 6) {
