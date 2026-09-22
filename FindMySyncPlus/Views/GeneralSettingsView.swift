@@ -47,7 +47,7 @@ struct GeneralSettingsView: View {
     var body: some View {
         PaneColumn {
             PaneHero(dest: .general,
-                     text: "Configure general settings and options to control application behavior.")
+                     text: "Control the sync schedule, the Find My sources, and the rules for publishing to Home Assistant.")
 
             SettingsGroup(title: "Startup & Scheduling",
                           tip: "Control open at login, start syncing on app launch, and scheduler run frequency.") {
