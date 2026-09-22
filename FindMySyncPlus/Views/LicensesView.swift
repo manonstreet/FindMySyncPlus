@@ -25,19 +25,55 @@ enum ShippedLicense: String, CaseIterable, Identifiable {
         }
     }
 
-    /// The file's text as written, line breaks included.
+    /// The file's text, its paragraphs reflowed for the sheet.
     var text: String {
         guard let url = Bundle.main.url(forResource: rawValue, withExtension: "txt"),
-              let text = try? String(contentsOf: url, encoding: .utf8) else {
+              let raw = try? String(contentsOf: url, encoding: .utf8) else {
             return "\(rawValue).txt is missing from the app bundle."
         }
-        return text
+        return Self.reflow(raw)
+    }
+
+    /// Undoes the line wraps inside a paragraph, so a paragraph fills the sheet's width.
+    ///
+    /// License files are wrapped at seventy-odd columns for a terminal, and shown as
+    /// written they stop two thirds of the way across the sheet. The words are the file's;
+    /// only the breaks inside a paragraph go. What stays on a line of its own: a blank
+    /// line, a line indented eight or more (the GPL's centered headings), a short line
+    /// (a title, a copyright line, a URL, a section heading), and whatever follows a line
+    /// ending in `>` (the GPL's notice template, whose placeholders are one per line).
+    /// A line is taken to have been wrapped when it runs to fifty-five characters or more.
+    static func reflow(_ raw: String) -> String {
+        var lines: [String] = []
+        var previousWasWrapped = false
+        for rawLine in raw.components(separatedBy: "\n") {
+            let trimmed = rawLine.trimmingCharacters(in: .whitespaces)
+            let indent = rawLine.prefix(while: { $0 == " " }).count
+            if trimmed.isEmpty {
+                lines.append("")
+                previousWasWrapped = false
+            } else if indent >= 8 {
+                lines.append(trimmed)
+                previousWasWrapped = false
+            } else if previousWasWrapped, let last = lines.indices.last {
+                lines[last] += " " + trimmed
+                previousWasWrapped = Self.looksWrapped(trimmed)
+            } else {
+                lines.append(trimmed)
+                previousWasWrapped = Self.looksWrapped(trimmed)
+            }
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    private static func looksWrapped(_ line: String) -> Bool {
+        line.count >= 55 && !line.hasSuffix(">")
     }
 }
 
 /// The full text of each license, one after another, opened at the one asked for. Plain
-/// text in the reading font with the file's own line breaks, the way acknowledgments read
-/// elsewhere on the Mac; a code block made the GPL a wide monospaced box.
+/// text in the reading font, the way acknowledgments read elsewhere on the Mac; a code
+/// block made the GPL a wide monospaced box.
 struct LicensesView: View {
     var showing: ShippedLicense?
     @Environment(\.dismiss) private var dismiss

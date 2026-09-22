@@ -118,7 +118,7 @@ struct AboutView: View {
             HStack(alignment: .center, spacing: 22) {
                 Image("logo-grayscale")
                     .resizable()
-                    .aspectRatio(contentMode: .fit)
+                    .scaledToFit()
                     .frame(width: 220, height: 220)
                     .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
                     .overlay(
@@ -128,7 +128,8 @@ struct AboutView: View {
                     .shadow(color: .black.opacity(0.08), radius: 6, y: 2)
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Author").font(.title2).fontWeight(.semibold)
-                    Text("I am an information security professional and Home Assistant enthusiast who values privacy. I built this app for me, hopefully you find it useful too.")
+                    Text("I am an information security professional and Home Assistant enthusiast "
+                         + "who values privacy. I built this app for me, hopefully you find it useful too.")
                         .font(.callout)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -148,7 +149,8 @@ struct AboutView: View {
                     title: "FindMySync",
                     author: "Martin Pham",
                     url: "https://github.com/MartinPham/FindMySync",
-                    description: "The original application, icon, and conceptual inspiration for this project's core functionality. The icon is used with a plus added.",
+                    description: "The original application, icon, and conceptual inspiration for this project's "
+                        + "core functionality. The icon is used with a plus added.",
                     license: .findMySyncIcon,
                     licenseLabel: "Icon license: GNU General Public License 3.0",
                     onLicense: { licenseShown = $0 }
