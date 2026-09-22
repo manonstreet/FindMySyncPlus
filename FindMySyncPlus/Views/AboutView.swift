@@ -78,8 +78,11 @@ struct AboutView: View {
 
     var body: some View {
         PaneColumn {
-            Card { identity }
-            authorCard
+            AppHero(title: "FindMySync+",
+                    subtitle: versionString,
+                    text: "Decrypts the local Find My cache and publishes device, item and "
+                        + "friend locations to Home Assistant.")
+            authorSection
             acknowledgments
         }
         .safeAreaInset(edge: .bottom, spacing: 0) { utilityBar }
@@ -89,33 +92,12 @@ struct AboutView: View {
         }
     }
 
-    /// Icon left, name and version right, the blurb beneath.
-    private var identity: some View {
-        HStack(alignment: .top, spacing: 18) {
-            Image(nsImage: NSApplication.shared.applicationIconImage)
-                .resizable()
-                .interpolation(.high)
-                .antialiased(true)
-                .frame(width: 84, height: 84)
-                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-            VStack(alignment: .leading, spacing: 4) {
-                Text("FindMySync+").font(.title).fontWeight(.bold)
-                Text(versionString).font(.body).foregroundStyle(.secondary).textSelection(.enabled)
-                Text("Decrypts the local Find My cache and publishes device, item and friend locations to Home Assistant.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .textSelection(.enabled)
-                    .padding(.top, 4)
-            }
-            Spacer(minLength: 0)
-        }
-    }
-
-    /// The artwork at a size worth looking at, with the credit line beside it.
-    private var authorCard: some View {
-        Card {
-            HStack(alignment: .center, spacing: 22) {
+    /// The artwork at a size worth looking at, with the credit line beside it. No card
+    /// behind it: the PNG is opaque and its own background is 242,243,242, which is the
+    /// card fill, so a card would swallow its edge. The rounded clip and shadow are what
+    /// separate it from the pane.
+    private var authorSection: some View {
+        HStack(alignment: .center, spacing: 22) {
                 Image("logo-grayscale")
                     .resizable()
                     .scaledToFit()
@@ -125,7 +107,7 @@ struct AboutView: View {
                         RoundedRectangle(cornerRadius: 20, style: .continuous)
                             .stroke(Color.secondary.opacity(0.15), lineWidth: 0.5)
                     )
-                    .shadow(color: .black.opacity(0.08), radius: 6, y: 2)
+                    .shadow(color: .black.opacity(0.10), radius: 8, y: 3)
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Author").font(.title2).fontWeight(.semibold)
                     Text("I am an information security professional and Home Assistant enthusiast "
@@ -135,13 +117,15 @@ struct AboutView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer(minLength: 0)
-            }
         }
+        // Matches the cards' outer inset, so the artwork's left edge lines up with theirs.
+        .padding(.horizontal, 18)
+        .padding(.vertical, 8)
     }
 
     /// What the app is built on and what it ships: the sources it draws on, and the two
-    /// libraries. The notices that used to be a separate document are these entries; the
-    /// license texts are in the Licenses sheet.
+    /// libraries. These five entries are the third-party notices, and the license texts are
+    /// in the Licenses sheet; `Docs/THIRD-PARTY-NOTICES.md` is in the bundle but unused.
     private var acknowledgments: some View {
         TitledCard(title: "Acknowledgments") {
             VStack(alignment: .leading, spacing: 18) {

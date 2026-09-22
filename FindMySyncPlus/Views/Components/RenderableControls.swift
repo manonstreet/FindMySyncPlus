@@ -14,9 +14,9 @@ struct AppSwitch: View {
         substituting({
             Toggle("", isOn: $isOn).toggleStyle(.switch).controlSize(.mini).labelsHidden()
         }, whileRendering: {
-            // The small switch measured about 44 by 26 points on macOS 27. The mini one is
-            // drawn at that scaled by the small-to-mini ratio of the older sizes, and has
-            // not been measured; see plans/1.6b-ux-refresh.md.
+            // The small switch measures about 44 by 26 points on macOS 27. The mini one is
+            // that scaled by the small-to-mini ratio of the older sizes, and is unmeasured,
+            // so a render is approximate here in a way it is not elsewhere.
             let scale: CGFloat = 0.82
             return ZStack(alignment: isOn ? .trailing : .leading) {
                 Capsule().fill(isOn ? Color.accentColor : Color.secondary.opacity(0.35))

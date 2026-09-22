@@ -39,22 +39,16 @@ struct AccessSettingsView: View {
         + "Old entities from the previous mode will become stale and should be removed manually."
 
     var body: some View {
-        AppScroll {
-            VStack(spacing: 22) {
-                PaneHero(dest: .access,
-                         text: "Configure access to Home Assistant endpoints, decryption keys for the local Find My data, and Full Disk Access to read those cache files.")
-                VStack(alignment: .leading, spacing: 8) {
-                    FloatingLabel(title: "Endpoint", tip: endpointTip)
-                    endpointCard
-                }
-                connectionTestCard
-                keysCard
-                permissionStatusCard
+        PaneColumn {
+            PaneHero(dest: .access,
+                     text: "Configure access to Home Assistant endpoints, decryption keys for the local Find My data, and Full Disk Access to read those cache files.")
+            VStack(alignment: .leading, spacing: 8) {
+                FloatingLabel(title: "Endpoint", tip: endpointTip)
+                endpointCard
             }
-            .padding(.horizontal, 18)
-            .padding(.bottom, 16)
-            .frame(maxWidth: PaneLayout.formMaxWidth)
-            .frame(maxWidth: .infinity, alignment: .center)
+            connectionTestCard
+            keysCard
+            permissionStatusCard
         }
         .alert("Switch Transport?",
                isPresented: $showTransportSwitchAlert,

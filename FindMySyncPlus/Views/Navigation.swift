@@ -1,8 +1,8 @@
 import SwiftUI
 import AppKit
 
-/// The six destinations, in sidebar order. Tracking is the alias list, which had its own
-/// window until 1.6b; the name fits Items and Friends as well as Devices (#23).
+/// The six destinations, in sidebar order. Tracking is the alias list; the name fits Items
+/// and Friends as well as Devices (#23).
 enum Dest: String, CaseIterable, Hashable {
     case home, status, tracking, access, general, about
 

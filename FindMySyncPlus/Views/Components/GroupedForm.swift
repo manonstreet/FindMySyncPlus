@@ -79,6 +79,50 @@ struct PaneHero: View {
     }
 }
 
+/// About's hero, the shape `PaneHero` has with the app's own icon in place of a destination
+/// tile and a version line between the name and the blurb.
+struct AppHero: View {
+    let title: String
+    let subtitle: String
+    let text: String
+
+    /// macOS composes an app bundle's icon at 80.5% of its canvas, so a 64 point squircle
+    /// needs a 79.5 point frame. The margin each side is then cancelled with negative
+    /// padding, or the frame pushes the icon's outline, and the title under it, downward
+    /// out of line with the `DestTile` heroes on the other panes.
+    private static let tileSide: CGFloat = 64
+    private static let squircleRatio: CGFloat = 0.805
+    private static var iconFrame: CGFloat { tileSide / squircleRatio }
+    private static var iconInset: CGFloat { (iconFrame - tileSide) / 2 }
+
+    var body: some View {
+        VStack(spacing: 6) {
+            Image(nsImage: NSApplication.shared.applicationIconImage)
+                .resizable()
+                .interpolation(.high)
+                .frame(width: Self.iconFrame, height: Self.iconFrame)
+                .padding(-Self.iconInset)
+                .padding(.bottom, 10)
+            Text(title).font(.largeTitle.weight(.bold))
+            Text(subtitle)
+                .font(.body)
+                .foregroundStyle(.secondary)
+                .textSelection(.enabled)
+            Text(text)
+                .font(.body)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 2)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 26)
+        .padding(.horizontal, 18)
+        .background(FlatFill())
+        .padding(.horizontal, 18)
+    }
+}
+
 /// A title with an optional gray qualifier, a description beneath if there is one, and the
 /// control at its intrinsic width on the trailing edge. Rows are separated by a line drawn
 /// a point above each row's own top edge, so the first row's lies outside its group and
@@ -163,8 +207,8 @@ struct PaneColumn<Content: View>: View {
 
     var body: some View {
         AppScroll {
-            // The label above each group is what separates it from the card before, so
-            // the groups need more room between them than cards did.
+            // Wider than the cards' own spacing: the label above a group has to read as
+            // belonging to it rather than to the card above.
             VStack(spacing: 22) { content }
                 .padding(.horizontal, 18)
                 .padding(.top, 8)
