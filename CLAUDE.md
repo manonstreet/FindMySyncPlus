@@ -102,7 +102,7 @@ Requires Full Disk Access to read the Find My cache. `Helpers/FindMyRefresher.sw
 | `Sync/SyncEngineDiagnostics.swift` | Why each record did or did not produce a position: one `.info` summary per source per run, `.debug` detail per device |
 | `Models/DeviceAlias.swift` | Alias↔UUID mapping model |
 | `Models/LogStore.swift` | Logging with levels; consumed by StatusView |
-| `Views/DeviceManagerView.swift` | Assign aliases to discovered UUIDs; source badges (Device/Item/Friend) |
+| `Views/TrackingView.swift` | Assign aliases to discovered UUIDs; source badges (Device/Item/Friend) |
 | `Views/AccessSettingsView.swift` | Transport picker, MQTT/REST config, connection test, segmented key management UI with bulk import |
 | `Helpers/Keychain.swift` | Generic SecItem wrapper; keys: `fmipSymmetricKey`, `fmfKey`, `localStorageKey` |
 
@@ -138,7 +138,7 @@ timestamps into those, so a grep count drifts between identical runs.
 | `RecordIdentityTests` | One id-resolution chain for building a `DevicePoint` and looking it up again — the `baUUID`-vs-`identifier` precedence disagreement behind #24 |
 | `RicherAttributesTests` | The attributes chosen after measuring a real `Items.data`; keeps `streetAddress` and `floorLevel` struck |
 | `SyncStatusAndAvailabilityTests` | The 1.5b rules as pure functions — stable client id, availability, the status entity, skipping repeated locations and the movement threshold. The largest file, 45 tests |
-| `ViewRenderTests` | Offscreen renders of the Device Manager row views. Baseline comparison is opt-in via `FMS_BASELINE_DIR`; unset, it still asserts every variant renders and renders deterministically |
+| `ViewRenderTests` | Offscreen renders of the Tracking row views. Baseline comparison is opt-in via `FMS_BASELINE_DIR`; unset, it still asserts every variant renders and renders deterministically |
 | `AppleRecordFixtureTests` | Proves `AppleRecordFixture`, the measured record builder the other files draw on: the eleven-key `location`, the twenty-one-key item, `$null` placeholders, and `timeStamp` as an `NSNumber` that bridges to `Double` where a literal `Int` would not |
 | `RESTPayloadTests` | The `device_tracker/see` body — the six fields, `dev_id` and `host_name` equal, `mac` from the alias alone, battery as a whole percentage and absent when unreported. The REST path had no test while being every pre-MQTT user's migration path |
 | `MQTTRefreshTriggerTests` | The inbound control path through the recording publisher: a live press fires, a retained one is dropped, and switching the setting subscribes or unsubscribes now rather than at the next connection |
