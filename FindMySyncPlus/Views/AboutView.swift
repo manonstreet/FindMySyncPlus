@@ -170,8 +170,8 @@ struct AboutView: View {
     }
 
     /// What the app is built on and what it ships: the sources it draws on, and the two
-    /// libraries. These five entries are the third-party notices, and the license texts are
-    /// in the Licenses sheet; `Docs/THIRD-PARTY-NOTICES.md` is in the bundle but unused.
+    /// libraries. These five entries are the third-party notices, and the license texts
+    /// behind them are in the Licenses sheet.
     private var acknowledgments: some View {
         TitledCard(title: "Acknowledgments") {
             VStack(alignment: .leading, spacing: 18) {
