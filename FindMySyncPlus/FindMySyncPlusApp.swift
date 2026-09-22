@@ -254,11 +254,16 @@ struct FindMySyncPlusApp: App {
         _policyController = State(initialValue: PolicyController(initial: initialPolicy))
     }
 
+    /// A template symbol, which the system tints for the light bar, the dark bar and the
+    /// highlighted state. A full-color app icon cannot be tinted, so it sat apart from
+    /// every other item in the bar.
     private var statusBarIcon: NSImage {
-        let size = NSSize(width: 32, height: 32)
-        let icon = (NSApplication.shared.applicationIconImage?.copy() as? NSImage) ?? NSImage(size: size)
-        icon.size = size
-        icon.isTemplate = false
+        let symbol = NSImage(systemSymbolName: "location.magnifyingglass",
+                             accessibilityDescription: "FindMySync+")
+        let configured = symbol?.withSymbolConfiguration(
+            NSImage.SymbolConfiguration(pointSize: 16, weight: .regular))
+        let icon = configured ?? symbol ?? NSImage(size: NSSize(width: 18, height: 18))
+        icon.isTemplate = true
         return icon
     }
 
@@ -376,7 +381,7 @@ struct FindMySyncPlusApp: App {
             Button { Task { @MainActor in NSApplication.shared.terminate(nil) } } label: { Label("Quit", systemImage: "xmark") }
         } label: {
             Image(nsImage: statusBarIcon)
-                .renderingMode(.original)
+                .renderingMode(.template)
                 .background(
                     InstallCoordinator(policy: policyController, settings: settings, logger: logger, app: app)
                 )
