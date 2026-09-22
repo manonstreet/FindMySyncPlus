@@ -3,7 +3,8 @@ import AppKit
 import Foundation
 
 struct AboutView: View {
-    @State private var showLicenses = false
+    /// The license whose text the Licenses sheet opens at; the sheet is up while it is set.
+    @State private var licenseShown: ShippedLicense?
 
     /// `Version 1.5b (0423d49)`.
     ///
@@ -34,10 +35,13 @@ struct AboutView: View {
         let author: String
         let url: String
         let description: String
-        /// The license whose text the app ships, opening the Licenses sheet. Absent for the
-        /// research the app draws on without shipping its code.
-        var license: String?
-        var onLicense: () -> Void = {}
+        /// The license whose text the app ships, opening the Licenses sheet at it. Absent for
+        /// the research the app draws on without shipping its code.
+        var license: ShippedLicense?
+        /// The link's text, where the license name alone would mislead: the GPL covers the
+        /// icon, not the app.
+        var licenseLabel: String?
+        var onLicense: (ShippedLicense) -> Void = { _ in }
 
         var body: some View {
             HStack(alignment: .top, spacing: 8) {
@@ -64,7 +68,7 @@ struct AboutView: View {
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                     if let license {
-                        AppLink(title: license, action: onLicense)
+                        AppLink(title: licenseLabel ?? license.licenseName) { onLicense(license) }
                             .font(.callout)
                     }
                 }
@@ -79,8 +83,8 @@ struct AboutView: View {
             acknowledgments
         }
         .safeAreaInset(edge: .bottom, spacing: 0) { utilityBar }
-        .sheet(isPresented: $showLicenses) {
-            LicensesView()
+        .sheet(item: $licenseShown) { license in
+            LicensesView(showing: license)
                 .frame(width: 650, height: 500)
         }
     }
@@ -145,8 +149,9 @@ struct AboutView: View {
                     author: "Martin Pham",
                     url: "https://github.com/MartinPham/FindMySync",
                     description: "The original application, icon, and conceptual inspiration for this project's core functionality. The icon is used with a plus added.",
-                    license: "Icon license: GNU General Public License 3.0",
-                    onLicense: { showLicenses = true }
+                    license: .findMySyncIcon,
+                    licenseLabel: "Icon license: GNU General Public License 3.0",
+                    onLicense: { licenseShown = $0 }
                 )
                 CreditLink(
                     title: "findmy-cache-decryptor",
@@ -165,16 +170,16 @@ struct AboutView: View {
                     author: "emqx",
                     url: "https://github.com/emqx/CocoaMQTT",
                     description: "The MQTT client.",
-                    license: "Eclipse Distribution License 1.0",
-                    onLicense: { showLicenses = true }
+                    license: .cocoaMQTT,
+                    onLicense: { licenseShown = $0 }
                 )
                 CreditLink(
                     title: "Ink",
                     author: "John Sundell",
                     url: "https://github.com/JohnSundell/Ink",
-                    description: "The Markdown parser behind the help and the licenses.",
-                    license: "MIT License",
-                    onLicense: { showLicenses = true }
+                    description: "The Markdown parser behind the help.",
+                    license: .ink,
+                    onLicense: { licenseShown = $0 }
                 )
             }
         }
@@ -189,7 +194,6 @@ struct AboutView: View {
                 Spacer()
                 AppLink(title: "GitHub") { open("https://github.com/manonstreet/FindMySyncPlus") }
                 AppLink(title: "Changelog") { open("https://github.com/manonstreet/FindMySyncPlus/blob/HEAD/CHANGELOG.md") }
-                AppLink(title: "Licenses") { showLicenses = true }
                 AppLink(title: "Report a Bug") { open("https://github.com/manonstreet/FindMySyncPlus/issues") }
             }
             .font(.callout)
