@@ -132,8 +132,17 @@ Import all three in the **Access** settings tab (Phase 3) — select the **All**
 ### Phase 2 — Install
 
 Download the latest `.dmg` from [Releases](../../releases), open it, and drag FindMySyncPlus to
-your Applications folder. Right-click → Open the first time to bypass Gatekeeper. What changed
-in each release is in [CHANGELOG.md](CHANGELOG.md).
+your Applications folder.
+
+The app is signed but not notarized, so macOS blocks the first launch. Open it, and when macOS
+says it cannot be opened, go to **System Settings → Privacy & Security**, scroll down to
+Security, and click **Open Anyway** beside the message naming FindMySyncPlus. Confirm once more
+and the app launches. Later launches open normally.
+
+> Older guides say to right-click and choose **Open**. That shortcut was removed in macOS 15
+> for software that is not notarized, so use the steps above on any current macOS.
+
+What changed in each release is in [CHANGELOG.md](CHANGELOG.md).
 
 Alternatively, clone the repo and build in Xcode with automatic signing enabled.
 
