@@ -4,6 +4,7 @@ import Combine
 extension Notification.Name {
     static let navigateToStatus = Notification.Name("NavigateToStatus")
     static let navigateToAccess = Notification.Name("NavigateToAccess")
+    static let navigateToAbout = Notification.Name("NavigateToAbout")
 }
 
 struct HomeView: View {

@@ -99,6 +99,9 @@ struct RootView: View {
         .onReceive(NotificationCenter.default.publisher(for: .navigateToAccess)) { _ in
             selection = .access
         }
+        .onReceive(NotificationCenter.default.publisher(for: .navigateToAbout)) { _ in
+            selection = .about
+        }
     }
 
     @ViewBuilder private var pane: some View {

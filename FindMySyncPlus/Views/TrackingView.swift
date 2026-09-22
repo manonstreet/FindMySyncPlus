@@ -524,7 +524,7 @@ struct TrackingView: View {
             HStack(spacing: 8) {
                 // The pane's name is in the toolbar, so these read as sections, in the
                 // small secondary style.
-                Text(title.uppercased()).font(.callout).fontWeight(.semibold).foregroundStyle(.secondary)
+                Text(title).font(.callout).fontWeight(.semibold).foregroundStyle(.secondary)
                 InfoTip(message: tip)
                 Spacer()
                 trailing()

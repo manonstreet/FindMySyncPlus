@@ -112,13 +112,16 @@ final class WindowCoordinator {
     private weak var settings: SettingsStore?
     private weak var logger: LogStore?
     private weak var app: AppModel?
+    private weak var updates: UpdateChecker?
 
-    init(policy: PolicyController, settings: SettingsStore, logger: LogStore, app: AppModel) {
+    init(policy: PolicyController, settings: SettingsStore, logger: LogStore, app: AppModel,
+         updates: UpdateChecker) {
         self.policy = policy
         self.windows = WindowManager(policy: policy)
         self.settings = settings
         self.logger = logger
         self.app = app
+        self.updates = updates
     }
 
     private func refreshDockOverlay() {
@@ -128,7 +131,7 @@ final class WindowCoordinator {
     }
 
     func openMain() {
-        guard let settings, let logger, let app else { return }
+        guard let settings, let logger, let app, let updates else { return }
         // If a main window already exists, activate/bring it to front
         if windows.activateMainWindow() {
             refreshDockOverlay()
@@ -140,6 +143,7 @@ final class WindowCoordinator {
                 .environmentObject(settings)
                 .environmentObject(logger)
                 .environmentObject(app)
+                .environmentObject(updates)
         }
         refreshDockOverlay()
     }
@@ -157,6 +161,32 @@ private struct OpenMainMenuItem: View {
             }
         } label: {
             Label("Open FindMySync+", systemImage: "sidebar.left")
+        }
+    }
+}
+
+/// Shown only while an update is pending. Opens About, where the version and the release
+/// link are.
+@MainActor
+private struct UpdateAvailableMenuItem: View {
+    @ObservedObject var updates: UpdateChecker
+
+    var body: some View {
+        if let version = updates.updateVersion {
+            Button {
+                Task { @MainActor in
+                    WindowCoordinator.shared?.openMain()
+                    NotificationCenter.default.post(name: .navigateToAbout, object: nil)
+                }
+            } label: {
+                Label {
+                    Text("Update Available: \(version)")
+                        .font(.body)
+                        .fontWeight(.semibold)
+                } icon: {
+                    Image(systemName: "arrow.up.circle")
+                }
+            }
         }
     }
 }
@@ -191,6 +221,7 @@ private struct InstallCoordinator: View {
     let settings: SettingsStore
     let logger: LogStore
     let app: AppModel
+    let updates: UpdateChecker
 
     var body: some View {
         Color.clear
@@ -201,7 +232,8 @@ private struct InstallCoordinator: View {
                         policy: policy,
                         settings: settings,
                         logger: logger,
-                        app: app
+                        app: app,
+                        updates: updates
                     )
                 }
                 // Bind core models and optionally start scheduler on launch
@@ -212,6 +244,8 @@ private struct InstallCoordinator: View {
                 let friends = FriendsAvailability.current
                 if friends.isSpoofed { logger.warn(friends.spoofMessage) }
                 if !friends.isSupported { logger.info(friends.restrictionMessage) }
+
+                updates.start(logger: logger, settings: settings)
 
                 if settings.autoStartSchedulerOnLaunch { app.start() }
                 if settings.openMainOnLaunch { WindowCoordinator.shared?.openMain() }
@@ -237,6 +271,7 @@ struct FindMySyncPlusApp: App {
     @StateObject private var settings = SettingsStore()
     @StateObject private var logger = LogStore()
     @StateObject private var app = AppModel()
+    @StateObject private var updates = UpdateChecker()
 
     // Policy + coordination
     @State private var policyController: PolicyController!
@@ -264,7 +299,25 @@ struct FindMySyncPlusApp: App {
             NSImage.SymbolConfiguration(pointSize: 16, weight: .regular))
         let icon = configured ?? symbol ?? NSImage(size: NSSize(width: 18, height: 18))
         icon.isTemplate = true
-        return icon
+        return updates.updateVersion == nil ? icon : badged(icon)
+    }
+
+    /// The update marker, drawn into the same template so the system keeps tinting it with
+    /// everything else in the bar. Height is the base's, so the arrow stays inside the
+    /// icon's own height; the width growth is the gap between the glyph and the arrow.
+    private func badged(_ base: NSImage) -> NSImage {
+        guard let arrow = NSImage(systemSymbolName: "arrow.up", accessibilityDescription: nil)?
+            .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 8, weight: .bold))
+        else { return base }
+        let size = NSSize(width: base.size.width + 6, height: base.size.height)
+        let out = NSImage(size: size)
+        out.lockFocusFlipped(false)
+        base.draw(at: NSPoint(x: 0, y: 0), from: .zero, operation: .sourceOver, fraction: 1)
+        arrow.draw(at: NSPoint(x: size.width - arrow.size.width, y: size.height - arrow.size.height),
+                   from: .zero, operation: .sourceOver, fraction: 1)
+        out.unlockFocus()
+        out.isTemplate = true
+        return out
     }
 
     private func nsColor(from color: Color) -> NSColor {
@@ -334,6 +387,8 @@ struct FindMySyncPlusApp: App {
             .allowsHitTesting(app.lastRunHadFatalError)
             .help(app.lastRunHadFatalError ? "Open Status to resolve errors" : "")
 
+            UpdateAvailableMenuItem(updates: updates)
+
             Divider()
 
             Menu("Scheduler", systemImage: "timer") {
@@ -383,7 +438,8 @@ struct FindMySyncPlusApp: App {
             Image(nsImage: statusBarIcon)
                 .renderingMode(.template)
                 .background(
-                    InstallCoordinator(policy: policyController, settings: settings, logger: logger, app: app)
+                    InstallCoordinator(policy: policyController, settings: settings, logger: logger,
+                                      app: app, updates: updates)
                 )
         }
         .menuBarExtraStyle(.automatic)

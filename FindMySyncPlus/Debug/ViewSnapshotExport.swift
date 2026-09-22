@@ -94,6 +94,11 @@ enum ViewSnapshotExport {
         let wanted = extraScreens
         guard !wanted.isEmpty else { return }
 
+        // A checker of its own, never started, so About draws its resting state. The real
+        // one's state depends on the network and on whatever GitHub tagged most recently,
+        // which a baseline cannot hold still.
+        let updates = UpdateChecker()
+
         for name in wanted {
             let screen: AnyView
             switch name {
@@ -111,6 +116,7 @@ enum ViewSnapshotExport {
                     .environmentObject(settings)
                     .environmentObject(app)
                     .environmentObject(logger)
+                    .environmentObject(updates)
                     .frame(width: renderWidth)
                     .tint(.blue)
                     .background(scheme == .dark ? darkCanvas : lightCanvas)

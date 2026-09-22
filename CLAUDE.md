@@ -111,7 +111,7 @@ Requires Full Disk Access to read the Find My cache. `FindMyRefresher.swift` can
 
 ## Testing
 
-Twenty-seven test files. All use synthetic data — no real Find My files, no keys, no keychain reads. Trust
+Twenty-eight test files. All use synthetic data — no real Find My files, no keys, no keychain reads. Trust
 `** TEST SUCCEEDED **` rather than counting `passed on` lines — xcodebuild interleaves
 timestamps into those, so a grep count drifts between identical runs.
 
@@ -144,6 +144,7 @@ timestamps into those, so a grep count drifts between identical runs.
 | `MQTTRefreshTriggerTests` | The inbound control path through the recording publisher: a live press fires, a retained one is dropped, and switching the setting subscribes or unsubscribes now rather than at the next connection |
 | `StatusEntityTests` | `publishStatusEntity` as pure pieces — when it publishes, how the report sums the run, and the state-then-attributes sequence on the wire, both retained |
 | `LicenseReflowTests` | The Licenses sheet's reflow of the bundle's license files: wrapped paragraphs join, blank lines and centered headings and short lines stay, and the GPL's notice-template placeholders are not run together |
+| `UpdateCheckerTests` | The version comparison behind the update check. The awkward pair is `1.5b` against `1.4.7b`, where the newer version has fewer components; a tag that cannot be parsed never claims an update |
 
 Run via Xcode (Cmd+U) or xcodebuild test. A green suite is not sufficient for MQTT
 changes — verify those against the demo fixtures, which caught two defects the

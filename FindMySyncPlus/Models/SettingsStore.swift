@@ -182,6 +182,11 @@ final class SettingsStore: ObservableObject {
     @AppStorage("maxUUIDsPerAlias") var maxUUIDsPerAlias: Int = 2
     @AppStorage("autoLearnUUIDs") var autoLearnUUIDs: Bool = false
 
+    /// On by default, unlike the other opt-ins here, because a check nobody turns on tells
+    /// nobody anything. It reads one URL on the project's Releases page and sends only the
+    /// running version in the user agent.
+    @AppStorage("autoCheckForUpdates") var autoCheckForUpdates: Bool = true
+
     /// Publish a tracker only when Find My has something new for it.
     ///
     /// Off by default and recommended in the docs — the same treatment as

@@ -3,6 +3,10 @@ import AppKit
 import Foundation
 
 struct AboutView: View {
+    @EnvironmentObject var settings: SettingsStore
+    @EnvironmentObject var logger: LogStore
+    @EnvironmentObject var updates: UpdateChecker
+
     /// The license whose text the Licenses sheet opens at; the sheet is up while it is set.
     @State private var licenseShown: ShippedLicense?
 
@@ -82,6 +86,7 @@ struct AboutView: View {
                     subtitle: versionString,
                     text: "Decrypts the local Find My cache and publishes device, item and "
                         + "friend locations to Home Assistant.")
+            updatesGroup
             authorSection
             acknowledgments
         }
@@ -90,6 +95,47 @@ struct AboutView: View {
             LicensesView(showing: license)
                 .frame(width: 650, height: 500)
         }
+    }
+
+    /// The switch, then one row reporting the last check. The app says what it found and
+    /// leaves downloading and installing alone, so the action is a link to the release.
+    private var updatesGroup: some View {
+        SettingsGroup(title: "Updates",
+                      tip: "Checks the project's Releases page once a day and at launch.") {
+            SettingRow(title: "Automatically check for updates") {
+                AppSwitch(isOn: $settings.autoCheckForUpdates)
+            }
+            SettingRow(title: updateTitle, description: lastCheckedText) {
+                if updates.updateVersion != nil {
+                    AppButton(title: "View Release", prominent: true) { updates.openReleasePage() }
+                } else {
+                    AppButton(title: "Check Now", disabled: updates.state == .checking) {
+                        Task { await updates.check(manual: true) }
+                    }
+                }
+            }
+        }
+    }
+
+    private var updateTitle: String {
+        switch updates.state {
+        case .never:     "Check for Updates"
+        case .checking:  "Checking…"
+        case .current:   "FindMySync+ is up to date"
+        case let .available(version, _): "Version \(version) is available"
+        case let .failed(message): message
+        }
+    }
+
+    private var lastCheckedText: String? {
+        guard let lastChecked = updates.lastChecked else { return "Not checked yet." }
+        // Under a minute the relative formatter rounds to zero and phrases it as the
+        // future, so a check that just finished reads "in 0 seconds".
+        let elapsed = Date().timeIntervalSince(lastChecked)
+        guard elapsed >= 60 else { return "Checked just now." }
+        let relative = RelativeDateTimeFormatter()
+        relative.unitsStyle = .full
+        return "Checked \(relative.localizedString(for: lastChecked, relativeTo: Date()))."
     }
 
     /// The artwork at a size worth looking at, with the credit line beside it. No card
