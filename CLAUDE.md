@@ -72,7 +72,7 @@ AppModel (@MainActor)          — scheduler, UI state, counters
                   └─▶ MQTTClient (@MainActor)  — MQTT with HA auto-discovery
 ```
 
-Requires Full Disk Access to read the Find My cache. `FindMyRefresher.swift` can launch the Find My app to force a cache refresh.
+Requires Full Disk Access to read the Find My cache. `Helpers/FindMyRefresher.swift` can launch the Find My app to force a cache refresh.
 
 ### Three Decryption Keys
 | Keychain key | Source file | Crypto | Enables |
@@ -85,21 +85,21 @@ Requires Full Disk Access to read the Find My cache. `FindMyRefresher.swift` can
 | File | Role |
 |------|------|
 | `Models/AppModel.swift` | Scheduler, UI state, counters; delegates sync to `SyncEngine` |
-| `SyncEngine.swift` | Orchestrates one sync run via decomposed pipeline: `ensureKeys` → `readCaches` → `readFriends` → `enrichFriendNames` → `buildPlanAndLog` → `postAndReport`. Routes posting through `TransportClient` protocol. The two big phases live in their own extension files below |
-| `SyncEngineParsing.swift` | `readAndParseCaches` as named steps: read and decrypt each cache, resolve group parents from both files, parse to `DevicePoint`, give groups their positions and separation state, publish the located entries to the UI |
-| `SyncEnginePlanning.swift` | `buildPlanAndLog` as named steps: a device pass and a friend pass into one `PlanAccumulator`, with auto-learn and group-membership persistence factored out; then the unaliased-child filter, dedupe, and the run's metrics |
-| `SyncEngineGrouping.swift` | Recognizing a group from either source, backfilling a parent's position from its pieces, separation, and the duplicate-id tie-break |
-| `TransportClient.swift` | Protocol defining `post()`, `ensureConnected()`, `testConnection()` + shared `PostSummary` type |
-| `HAClient.swift` | `RESTClient` — `@MainActor final class` conforming to `TransportClient`; HTTP posting + auth testing |
-| `MQTTClient.swift` | `MQTTClient` — `@MainActor final class` conforming to `TransportClient`; MQTT with HA auto-discovery, rich attributes, auto-reconnect |
-| `CacheDecryptor.swift` | `actor` — FMIP cache decryption (ChaChaPoly), FMF contact name lookup |
-| `LocalStorageDecryptor.swift` | `actor` — LocalStorage.db decryption (AES-256-CBC page-level), SQLite friend query |
+| `Sync/SyncEngine.swift` | Orchestrates one sync run via decomposed pipeline: `ensureKeys` → `readCaches` → `readFriends` → `enrichFriendNames` → `buildPlanAndLog` → `postAndReport`. Routes posting through `TransportClient` protocol. The two big phases live in their own extension files below |
+| `Sync/SyncEngineParsing.swift` | `readAndParseCaches` as named steps: read and decrypt each cache, resolve group parents from both files, parse to `DevicePoint`, give groups their positions and separation state, publish the located entries to the UI |
+| `Sync/SyncEnginePlanning.swift` | `buildPlanAndLog` as named steps: a device pass and a friend pass into one `PlanAccumulator`, with auto-learn and group-membership persistence factored out; then the unaliased-child filter, dedupe, and the run's metrics |
+| `Sync/SyncEngineGrouping.swift` | Recognizing a group from either source, backfilling a parent's position from its pieces, separation, and the duplicate-id tie-break |
+| `Transport/TransportClient.swift` | Protocol defining `post()`, `ensureConnected()`, `testConnection()` + shared `PostSummary` type |
+| `Transport/HAClient.swift` | `RESTClient` — `@MainActor final class` conforming to `TransportClient`; HTTP posting + auth testing |
+| `Transport/MQTTClient.swift` | `MQTTClient` — `@MainActor final class` conforming to `TransportClient`; MQTT with HA auto-discovery, rich attributes, auto-reconnect |
+| `Decryption/CacheDecryptor.swift` | `actor` — FMIP cache decryption (ChaChaPoly), FMF contact name lookup |
+| `Decryption/LocalStorageDecryptor.swift` | `actor` — LocalStorage.db decryption (AES-256-CBC page-level), SQLite friend query |
 | `Models/SettingsStore.swift` | All persisted config; Keychain wrappers for auth token and 3 decryption keys |
 | `Models/DevicePoint.swift` | Device location struct with `with()` copy method for safe field updates; carries `parentID` for grouped accessories (e.g. AirPods Case/Buds) |
 | `Models/RichLocationAttributes.swift` | Rich location data (altitude, speed, course, motion state, location label) with Apple label decoder |
 | `Models/AliasPartition.swift` | Splits the Aliases list into top-level rows, nested children and headers for groups that are not themselves aliased. Pure, so the cases are testable away from the view |
 | `Helpers/FriendsAvailability.swift` | Whether this macOS provides friend locations. Injectable version seam — the macOS 14 branch cannot be exercised on any available hardware, so `spoofOSVersion` substitutes a version the way `demoRoot` substitutes a read root |
-| `SyncEngineDiagnostics.swift` | Why each record did or did not produce a position: one `.info` summary per source per run, `.debug` detail per device |
+| `Sync/SyncEngineDiagnostics.swift` | Why each record did or did not produce a position: one `.info` summary per source per run, `.debug` detail per device |
 | `Models/DeviceAlias.swift` | Alias↔UUID mapping model |
 | `Models/LogStore.swift` | Logging with levels; consumed by StatusView |
 | `Views/DeviceManagerView.swift` | Assign aliases to discovered UUIDs; source badges (Device/Item/Friend) |
