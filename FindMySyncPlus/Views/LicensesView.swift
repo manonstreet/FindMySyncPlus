@@ -83,7 +83,7 @@ struct LicensesView: View {
         // needs the real container to scroll to a license.
         ScrollViewReader { proxy in
             ScrollView {
-                VStack(alignment: .leading, spacing: 28) {
+                VStack(alignment: .leading, spacing: 0) {
                     Text("Licenses").font(.title).fontWeight(.bold)
                     ForEach(ShippedLicense.allCases) { license in
                         VStack(alignment: .leading, spacing: 8) {
@@ -95,6 +95,10 @@ struct LicensesView: View {
                                 .fixedSize(horizontal: false, vertical: true)
                                 .padding(.top, 6)
                         }
+                        // The gap above a license is inside the block the reader scrolls to,
+                        // so a scroll lands with the gap above the heading, not the heading
+                        // flush against the top.
+                        .padding(.top, 28)
                         .id(license)
                     }
                 }
