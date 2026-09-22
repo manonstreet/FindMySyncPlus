@@ -45,7 +45,7 @@ final class AppModel: NSObject, ObservableObject {
     /// do not propagate to the parent. A view reading
     /// `app.syncEngine.mqtt.connectionState` therefore re-evaluates only when
     /// something unrelated republishes AppModel, and shows a stale value in the
-    /// meantime — which is why Device Manager's re-register button could sit
+    /// meantime — which is why Tracking's re-register button could sit
     /// greyed out while MQTT was connected.
     @Published private(set) var mqttConnected: Bool = false
 

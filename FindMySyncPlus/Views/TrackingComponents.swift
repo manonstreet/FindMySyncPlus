@@ -1,9 +1,9 @@
 import SwiftUI
 import AppKit
 
-/// The row and container views the Device Manager lists are built from.
+/// The row and container views the Tracking lists are built from.
 ///
-/// Split out of `DeviceManagerView.swift` so that file stays under SwiftLint's limits, and
+/// Split out of `TrackingView.swift` so that file stays under SwiftLint's limits, and
 /// so each of these can be rendered on its own — they take values and closures, never the
 /// list's state.
 struct SectionCard<Content: View>: View {

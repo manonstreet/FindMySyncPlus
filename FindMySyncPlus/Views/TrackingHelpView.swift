@@ -1,7 +1,7 @@
 import SwiftUI
 
-struct DeviceManagerHelpView: View {
-    @State private var markdown: String = "# Device Management\n\nLoading…"
+struct TrackingHelpView: View {
+    @State private var markdown: String = "# Tracking\n\nLoading…"
 
     var body: some View {
         MarkdownView(markdown: markdown)
@@ -10,7 +10,7 @@ struct DeviceManagerHelpView: View {
     }
 
     private func load() {
-        guard let url = Bundle.main.url(forResource: "DEVICE-MANAGEMENT", withExtension: "md"),
+        guard let url = Bundle.main.url(forResource: "TRACKING", withExtension: "md"),
               let data = try? Data(contentsOf: url),
               let s = String(data: data, encoding: .utf8),
               !s.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty

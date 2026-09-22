@@ -3,7 +3,7 @@ import SwiftUI
 import AppKit
 @testable import FindMySyncPlus
 
-/// Renders the Device Manager's row views offscreen and compares them against stored
+/// Renders Tracking's row views offscreen and compares them against stored
 /// baselines.
 ///
 /// These views take only values and closures, so they render without a `SettingsStore` —

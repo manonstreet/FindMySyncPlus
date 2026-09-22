@@ -50,8 +50,8 @@ Based on [FindMySync](https://github.com/MartinPham/FindMySync) and the decrypti
 - **Skip repeated locations** (MQTT) — publish an entity update only when Find My reports a different location, with a minimum movement threshold
 - **Refresh from Home Assistant** (MQTT) — an MQTT exposed button to launch Find My and runs one sync on demand from within Home Assistant
 - **Friend location tracking** — decrypts `LocalStorage.db` for live friend coordinates; family members already tracked via Devices are automatically deduplicated using Apple's universal person identifier (DSID)
-- **Device Manager** — assign friendly aliases to devices, items, and friends; aliases become stable HA entity IDs even as UUIDs rotate
-- **Grouped accessories** — AirPods Pro pairs (and similar) appear as a single Device Manager entry; sub-items (Case, Left Bud, Right Bud) can be revealed and aliased individually if needed. This grouping is within FindMySyncPlus — in Home Assistant every entity appears under a single `FindMySync+` device
+- **Tracking** — assign friendly aliases to devices, items, and friends; aliases become stable HA entity IDs even as UUIDs rotate
+- **Grouped accessories** — AirPods Pro pairs (and similar) appear as a single Tracking entry; sub-items (Case, Left Bud, Right Bud) can be revealed and aliased individually if needed. This grouping is within FindMySyncPlus — in Home Assistant every entity appears under a single `FindMySync+` device
 - **Battery sensor** — devices that report a real battery level (iPhone, Apple Watch, Mac) get a `device_class: battery` sensor, so battery works with the battery card and low-battery blueprints. AirTags and third-party trackers report a small vendor-specific code rather than a percentage, so they get the raw value as an attribute instead of an invented one
 - **Auto-learn UUIDs** — automatically re-maps devices when Apple rotates their identifier
 - Configurable scheduler with selectable refresh interval and manual **Run Now** and **Dry Run** modes
@@ -91,7 +91,7 @@ process. The FMF and LocalStorage keys are not used there.
 <p>
   <a href="screenshots/home_view.png"><img src="screenshots/home_view.png" width="230" alt="Home"></a>
   <a href="screenshots/status_view.png"><img src="screenshots/status_view.png" width="230" alt="Status"></a>
-  <a href="screenshots/device_manager.png"><img src="screenshots/device_manager.png" width="230" alt="Device Manager"></a>
+  <a href="screenshots/tracking.png"><img src="screenshots/tracking.png" width="230" alt="Tracking"></a>
 </p>
 <p>
   <a href="screenshots/access_settings.png"><img src="screenshots/access_settings.png" width="230" alt="Access Settings"></a>
@@ -166,11 +166,11 @@ Under the **General** pane, recommended settings:
 - Enable **Auto-start Scheduler**
 - Enable **Auto-learn UUIDs**
 
-### Phase 4 — First Run & Device Manager
+### Phase 4 — First Run & Tracking
 
 1. Open the **Status** pane and set log level to **Debug**
 2. Click **Run Now** (▶) in the toolbar and review the logs — all discovered devices, items, and friends appear here
-3. Open **Device Manager** and click **Assign** for each entry you want to track — friends appear with a purple **Friend** badge
+3. Open the **Tracking** pane and click **Assign** for each entry you want to track — friends appear with a purple **Friend** badge
 4. Give each entry an alias — the Home Assistant entity will be `findmy_<alias>`
 5. Return to the **Home** pane and enable the **Scheduler**
 

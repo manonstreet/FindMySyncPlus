@@ -71,7 +71,7 @@ struct HASlugTests {
 
 /// The entity ID an alias resolves to in Home Assistant.
 ///
-/// Device Manager shows this on the alias row and copies it, and the discovery
+/// Tracking shows this on the alias row and copies it, and the discovery
 /// payload publishes it as `default_entity_id`. Those two must be the same
 /// string: a row that displays an entity ID the app does not actually publish
 /// would be a more convincing lie than showing nothing, which is roughly what

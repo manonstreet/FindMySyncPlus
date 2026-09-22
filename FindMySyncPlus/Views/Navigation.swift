@@ -1,8 +1,8 @@
 import SwiftUI
 import AppKit
 
-/// The six destinations, in sidebar order. Tracking is the Device Manager, embedded: the
-/// name fits Items and Friends as well as Devices (#23).
+/// The six destinations, in sidebar order. Tracking is the alias list, which had its own
+/// window until 1.6b; the name fits Items and Friends as well as Devices (#23).
 enum Dest: String, CaseIterable, Hashable {
     case home, status, tracking, access, general, about
 
@@ -41,7 +41,7 @@ enum Dest: String, CaseIterable, Hashable {
     }
 }
 
-/// The main window: a split view with a fixed sidebar, the section name as the window
+/// The main window: a split view with a fixed sidebar, the pane name as the window
 /// title, and the pane's actions as toolbar items. The window's own title bar and toolbar
 /// draw the chrome, so on macOS 26 and later the toolbar is glass with content scrolling
 /// under it, and 14 and 15 draw their plainer toolbar from the same code.
@@ -88,7 +88,7 @@ struct RootView: View {
                     }
                 }
                 .sheet(isPresented: $showTrackingHelp) {
-                    DeviceManagementHelpSheet().frame(width: 650, height: 500)
+                    TrackingHelpSheet().frame(width: 650, height: 500)
                 }
         }
         // Wide enough for the Tracking lists' own 480 pt minimum beside the sidebar.
@@ -105,7 +105,7 @@ struct RootView: View {
         switch selection {
         case .home:     HomeView()
         case .status:   StatusView()
-        case .tracking: DeviceManagerView()
+        case .tracking: TrackingView()
         case .access:   AccessSettingsView()
         case .general:  GeneralSettingsView()
         case .about:    AboutView()
@@ -212,9 +212,9 @@ private struct PaneToolbarActions: View {
             Button {
                 showHelp = true
             } label: {
-                Label("Device Management Help", systemImage: "questionmark.app.fill")
+                Label("Tracking Help", systemImage: "questionmark.app.fill")
             }
-            .help("Device Management Help")
+            .help("Tracking Help")
             Button {
                 _ = app.runNowIfIdle()
             } label: {
@@ -229,13 +229,13 @@ private struct PaneToolbarActions: View {
 }
 
 /// The Tracking help as a sheet, the shape of the Licenses sheet: the same
-/// markdown view over `DEVICE-MANAGEMENT.md`, a Done button, presented at the same size.
-private struct DeviceManagementHelpSheet: View {
+/// markdown view over `TRACKING.md`, a Done button, presented at the same size.
+private struct TrackingHelpSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        DeviceManagerHelpView()
-            .navigationTitle("Device Management Help")
+        TrackingHelpView()
+            .navigationTitle("Tracking Help")
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }

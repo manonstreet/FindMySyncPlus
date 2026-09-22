@@ -28,7 +28,7 @@ struct DeviceAlias: Equatable, Identifiable, Codable {
     /// The full Home Assistant entity ID this alias resolves to, e.g.
     /// "device_tracker.findmy_airpods_case". `entityID(for:)` is the dev_id — the topic key
     /// and `unique_id`, which keeps hyphens. This is what HA names the entity, and the one
-    /// source for both the `default_entity_id` we publish and what Device Manager shows.
+    /// source for both the `default_entity_id` we publish and what Tracking shows.
     static func haEntityID(for alias: String) -> String {
         haEntityID(forDevId: entityID(for: alias))
     }

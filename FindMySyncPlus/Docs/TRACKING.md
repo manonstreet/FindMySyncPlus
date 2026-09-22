@@ -1,11 +1,13 @@
-# Device Management
+# Tracking
 
-The Device Manager maps what Find My reports to stable Home Assistant identities. Each entry has a badge for what it is: **Device** for iPhones, iPads, Macs and Watches, **Item** for AirTags and other trackers, **Friend** for people sharing their location with you, and **Group** for an accessory Apple tracks as a set of pieces, such as an AirPods pair.
+The Tracking pane maps what Find My reports to stable Home Assistant identities. Each entry has a badge for what it is. **Device** is an iPhone, iPad, Mac or Watch, **Item** an AirTag or other tracker, **Friend** someone sharing their location with you, and **Group** an accessory Apple tracks as a set of pieces, such as an AirPods pair.
 
 
 ## Unassigned
 
 This list shows the entries from the last sync that have no alias yet. The filter menu limits it to Devices, Items or Friends.
+
+**Run Now** in the toolbar runs a sync and rebuilds this list. Use it after adding a device or item to Find My.
 
 - **Assign** opens a sheet with the alias prefilled from the entry's name. Letters, numbers, hyphens and underscores are allowed, and the app normalizes the alias when you save it. From then on that alias is the entry's Home Assistant identity.
 - **Update** is shown in place of Assign when an entry's name matches an alias you already have but its UUID is new, which means Apple has rotated the identifier. Clicking it adds the new UUID to the existing alias.
@@ -57,4 +59,4 @@ Apple changes device and item identifiers from time to time. When that happens t
 
 ## Dry Run
 
-In a dry run the app reads and decrypts as usual, skips publishing, and logs what it would have published under each alias, so you can check aliases and attributes before going live.
+Dry Run is on the Status pane's toolbar. The app reads and decrypts as usual, skips publishing, and logs what it would have published under each alias. Use it to check aliases and attributes before going live.

@@ -145,7 +145,7 @@ struct GeneralSettingsView: View {
                 }
             }
 
-            SettingsGroup(title: "Device Management", tip: """
+            SettingsGroup(title: "Device Identifiers", tip: """
                 Apple rotates device UUIDs periodically. \
                 These settings control how many old UUIDs to keep \
                 per alias and whether to automatically add new UUIDs \

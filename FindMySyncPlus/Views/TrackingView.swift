@@ -1,7 +1,7 @@
 import SwiftUI
 import AppKit
 
-struct DeviceManagerView: View {
+struct TrackingView: View {
     /// Show every group expanded, regardless of what the user has toggled.
     ///
     /// An ordinary initializer default rather than the view reading a global. Disclosure

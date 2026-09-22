@@ -1,8 +1,8 @@
 import SwiftUI
 
-/// The Device Manager's modal sheets and its empty state.
+/// Tracking's modal sheets and its empty state.
 ///
-/// Presented from `DeviceManagerView` through bindings, so none of them reads the list's
+/// Presented from `TrackingView` through bindings, so none of them reads the list's
 /// state directly.
 struct AssignAliasSheet: View {
     @Environment(\.dismiss) private var dismiss

@@ -17,7 +17,7 @@ enum ViewSnapshotExport {
         return URL(fileURLWithPath: path)
     }
 
-    /// Screens to render besides the Device Manager, comma-separated. Set by the driver for
+    /// Screens to render besides Tracking, comma-separated. Set by the driver for
     /// one case only: these screens show settings and status, not device data. Their
     /// AppKit-drawn controls (`.switch` toggles, steppers, `ToolTipOverlay`) render as a
     /// deterministic placeholder, so they never cause a false failure and everything around
@@ -178,7 +178,7 @@ enum ViewSnapshotExport {
         for variant in variants {
             notedPartition = false
             for (appearance, scheme) in [("light", ColorScheme.light), ("dark", ColorScheme.dark)] {
-                let screen = DeviceManagerView(expandAllGroups: variant.expand)
+                let screen = TrackingView(expandAllGroups: variant.expand)
                     .environmentObject(settings)
                     .environmentObject(app)
                     .environmentObject(logger)
@@ -189,7 +189,7 @@ enum ViewSnapshotExport {
 
                 let renderer = ImageRenderer(content: screen)
                 renderer.scale = scale
-                let file = "DeviceManagerView--\(label)--\(variant.name)--\(appearance).png"
+                let file = "TrackingView--\(label)--\(variant.name)--\(appearance).png"
                 guard let image = renderer.nsImage,
                       let tiff = image.tiffRepresentation,
                       let rep = NSBitmapImageRep(data: tiff),
@@ -200,7 +200,7 @@ enum ViewSnapshotExport {
                 do {
                     try png.write(to: dir.appendingPathComponent(file))
                     entries.append([
-                        "file": file, "tier": "screen", "view": "DeviceManagerView",
+                        "file": file, "tier": "screen", "view": "TrackingView",
                         "fixture": label, "variant": variant.name, "appearance": appearance,
                         "size": [rep.pixelsWide, rep.pixelsHigh], "scale": scale,
                         "entries": app.lastLocatedEntries.count,

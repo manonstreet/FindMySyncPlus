@@ -201,7 +201,7 @@ extension SyncEngine {
         return result
     }
 
-    /// The parsed devices and items, tagged by source, for the Device Manager and the
+    /// The parsed devices and items, tagged by source, for Tracking and the
     /// Status window. Friends are added later by the plan.
     private func publishLocatedEntries(_ devicesBySource: [FMIPCacheFile: [DevicePoint]],
                                        to app: AppModel) {
