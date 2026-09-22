@@ -47,7 +47,7 @@ struct GeneralSettingsView: View {
     var body: some View {
         PaneColumn {
             PaneHero(dest: .general,
-                     text: "Startup, the sync schedule, the Find My refresh, publishing rules, sources, and identifiers.")
+                     text: "Configure general settings and options to control application behavior.")
 
             SettingsGroup(title: "Startup & Scheduling",
                           tip: "Control open at login, start syncing on app launch, and scheduler run frequency.") {

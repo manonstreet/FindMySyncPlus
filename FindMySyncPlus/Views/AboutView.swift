@@ -34,6 +34,10 @@ struct AboutView: View {
         let author: String
         let url: String
         let description: String
+        /// The license whose text the app ships, opening the Licenses sheet. Absent for the
+        /// research the app draws on without shipping its code.
+        var license: String?
+        var onLicense: () -> Void = {}
 
         var body: some View {
             HStack(alignment: .top, spacing: 8) {
@@ -59,6 +63,10 @@ struct AboutView: View {
                         .font(.callout)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
+                    if let license {
+                        AppLink(title: license, action: onLicense)
+                            .font(.callout)
+                    }
                 }
             }
         }
@@ -126,6 +134,9 @@ struct AboutView: View {
         }
     }
 
+    /// What the app is built on and what it ships: the sources it draws on, and the two
+    /// libraries. The notices that used to be a separate document are these entries; the
+    /// license texts are in the Licenses sheet.
     private var acknowledgments: some View {
         TitledCard(title: "Acknowledgments") {
             VStack(alignment: .leading, spacing: 18) {
@@ -133,7 +144,9 @@ struct AboutView: View {
                     title: "FindMySync",
                     author: "Martin Pham",
                     url: "https://github.com/MartinPham/FindMySync",
-                    description: "The original application, icon, and conceptual inspiration for this project's core functionality."
+                    description: "The original application, icon, and conceptual inspiration for this project's core functionality. The icon is used with a plus added.",
+                    license: "Icon license: GNU General Public License 3.0",
+                    onLicense: { showLicenses = true }
                 )
                 CreditLink(
                     title: "findmy-cache-decryptor",
@@ -146,6 +159,22 @@ struct AboutView: View {
                     author: "Pnut-GGG",
                     url: "https://github.com/Pnut-GGG/FMIPDataManager-extractor",
                     description: "The original method for extracting FMIP decryption keys from the macOS Keychain."
+                )
+                CreditLink(
+                    title: "CocoaMQTT",
+                    author: "emqx",
+                    url: "https://github.com/emqx/CocoaMQTT",
+                    description: "The MQTT client.",
+                    license: "Eclipse Distribution License 1.0",
+                    onLicense: { showLicenses = true }
+                )
+                CreditLink(
+                    title: "Ink",
+                    author: "John Sundell",
+                    url: "https://github.com/JohnSundell/Ink",
+                    description: "The Markdown parser behind the help and the licenses.",
+                    license: "MIT License",
+                    onLicense: { showLicenses = true }
                 )
             }
         }
@@ -160,7 +189,7 @@ struct AboutView: View {
                 Spacer()
                 AppLink(title: "GitHub") { open("https://github.com/manonstreet/FindMySyncPlus") }
                 AppLink(title: "Changelog") { open("https://github.com/manonstreet/FindMySyncPlus/blob/HEAD/CHANGELOG.md") }
-                AppLink(title: "Third-Party Notices") { showLicenses = true }
+                AppLink(title: "Licenses") { showLicenses = true }
                 AppLink(title: "Report a Bug") { open("https://github.com/manonstreet/FindMySyncPlus/issues") }
             }
             .font(.callout)

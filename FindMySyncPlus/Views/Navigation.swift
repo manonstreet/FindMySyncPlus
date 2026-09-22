@@ -48,7 +48,7 @@ enum Dest: String, CaseIterable, Hashable {
 struct RootView: View {
     @State private var selection: Dest = .home
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
-    /// The Tracking help, a sheet over the main window like Third-Party Notices on About.
+    /// The Tracking help, a sheet over the main window like Licenses on About.
     /// The state is here, not in the toolbar button: a sheet is attached to the pane.
     @State private var showTrackingHelp = false
     // Deliberately no environment objects here. The app model publishes every second while
@@ -228,7 +228,7 @@ private struct PaneToolbarActions: View {
     }
 }
 
-/// The Tracking help as a sheet, the shape of the Third-Party Notices sheet: the same
+/// The Tracking help as a sheet, the shape of the Licenses sheet: the same
 /// markdown view over `DEVICE-MANAGEMENT.md`, a Done button, presented at the same size.
 private struct DeviceManagementHelpSheet: View {
     @Environment(\.dismiss) private var dismiss

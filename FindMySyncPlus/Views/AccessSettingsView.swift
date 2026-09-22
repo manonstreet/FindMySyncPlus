@@ -42,7 +42,7 @@ struct AccessSettingsView: View {
         AppScroll {
             VStack(spacing: 22) {
                 PaneHero(dest: .access,
-                         text: "Where locations are sent, the connection test, decryption keys, and Full Disk Access.")
+                         text: "Configure access to Home Assistant endpoints, decryption keys for the local Find My data, and Full Disk Access to read those cache files.")
                 VStack(alignment: .leading, spacing: 8) {
                     FloatingLabel(title: "Endpoint", tip: endpointTip)
                     endpointCard
