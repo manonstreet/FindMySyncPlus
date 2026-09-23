@@ -128,6 +128,12 @@ struct StatusView: View {
             }
             .pickerStyle(.menu)
             .controlSize(.regular)
+            // Sized to its content, the way SettingRow sizes every control it holds.
+            // Without this a menu picker takes whatever width the row offers it, which on
+            // macOS 15 is everything the Spacer was holding, pushing Copy and Clear to the
+            // edge. macOS 26 and later size it to the selection, so the difference shows
+            // only on the older system.
+            .fixedSize()
             .onChange(of: settings.logLevel) { _, newLevel in
                 logger.minimumLevel = newLevel
             }
