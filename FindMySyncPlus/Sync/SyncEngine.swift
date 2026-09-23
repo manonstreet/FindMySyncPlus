@@ -73,6 +73,9 @@ final class SyncEngine {
     private weak var settings: SettingsStore?
     private weak var logger: LogStore?
     weak var app: AppModel?
+    /// The update checker, asked once per run for Home Assistant's `update` entity. Weak
+    /// because the app owns it; this reads a version rather than owning anything.
+    weak var updates: SparkleUpdater?
 
     func bind(settings: SettingsStore, logger: LogStore, app: AppModel) {
         self.settings = settings

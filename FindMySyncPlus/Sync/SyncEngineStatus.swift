@@ -99,7 +99,7 @@ extension SyncEngine {
         // is what every harness run publishes.
         mqtt.publishUpdateState(
             installed: installedVersion,
-            latest: app.updates.flatMap {
+            latest: updates.flatMap {
                 SparkleUpdater.latestVersion(for: $0.state, installed: installedVersion)
             },
             prefix: settings.mqttTopicPrefix)

@@ -106,7 +106,6 @@ extension SyncEngine {
             allEntries.append(LocatedEntry(point: f, source: .friend))
         }
         app.lastLocatedEntries = allEntries
-        app.lastLocatedDevices = allEntries.map(\.point)
 
         // The group entity is the canonical one for a pair; pieces publish only when the
         // user has aliased them.

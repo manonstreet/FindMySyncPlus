@@ -214,7 +214,6 @@ extension SyncEngine {
                 allEntries.append(LocatedEntry(point: d, source: src))
             }
         }
-        app.lastLocatedDevices = allDevices
         app.lastLocatedEntries = allEntries
     }
 
