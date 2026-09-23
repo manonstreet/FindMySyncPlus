@@ -155,7 +155,8 @@ struct GeneralSettingsView: View {
                 newly discovered entities in the sidebar, and opening \
                 Tracking clears it. Aliasing an entity prevents it from \
                 re-discovery; when Apple rotates its UUID, Auto-learn UUIDs \
-                is what carries the alias across.
+                allows the alias to remain stable while updating the \
+                underlying changed identifiers.
                 """) {
                 SettingRow(title: "Auto-learn UUIDs") {
                     AppSwitch(isOn: $settings.autoLearnUUIDs)
