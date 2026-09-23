@@ -47,6 +47,24 @@ final class WindowManager: NSObject, NSWindowDelegate {
         return true
     }
 
+    /// The size every window opens at. There is no autosave, so this is the size, every
+    /// time — which is what makes a screenshot set consistent.
+    ///
+    /// `demoWindowSize` overrides it, as `WIDTHxHEIGHT`. Inert unless the key is set, the
+    /// same contract as `demoRoot`. A screenshot session wants more height than the default,
+    /// so the lists show their rows rather than their scrollbars, and it has to be the same
+    /// height every session or the set comes out mismatched — About taken a week later
+    /// alongside the rest.
+    static var contentSize: NSSize {
+        let fallback = NSSize(width: 800, height: 810)
+        guard let raw = UserDefaults.standard.string(forKey: "demoWindowSize") else { return fallback }
+        let parts = raw.lowercased().split(separator: "x")
+        guard parts.count == 2,
+              let width = Double(parts[0]), let height = Double(parts[1]),
+              width > 200, height > 200 else { return fallback }
+        return NSSize(width: width, height: height)
+    }
+
     func showWindow<V: View>(title: String, @ViewBuilder content: () -> V) {
         policy.becomeRegular()
 
@@ -57,7 +75,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
         hosting.sceneBridgingOptions = [.toolbars, .title]
         let win = NSWindow(contentViewController: hosting)
         win.title = title
-        win.setContentSize(NSSize(width: 800, height: 810))
+        win.setContentSize(WindowManager.contentSize)
         win.delegate = self
         win.isReleasedWhenClosed = false
         win.styleMask.insert(.fullSizeContentView)
