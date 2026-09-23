@@ -24,5 +24,23 @@
 	<string>public.app-category.utilities</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<!-- Sparkle schedules its own checks and persists the preference; these two are
+	     only the starting values, and the code must not assign them on launch. The key
+	     also stops Sparkle asking permission on second launch, since About has the
+	     switch. -->
+	<!-- No silent installs. The bundle is not notarized and holds the three keys
+	     that decrypt the cache, so replacing it is a step worth a person's
+	     attention. This also removes the checkbox offering it from Sparkle's own
+	     alert; with the key false the property reads NO however it is set. -->
+	<key>SUAllowsAutomaticUpdates</key>
+	<false/>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUScheduledCheckInterval</key>
+	<integer>86400</integer>
+	<key>SUFeedURL</key>
+	<string>https://manonstreet.github.io/FindMySyncPlus/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>xgwA3Y2v/7xU/1YVMYsq3JoET9tNz6MSxkVudodaw1o=</string>
 </dict>
 </plist>

@@ -5,7 +5,7 @@ import Foundation
 struct AboutView: View {
     @EnvironmentObject var settings: SettingsStore
     @EnvironmentObject var logger: LogStore
-    @EnvironmentObject var updates: UpdateChecker
+    @EnvironmentObject var updates: SparkleUpdater
 
     /// The license whose text the Licenses sheet opens at; the sheet is up while it is set.
     @State private var licenseShown: ShippedLicense?
@@ -97,20 +97,24 @@ struct AboutView: View {
         }
     }
 
-    /// The switch, then one row reporting the last check. The app says what it found and
-    /// leaves downloading and installing alone, so the action is a link to the release.
+    /// The switch, then one row reporting the last check. Sparkle schedules the checks
+    /// and raises its own alert when one finds something; this row is the way back to that
+    /// alert for anyone who dismissed it.
     private var updatesGroup: some View {
         SettingsGroup(title: "Updates",
-                      tip: "Checks the project's Releases page once a day and at launch.") {
+                      tip: "Checks once a day and at launch, and says so in the menu bar.") {
             SettingRow(title: "Automatically check for updates") {
-                AppSwitch(isOn: $settings.autoCheckForUpdates)
+                AppSwitch(isOn: Binding(get: { updates.automaticallyChecks },
+                                        set: { updates.automaticallyChecks = $0 }))
             }
             SettingRow(title: updateTitle, description: lastCheckedText) {
                 if updates.updateVersion != nil {
-                    AppButton(title: "View Release", prominent: true) { updates.openReleasePage() }
+                    // The automatic check is silent by design, so this is where the offer to
+                    // install is raised: the same dialog Check Now raises, asked for.
+                    AppButton(title: "Install Update", prominent: true) { updates.checkForUpdates() }
                 } else {
                     AppButton(title: "Check Now", disabled: updates.state == .checking) {
-                        Task { await updates.check(manual: true) }
+                        updates.checkForUpdates()
                     }
                 }
             }
@@ -122,7 +126,7 @@ struct AboutView: View {
         case .never:     "Check for Updates"
         case .checking:  "Checking…"
         case .current:   "FindMySync+ is up to date"
-        case let .available(version, _): "Version \(version) is available"
+        case let .available(version): "Version \(version) is available"
         case let .failed(message): message
         }
     }

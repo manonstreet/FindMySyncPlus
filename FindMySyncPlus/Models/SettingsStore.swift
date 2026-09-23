@@ -185,7 +185,6 @@ final class SettingsStore: ObservableObject {
     /// On by default, unlike the other opt-ins here, because a check nobody turns on tells
     /// nobody anything. It reads one URL on the project's Releases page and sends only the
     /// running version in the user agent.
-    @AppStorage("autoCheckForUpdates") var autoCheckForUpdates: Bool = true
 
     /// Publish a tracker only when Find My has something new for it.
     ///

@@ -112,10 +112,10 @@ final class WindowCoordinator {
     private weak var settings: SettingsStore?
     private weak var logger: LogStore?
     private weak var app: AppModel?
-    private weak var updates: UpdateChecker?
+    private weak var updates: SparkleUpdater?
 
     init(policy: PolicyController, settings: SettingsStore, logger: LogStore, app: AppModel,
-         updates: UpdateChecker) {
+         updates: SparkleUpdater) {
         self.policy = policy
         self.windows = WindowManager(policy: policy)
         self.settings = settings
@@ -165,19 +165,18 @@ private struct OpenMainMenuItem: View {
     }
 }
 
-/// Shown only while an update is pending. Opens About, where the version and the release
-/// link are.
+/// Shown only while an update is pending, and the way back to the offer for anyone who
+/// dismissed Sparkle's alert.
 @MainActor
 private struct UpdateAvailableMenuItem: View {
-    @ObservedObject var updates: UpdateChecker
+    @ObservedObject var updates: SparkleUpdater
 
     var body: some View {
         if let version = updates.updateVersion {
             Button {
-                Task { @MainActor in
-                    WindowCoordinator.shared?.openMain()
-                    NotificationCenter.default.post(name: .navigateToAbout, object: nil)
-                }
+                // Straight to the offer. The user clicked a line that names the version, so
+                // sending them to a window to find a second button is a step they already took.
+                updates.checkForUpdates()
             } label: {
                 Label {
                     Text("Update Available: \(version)")
@@ -221,7 +220,7 @@ private struct InstallCoordinator: View {
     let settings: SettingsStore
     let logger: LogStore
     let app: AppModel
-    let updates: UpdateChecker
+    let updates: SparkleUpdater
 
     var body: some View {
         Color.clear
@@ -245,7 +244,7 @@ private struct InstallCoordinator: View {
                 if friends.isSpoofed { logger.warn(friends.spoofMessage) }
                 if !friends.isSupported { logger.info(friends.restrictionMessage) }
 
-                updates.start(logger: logger, settings: settings)
+                updates.start(logger: logger)
 
                 if settings.autoStartSchedulerOnLaunch { app.start() }
                 if settings.openMainOnLaunch { WindowCoordinator.shared?.openMain() }
@@ -271,7 +270,7 @@ struct FindMySyncPlusApp: App {
     @StateObject private var settings = SettingsStore()
     @StateObject private var logger = LogStore()
     @StateObject private var app = AppModel()
-    @StateObject private var updates = UpdateChecker()
+    @StateObject private var updates = SparkleUpdater()
 
     // Policy + coordination
     @State private var policyController: PolicyController!
