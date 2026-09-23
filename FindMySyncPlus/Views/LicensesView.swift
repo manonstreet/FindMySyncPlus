@@ -94,7 +94,6 @@ struct LicensesView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     Text("Licenses").font(.title).fontWeight(.bold)
-                        .id(Self.topID)
                     ForEach(ShippedLicense.allCases) { license in
                         VStack(alignment: .leading, spacing: 8) {
                             Text(license.title).font(.title2).fontWeight(.semibold)
@@ -116,6 +115,11 @@ struct LicensesView: View {
                     }
                 }
                 .padding(24)
+                // Outside the padding, the way each license block carries its own gap inside
+                // its id. On the title itself the anchor aligned the text with the top of the
+                // sheet and scrolled the 24 pt away — invisible on first open, where the view
+                // is already at offset 0, and visible on every re-present after that.
+                .id(Self.topID)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             .onAppear {
