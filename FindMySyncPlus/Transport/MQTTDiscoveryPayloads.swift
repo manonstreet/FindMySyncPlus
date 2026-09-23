@@ -192,6 +192,60 @@ extension MQTTClient {
         ]
     }
 
+    nonisolated static let updateEntityId = "findmysyncplus_update"
+
+    nonisolated static func updateDiscoveryTopic() -> String {
+        "homeassistant/update/\(updateEntityId)/config"
+    }
+
+    nonisolated static func updateStateTopic(prefix: String) -> String {
+        "\(prefix)update/state"
+    }
+
+    /// The app's version in Home Assistant's own Settings → Updates, beside everything else
+    /// that reports one. An attribute on the status sensor was the cheaper option and has to
+    /// be templated against to be useful, which means nobody finds it.
+    ///
+    /// Read-only, which is what leaving out `command_topic` does: Sparkle owns the install
+    /// and Home Assistant has no way to drive it. No `device_class` either — `firmware` is
+    /// its only value and this is an app. A singleton like the status entity, so retired-alias
+    /// cleanup must never sweep it.
+    ///
+    /// One JSON state topic rather than `latest_version_topic`: two topics need
+    /// `latest_version_template` on the Home Assistant side and leave the broker two retained
+    /// messages to hold in step, where this is a single `publishJSON`.
+    nonisolated static func updatePayload(topicPrefix: String) -> [String: Any] {
+        [
+            "name": "Update",
+            "unique_id": updateEntityId,
+            "default_entity_id": "update.\(updateEntityId)",
+            "state_topic": updateStateTopic(prefix: topicPrefix),
+            // No availability_topic, for the status entity's reason: a version is true while
+            // the app is away, and this is one of the things worth reading when it is.
+            "device": [
+                "identifiers": ["findmysyncplus"],
+                "name": "FindMySync+",
+                "manufacturer": "Apple",
+                "model": "Find My"
+            ]
+        ]
+    }
+
+    /// The two versions, as one retained message.
+    ///
+    /// `latest_version` is always present, and `NSNull` when no check has answered. Home
+    /// Assistant reads it as `if "latest_version" in json_payload:`, so an omitted key leaves
+    /// whatever the last retained publish set — and a stale "available" would outlive a failed
+    /// check. Publishing null clears it, and `UpdateEntity.state` returns `None` when either
+    /// version is `None`, so the entity reads unknown. Same idiom as `cache_written` and
+    /// `last_error` on the status attributes.
+    nonisolated static func updateStatePayload(installed: String, latest: String?) -> [String: Any] {
+        [
+            "installed_version": installed,
+            "latest_version": latest ?? NSNull()
+        ]
+    }
+
     nonisolated static func attributesTopic(forDevId devId: String, prefix: String) -> String {
         "\(prefix)\(devId)/attributes"
     }

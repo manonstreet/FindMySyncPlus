@@ -72,9 +72,11 @@ extension SyncEngine {
         // that published nothing because every position was unchanged.
         if !app.lastRunHadFatalError { app.markSyncSucceeded() }
 
+        let installedVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString")
+            as? String ?? "—"
+
         let context = StatusContext(
-            version: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString")
-                as? String ?? "—",
+            version: installedVersion,
             sleptDuringRun: app.sleptDuring(runStartedAt: run.startedAt),
             keys: SyncStatusReport.keysDescription(fmip: settings.fmipKeyStatus,
                                                    fmf: settings.fmfKeyStatus,
@@ -91,5 +93,15 @@ extension SyncEngine {
                            lastSuccessfulSync: app.lastSuccessfulSync,
                            prefix: settings.mqttTopicPrefix,
                            iso: ISO8601DateFormatter())
+
+        // The update entity, from the same run. `nil` whenever no check has answered, which
+        // Home Assistant reads as unknown — a demo session never starts the updater, so that
+        // is what every harness run publishes.
+        mqtt.publishUpdateState(
+            installed: installedVersion,
+            latest: app.updates.flatMap {
+                SparkleUpdater.latestVersion(for: $0.state, installed: installedVersion)
+            },
+            prefix: settings.mqttTopicPrefix)
     }
 }

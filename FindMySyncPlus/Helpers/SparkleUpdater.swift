@@ -41,6 +41,26 @@ final class SparkleUpdater: NSObject, ObservableObject {
         return nil
     }
 
+    /// What Home Assistant's `update` entity should publish as `latest_version`.
+    ///
+    /// `nil` for every state that has no answer yet, which Home Assistant reads as unknown
+    /// rather than as "up to date" — `UpdateEntity.state` returns `None` when either version
+    /// is `None`. Claiming the installed version while a check is running or has failed would
+    /// read as up to date and be a lie.
+    ///
+    /// `.current` reports the installed version, because equal versions are how Home
+    /// Assistant expresses up to date.
+    ///
+    /// Pure and static so the mapping is testable without an updater, which a test cannot
+    /// build in a state of its choosing.
+    nonisolated static func latestVersion(for state: State, installed: String) -> String? {
+        switch state {
+        case .available(let version): version
+        case .current: installed
+        case .never, .checking, .failed: nil
+        }
+    }
+
     private var controller: SPUStandardUpdaterController?
     private weak var logger: LogStore?
 

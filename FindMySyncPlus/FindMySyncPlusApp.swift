@@ -274,6 +274,9 @@ private struct InstallCoordinator: View {
                 }
                 // Bind core models and optionally start scheduler on launch
                 app.bind(settings: settings, logger: logger)
+                // The sync run publishes the update entity's versions, so it needs to be
+                // able to ask the checker what the feed said.
+                app.updates = updates
 
                 // Once per launch, not per run: at the default 300 s interval the
                 // scheduler would otherwise repeat this 288 times a day.

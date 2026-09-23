@@ -43,6 +43,11 @@ final class AppModel: NSObject, ObservableObject {
     /// them means something; this is the last run's finding, and a zero here would claim
     /// there is nothing to assign until the next run says otherwise.
     @Published var unassignedCount: Int = 0
+
+    /// The update checker, read once per run for Home Assistant's `update` entity. Weak
+    /// because the app owns it; this is a reference for asking it a version, not ownership.
+    /// Deliberately not `@Published` — nothing in the UI reads the updater through here.
+    weak var updates: SparkleUpdater?
     @Published var lastLocatedDevices: [DevicePoint] = []
     @Published var lastLocatedEntries: [LocatedEntry] = []
 

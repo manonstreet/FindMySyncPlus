@@ -192,12 +192,17 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
                     topic: Self.connectedDiscoveryTopic(),
                     payload: Self.connectedPayload(topicPrefix: prefix),
                     retain: true)
+        publishJSON(client: client,
+                    topic: Self.updateDiscoveryTopic(),
+                    payload: Self.updatePayload(topicPrefix: prefix),
+                    retain: true)
         settleRefreshButton(client: client,
                             enabled: settings.enableRefreshTrigger,
                             prefix: prefix)
         publishedAppEntities = true
-        logger?.info("MQTT discovery published for sensor.\(Self.statusDevId) "
-                     + "and binary_sensor.\(Self.connectedSensorId)")
+        logger?.info("MQTT discovery published for sensor.\(Self.statusDevId), "
+                     + "binary_sensor.\(Self.connectedSensorId) "
+                     + "and update.\(Self.updateEntityId)")
     }
 
     /// Publish the app-level availability state, retained so a subscriber that connects
@@ -432,6 +437,34 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
         }
         publishStatus(client: client, report: report, lastSuccessfulSync: lastSuccessfulSync,
                       prefix: prefix, iso: iso)
+    }
+
+    /// The update entity's two versions, once per run beside the status entity.
+    ///
+    /// Per run rather than on Sparkle's own schedule: the state is a fact about the app, the
+    /// same kind the status entity carries, and Sparkle checks daily, so the longest this
+    /// lags a change is one sync interval. Watching the updater for changes would add an
+    /// observer across two actors for a number that moves about once a week.
+    func publishUpdateState(installed: String,
+                            latest: String?,
+                            prefix: String) {
+        guard connectionState == .connected, let client else {
+            logger?.debug("MQTT: not connected; update entity not published this run")
+            return
+        }
+        publishUpdateState(client: client, installed: installed, latest: latest, prefix: prefix)
+    }
+
+    func publishUpdateState(client: MQTTPublishing,
+                            installed: String,
+                            latest: String?,
+                            prefix: String) {
+        publishJSON(client: client,
+                    topic: Self.updateStateTopic(prefix: prefix),
+                    payload: Self.updateStatePayload(installed: installed, latest: latest),
+                    retain: true)
+        logger?.debug("MQTT: update entity published — installed \(installed), "
+                      + "latest \(latest ?? "unknown")")
     }
 
     /// The state topic first, when there is a successful sync to name, then the attributes.
