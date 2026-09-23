@@ -83,10 +83,10 @@ extension SyncEngine {
                                                    localStorage: settings.localStorageKeyStatus),
             fullDiskAccess: !logger.needsFullDiskAccess,
             lastError: app.lastErrorMessage,
-            newUnassigned: UnassignedPartition.newSinceSeen(
+            newUnassigned: UnassignedPartition.newRowsSinceSeen(
                 entries: app.lastLocatedEntries,
                 knownUUIDs: Set(settings.aliases.flatMap { $0.knownUUIDs }),
-                seen: Set(settings.seenUnassigned)).count)
+                seen: Set(settings.seenUnassigned)))
         let report = Self.statusReport(for: run, context: context)
 
         mqtt.publishStatus(report,

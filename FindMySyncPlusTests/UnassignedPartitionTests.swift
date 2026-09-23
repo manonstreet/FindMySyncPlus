@@ -96,6 +96,73 @@ struct UnassignedPartitionTests {
         #expect(new == [Self.childA, Self.childB])
     }
 
+    // MARK: - What the badge counts, as rows
+
+    /// The badge counts the rows the collapsed pane shows, not the identities behind them.
+    /// The pane folds a group's children under its parent and opens collapsed, so counting
+    /// identities put nine on the badge beside seven visible rows.
+    @Test("A group counts once, however many unaliased children it has")
+    func groupCountsOnce() {
+        let entries = [entry(Self.parent),
+                       entry(Self.childA, parentID: Self.parent),
+                       entry(Self.childB, parentID: Self.parent)]
+        let rows = UnassignedPartition.newRowsSinceSeen(entries: entries, knownUUIDs: [], seen: [])
+        #expect(rows == 1)
+    }
+
+    /// The case that worried the maintainer: a replacement bud pairing into a group whose
+    /// parent and siblings are already aliased. The parent stays in the list as scaffolding
+    /// for it, so the row is there and the badge points at it.
+    @Test("An aliased parent counts while a child of its own is unaliased")
+    func aliasedParentCountsForANewChild() {
+        let entries = [entry(Self.parent),
+                       entry(Self.childA, parentID: Self.parent),
+                       entry(Self.childB, parentID: Self.parent)]
+        let known: Set<String> = [Self.parent, Self.childA]
+        let rows = UnassignedPartition.newRowsSinceSeen(entries: entries, knownUUIDs: known,
+                                                        seen: [])
+        #expect(rows == 1)
+    }
+
+    @Test("A group whose children are all aliased leaves the list and the count")
+    func fullyAliasedGroupCountsNothing() {
+        let entries = [entry(Self.parent), entry(Self.childA, parentID: Self.parent)]
+        let known: Set<String> = [Self.parent, Self.childA]
+        #expect(UnassignedPartition.newRowsSinceSeen(entries: entries, knownUUIDs: known,
+                                                     seen: []) == 0)
+    }
+
+    /// A child whose parent is absent is shown flat at the top level, so it counts as its
+    /// own row — the pane's own rule for orphans.
+    @Test("An orphaned child counts as a row of its own")
+    func orphanCountsAsARow() {
+        let entries = [entry(Self.childA, parentID: "ffffffffffffffffffffffffffffffff")]
+        #expect(UnassignedPartition.newRowsSinceSeen(entries: entries, knownUUIDs: [],
+                                                     seen: []) == 1)
+    }
+
+    @Test("A group already seen stops counting")
+    func seenGroupStopsCounting() {
+        let entries = [entry(Self.parent), entry(Self.childA, parentID: Self.parent)]
+        let seen: Set<String> = [Self.parent, Self.childA]
+        #expect(UnassignedPartition.newRowsSinceSeen(entries: entries, knownUUIDs: [],
+                                                     seen: seen) == 0)
+    }
+
+    /// The badge equals what the collapsed pane shows. Two loose entries and one group of
+    /// two: three rows, four identities.
+    @Test("The count is the collapsed row count, not the identity count")
+    func countMatchesTheCollapsedRows() {
+        let entries = [entry(Self.loose),
+                       entry("dddddddddddddddddddddddddddddddd"),
+                       entry(Self.parent),
+                       entry(Self.childA, parentID: Self.parent)]
+        #expect(UnassignedPartition.newSinceSeen(entries: entries, knownUUIDs: [],
+                                                 seen: []).count == 4)
+        #expect(UnassignedPartition.newRowsSinceSeen(entries: entries, knownUUIDs: [],
+                                                     seen: []) == 3)
+    }
+
     // MARK: - Visiting the pane
 
     @Test("A visit leaves nothing new behind")

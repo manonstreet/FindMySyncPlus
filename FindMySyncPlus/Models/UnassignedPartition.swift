@@ -59,6 +59,55 @@ enum UnassignedPartition {
             .subtracting(seen)
     }
 
+    /// The top-level rows the collapsed list shows: an entry whose parent is absent stands on
+    /// its own, and a group is one row with its children folded under it.
+    ///
+    /// The pane's own rule, so the two cannot disagree. A child whose parent is missing from
+    /// the list is an orphan and shows flat, which is why the test is the parent's presence
+    /// rather than whether a `parentID` exists at all.
+    static func topLevelRows(entries: [LocatedEntry], knownUUIDs: Set<String>) -> [LocatedEntry] {
+        let shown = listed(entries: entries, knownUUIDs: knownUUIDs)
+        let shownIDs = Set(shown.map { $0.point.id.normalized() })
+        return shown.filter { entry in
+            guard let parent = entry.point.parentID?.normalized() else { return true }
+            return !shownIDs.contains(parent)
+        }
+    }
+
+    /// What the badge shows: the rows the collapsed pane would draw that carry something
+    /// nobody has been shown yet.
+    ///
+    /// Rows rather than identities, because the pane opens collapsed and folds a group's
+    /// children under it — counting identities put nine on the badge beside seven visible
+    /// rows. It also drops the case the posting filter already settles: an unaliased grouped
+    /// child is not published on its own, so aliasing one is not work the badge should point
+    /// at. The group's row is.
+    ///
+    /// A row counts when it is itself unaliased and unseen, or when it is an aliased parent
+    /// still holding an unseen child — the replacement bud that pairs into a group whose
+    /// parent and siblings are already aliased.
+    static func newRowsSinceSeen(entries: [LocatedEntry], knownUUIDs: Set<String>,
+                                 seen: Set<String>) -> Int {
+        let new = newSinceSeen(entries: entries, knownUUIDs: knownUUIDs, seen: seen)
+        guard !new.isEmpty else { return 0 }
+
+        let rows = topLevelRows(entries: entries, knownUUIDs: knownUUIDs)
+        let rowIDs = Set(rows.map { $0.point.id.normalized() })
+        // Which rows a new identity belongs to: itself when it stands at the top level, and
+        // otherwise the row it folds under.
+        var carrying: Set<String> = []
+        for entry in entries {
+            let id = entry.point.id.normalized()
+            guard new.contains(id) else { continue }
+            if rowIDs.contains(id) {
+                carrying.insert(id)
+            } else if let parent = entry.point.parentID?.normalized(), rowIDs.contains(parent) {
+                carrying.insert(parent)
+            }
+        }
+        return carrying.count
+    }
+
     /// The seen set after the user opens Tracking, which is what clears the badge — the model
     /// an unread count already teaches.
     ///

@@ -170,10 +170,10 @@ private struct NewEntityBadge: View {
 
     private var count: Int {
         guard settings.showNewEntityCount else { return 0 }
-        return UnassignedPartition.newSinceSeen(
+        return UnassignedPartition.newRowsSinceSeen(
             entries: app.lastLocatedEntries,
             knownUUIDs: Set(settings.aliases.flatMap { $0.knownUUIDs }),
-            seen: Set(settings.seenUnassigned)).count
+            seen: Set(settings.seenUnassigned))
     }
 
     var body: some View {

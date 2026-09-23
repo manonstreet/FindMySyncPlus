@@ -151,12 +151,11 @@ struct GeneralSettingsView: View {
                 per alias and whether to automatically add new UUIDs \
                 when device names match.
 
-                Show new entity count puts a count beside Tracking in the \
-                sidebar for entities discovered since you last opened it, \
-                and opening Tracking clears it. Aliasing an entity is what \
-                stops it being counted; the Tracked switch does not affect \
-                this. An entity you have not aliased is counted again if \
-                Apple gives it a new UUID.
+                Show new entity count surfaces a badge with the count of \
+                newly discovered entities in the sidebar, and opening \
+                Tracking clears it. Aliasing an entity prevents it from \
+                re-discovery; when Apple rotates its UUID, Auto-learn UUIDs \
+                is what carries the alias across.
                 """) {
                 SettingRow(title: "Auto-learn UUIDs") {
                     AppSwitch(isOn: $settings.autoLearnUUIDs)
