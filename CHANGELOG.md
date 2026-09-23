@@ -2,6 +2,34 @@
 
 Release notes for each FindMySyncPlus release, newest first. Each entry is the text published with that release, minus its install steps. The DMGs are on the [Releases page](https://github.com/manonstreet/FindMySyncPlus/releases).
 
+## [v2.0b](https://github.com/manonstreet/FindMySyncPlus/releases/tag/v2.0b) — 2026-09-23
+
+Rebuilds the interface as one window with six panes, adds automatic updates, and corrects the install steps for macOS 15.
+
+### Added
+
+**Automatic updates.** FindMySync+ checks for a new release once a day and offers to install it. Each update is signed, and the signature is checked before it installs.
+
+### Changed
+
+**The interface is rebuilt.** Six panes in a single window with a sidebar — Home, Status, Tracking, Access, General and About — in place of the settings window and both Device Manager windows. Each pane has a colored icon in the sidebar, and settings are grouped into cards.
+
+**Device Manager is now Tracking**, a pane in that window. The same aliases and the same two lists, with grouped accessories shown under their parent.
+
+**Tracking's help opens beside the list it describes**, and covers grouped accessories such as AirPods and what reaches Home Assistant.
+
+**Each acknowledgment in About links to its own license.** The sheet opens at that license, and the text reflows to the width of the sheet.
+
+**The menu bar icon is a template symbol**, so macOS tints it with the rest of the bar in light, dark and highlighted states.
+
+**Install steps for macOS 15.** Apple removed the right-click-and-Open shortcut for software that is not notarized. The steps on the Releases page use Privacy & Security instead.
+
+### Fixed
+
+**Menus took the whole width of their row on macOS 15.** The Log Level menu in Status and both filters in Tracking size to their content.
+
+**The Tracked switch drew its knob over the end of its track**, covering the colored cap.
+
 ## [v1.5b](https://github.com/manonstreet/FindMySyncPlus/releases/tag/v1.5b) — 2026-09-08
 
 Publishes an entity update only when a location actually changes, reports what each sync did through a new Sync status entity, and lets Home Assistant ask for a refresh.
