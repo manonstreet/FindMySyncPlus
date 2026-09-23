@@ -57,11 +57,17 @@ struct AppScroll<Content: View>: View {
 /// A menu picker. While rendering, a label naming the current selection — a menu `Picker`
 /// is `NSPopUpButton`-backed and renders as the placeholder, which would hide which filter
 /// is applied.
+///
+/// The picker is sized to its content here rather than at each call site. Left to itself a
+/// menu picker takes whatever width its row offers, which on macOS 15 is the whole header;
+/// macOS 27 sizes it to the selection, so the difference shows only on the older system.
+/// The substitute drawn while rendering is sized already, which is the other half of why no
+/// baseline covers this.
 struct AppMenuPicker<Content: View>: View {
     let selectionTitle: String
     @ViewBuilder var content: Content
     var body: some View {
-        substituting({ content }, whileRendering: { label })
+        substituting({ content.fixedSize() }, whileRendering: { label })
     }
     private var label: some View {
         Text(selectionTitle)
