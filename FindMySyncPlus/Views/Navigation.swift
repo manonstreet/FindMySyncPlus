@@ -134,6 +134,10 @@ struct Sidebar: View {
                 HStack(spacing: 12) {
                     DestTile(dest: dest)
                     Text(dest.title).font(.title3)
+                    Spacer(minLength: 8)
+                    if dest == .tracking {
+                        NewEntityBadge(selected: dest == selection)
+                    }
                 }
                 .padding(.vertical, 4)
                 .tag(dest)
@@ -145,6 +149,49 @@ struct Sidebar: View {
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             SidebarFooterLight(onTap: { selection = .access })
+        }
+    }
+}
+
+/// How many unaliased entities the user has not been shown yet, on the Tracking row.
+///
+/// Its own view, like the footer light, so the shell keeps its promise: `RootView` observes
+/// nothing, because the app model publishes once a second while the scheduler counts down and
+/// a shell that watched it would redraw on every tick.
+///
+/// The count is computed rather than stored. It depends on three things that each change on
+/// their own — the run's entries, the aliases, and the seen set — and a cached copy would go
+/// stale behind whichever of them moved last.
+private struct NewEntityBadge: View {
+    /// Whether the Tracking row is the selected one, which decides the pill's colors.
+    let selected: Bool
+    @EnvironmentObject var app: AppModel
+    @EnvironmentObject var settings: SettingsStore
+
+    private var count: Int {
+        guard settings.showNewEntityCount else { return 0 }
+        return UnassignedPartition.newSinceSeen(
+            entries: app.lastLocatedEntries,
+            knownUUIDs: Set(settings.aliases.flatMap { $0.knownUUIDs }),
+            seen: Set(settings.seenUnassigned)).count
+    }
+
+    var body: some View {
+        if count > 0 {
+            Text("\(count)")
+                .font(.caption.weight(.semibold))
+                .monospacedDigit()
+                // Inverted on the selected row. macOS fills a selected source-list row with
+                // the accent color, where an accent pill has nothing left to work with; this
+                // is what an unread count does there.
+                .foregroundStyle(selected
+                                 ? Color(nsColor: .selectedContentBackgroundColor)
+                                 : Color.white)
+                .padding(.horizontal, 7)
+                .padding(.vertical, 2)
+                .background(Capsule().fill(selected ? Color.white : Color.accentColor))
+                .help(count == 1 ? "1 entity discovered since you last looked"
+                                 : "\(count) entities discovered since you last looked")
         }
     }
 }

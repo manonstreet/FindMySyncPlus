@@ -198,6 +198,7 @@ struct SyncStatusAndAvailabilityTests {
         SyncStatusReport(version: "1.5b", runSeconds: 5.0341,
                          discovered: 13, located: 12, tracked: 11, published: 2,
                          skippedUnchanged: skippedUnchanged, noLocation: 2, unassigned: 1,
+                         newUnassigned: 1,
                          sleptDuringRun: sleptDuringRun,
                          findMyLaunched: findMyLaunched, cacheWritten: cacheWritten,
                          keys: "fmip ok, fmf missing, localstorage missing",
@@ -214,9 +215,21 @@ struct SyncStatusAndAvailabilityTests {
         #expect(keys == [
             "version", "run_seconds", "discovered", "located", "tracked",
             "published", "skipped_unchanged", "no_location", "unassigned",
+            "new_unassigned",
             "slept_during_run", "find_my_launched", "cache_written",
             "keys", "full_disk_access", "last_error"
         ])
+    }
+
+    /// `new_unassigned` counts the part of `unassigned` nobody has been shown yet, and
+    /// `unassigned` keeps its own meaning beside it — somebody may already template against
+    /// that one, so 2.1b adds a key rather than narrowing one.
+    @Test("new_unassigned is published beside unassigned, not instead of it")
+    func newUnassignedSitsBesideUnassigned() {
+        let attrs = Self.report().attributes
+
+        #expect(attrs["unassigned"] as? Int == 1)
+        #expect(attrs["new_unassigned"] as? Int == 1)
     }
 
     /// Three separate reasons a device did not publish coexist. A single `skipped`

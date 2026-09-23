@@ -30,6 +30,10 @@ extension SyncEngine {
         let keys: String
         let fullDiskAccess: Bool
         let lastError: String?
+        /// Unassigned identities the user has not been shown in Tracking yet. Gathered here
+        /// with the rest of the app's state, because it reads the seen set and the aliases,
+        /// which the run's own metrics know nothing about.
+        let newUnassigned: Int
     }
 
     /// One run's report, from the run's own numbers and the app state handed in.
@@ -47,6 +51,7 @@ extension SyncEngine {
             skippedUnchanged: run.postSummary.skippedUnchangedCount,
             noLocation: m.noLocationCount,
             unassigned: m.unassignedCount,
+            newUnassigned: context.newUnassigned,
             sleptDuringRun: context.sleptDuringRun,
             findMyLaunched: run.findMyLaunched,
             cacheWritten: run.cacheWritten,
@@ -75,7 +80,11 @@ extension SyncEngine {
                                                    fmf: settings.fmfKeyStatus,
                                                    localStorage: settings.localStorageKeyStatus),
             fullDiskAccess: !logger.needsFullDiskAccess,
-            lastError: app.lastErrorMessage)
+            lastError: app.lastErrorMessage,
+            newUnassigned: UnassignedPartition.newSinceSeen(
+                entries: app.lastLocatedEntries,
+                knownUUIDs: Set(settings.aliases.flatMap { $0.knownUUIDs }),
+                seen: Set(settings.seenUnassigned)).count)
         let report = Self.statusReport(for: run, context: context)
 
         mqtt.publishStatus(report,

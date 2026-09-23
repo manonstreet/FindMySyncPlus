@@ -145,14 +145,24 @@ struct GeneralSettingsView: View {
                 }
             }
 
-            SettingsGroup(title: "Device Identifiers", tip: """
+            SettingsGroup(title: "Tracking", tip: """
                 Apple rotates device UUIDs periodically. \
                 These settings control how many old UUIDs to keep \
                 per alias and whether to automatically add new UUIDs \
                 when device names match.
+
+                Show new entity count puts a count beside Tracking in the \
+                sidebar for entities discovered since you last opened it, \
+                and opening Tracking clears it. Aliasing an entity is what \
+                stops it being counted; the Tracked switch does not affect \
+                this. An entity you have not aliased is counted again if \
+                Apple gives it a new UUID.
                 """) {
                 SettingRow(title: "Auto-learn UUIDs") {
                     AppSwitch(isOn: $settings.autoLearnUUIDs)
+                }
+                SettingRow(title: "Show new entity count") {
+                    AppSwitch(isOn: $settings.showNewEntityCount)
                 }
                 SettingRow(title: "Maximum UUIDs tracked") {
                     AppNumberField(text: "\(settings.maxUUIDsPerAlias)", width: 56) {

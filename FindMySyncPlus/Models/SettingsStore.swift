@@ -107,6 +107,7 @@ final class SettingsStore: ObservableObject {
         }
 
         self.loadAliasesFromStorage()
+        self.loadSeenUnassignedFromStorage()
 
         // One-time migration: existing REST users keep REST as default transport
         if !transportModeExplicitlySet && !endpointURL.isEmpty {
@@ -182,6 +183,20 @@ final class SettingsStore: ObservableObject {
     @AppStorage("maxUUIDsPerAlias") var maxUUIDsPerAlias: Int = 2
     @AppStorage("autoLearnUUIDs") var autoLearnUUIDs: Bool = false
 
+    /// Whether the sidebar counts entities nobody has aliased yet.
+    ///
+    /// On by default, against the house default for opt-ins. `autoStartSchedulerOnLaunch`,
+    /// `enableFriends` and `autoLearnUUIDs` each *do* something — start a scheduler, read
+    /// another cache, rewrite an alias — and earn the off. This one draws, and a signal
+    /// shipped off is a signal nobody turns on, which is the reasoning that put the update
+    /// check on too.
+    @AppStorage("showNewEntityCount") var showNewEntityCount: Bool = true
+
+    /// Identities the user has already been shown in Tracking, so the badge counts only what
+    /// arrived since. A JSON blob like `deviceAliasesJSON`, because `@AppStorage` does not
+    /// carry a collection.
+    @AppStorage("seenUnassignedJSON") private var seenUnassignedJSON: String = "[]"
+
     /// On by default, unlike the other opt-ins here, because a check nobody turns on tells
     /// nobody anything. It reads one URL on the project's Releases page and sends only the
     /// running version in the user agent.
@@ -255,6 +270,15 @@ final class SettingsStore: ObservableObject {
         didSet { saveAliasesToStorage() }
     }
 
+    /// Identities Tracking has already shown. `@Published` rather than read straight off
+    /// `@AppStorage`, because the sidebar's badge has to redraw the moment a visit records
+    /// them — `@AppStorage` publishes to a View, not to an `ObservableObject`'s observers.
+    ///
+    /// The contents are `UnassignedPartition`'s to decide; nothing here interprets them.
+    @Published var seenUnassigned: [String] = [] {
+        didSet { saveSeenUnassignedToStorage() }
+    }
+
     func importFMIPKey(from url: URL) throws {
         let data = try Data(contentsOf: url)
         let plist = try PropertyListSerialization.propertyList(from: data, options: [], format: nil)
@@ -313,6 +337,25 @@ final class SettingsStore: ObservableObject {
             // Corrupt or incompatible -> reset
             self.aliases = []
         }
+    }
+
+    /// Defensive decode, matching `loadAliasesFromStorage`: corrupt data resets to empty
+    /// rather than throwing. The cost of losing this set is one run of badges, so there is
+    /// nothing here worth failing a launch over.
+    private func loadSeenUnassignedFromStorage() {
+        let data = Data(seenUnassignedJSON.utf8)
+        guard !data.isEmpty,
+              let decoded = try? JSONDecoder().decode([String].self, from: data) else {
+            self.seenUnassigned = []
+            return
+        }
+        self.seenUnassigned = decoded
+    }
+
+    private func saveSeenUnassignedToStorage() {
+        guard let data = try? JSONEncoder().encode(self.seenUnassigned),
+              let text = String(data: data, encoding: .utf8) else { return }
+        self.seenUnassignedJSON = text
     }
 
     private func saveAliasesToStorage() {

@@ -30,7 +30,8 @@ struct StatusEntityTests {
     private func report(_ run: SyncEngine.StatusRun, now: Date = Date()) -> SyncStatusReport {
         let context = SyncEngine.StatusContext(version: "1.5b", sleptDuringRun: false,
                                                keys: "fmip valid, fmf valid, localstorage valid",
-                                               fullDiskAccess: true, lastError: nil)
+                                               fullDiskAccess: true, lastError: nil,
+                                               newUnassigned: 3)
         return SyncEngine.statusReport(for: run, context: context, now: now)
     }
 

@@ -82,27 +82,10 @@ struct TrackingView: View {
         app.lastLocatedEntries
     }
 
-    /// Set of normalized UUIDs that are referenced as a parent by some
-    /// detected *unaliased* child entry. Used so aliased grouped parents
-    /// stay visible in the Unassigned list (with their children nested)
-    /// only when there's still a child left to alias. Once every child is
-    /// also aliased, the parent disappears from the Unassigned list because
-    /// nothing is left to manage there.
-    private var groupedParentIDs: Set<String> {
-        Set(entriesAll
-            .filter { !knownUUIDsSet.contains($0.point.id.normalized()) }
-            .compactMap { $0.point.parentID?.normalized() })
-    }
-
+    /// The list's own rows. The rule moved to `UnassignedPartition` so the sidebar's
+    /// new-entity badge reads the same split this pane does.
     private var baseUnassigned: [LocatedEntry] {
-        entriesAll.filter { entry in
-            let normalized = entry.point.id.normalized()
-            // Always include unaliased entries.
-            guard knownUUIDsSet.contains(normalized) else { return true }
-            // Aliased entries are normally hidden, except keep aliased grouped
-            // parents visible so their children can stay nested under them.
-            return groupedParentIDs.contains(normalized)
-        }
+        UnassignedPartition.listed(entries: entriesAll, knownUUIDs: knownUUIDsSet)
     }
 
     private var filteredUnassigned: [LocatedEntry] {
@@ -346,6 +329,19 @@ struct TrackingView: View {
         return sources.count == 1 ? sources.first : nil
     }
 
+    /// Opening the pane is what clears the badge, the model an unread count already teaches.
+    ///
+    /// A render is not a visit. `ViewSnapshotExport` builds this whole pane offscreen, and
+    /// without the guard a render would record every entity as seen and the badge would be
+    /// cleared by a screenshot session rather than by the user.
+    private func markUnassignedSeen() {
+        guard !ViewSnapshotExport.isRendering else { return }
+        let updated = UnassignedPartition.seenAfterVisit(entries: entriesAll,
+                                                         knownUUIDs: knownUUIDsSet,
+                                                         seen: settings.seenUnassigned)
+        if updated != settings.seenUnassigned { settings.seenUnassigned = updated }
+    }
+
     var body: some View {
         ZStack {
             AppVSplit {
@@ -408,6 +404,7 @@ struct TrackingView: View {
         }
         .padding(.bottom, 10)
         .frame(minWidth: 480, minHeight: 400)
+        .onAppear { markUnassignedSeen() }
         .sheet(isPresented: $showAssignSheet) {
             AssignAliasSheet(assignUUID: $assignUUID,
                              assignName: $assignName,

@@ -15,6 +15,10 @@ struct SyncStatusReport {
     let skippedUnchanged: Int
     let noLocation: Int
     let unassigned: Int
+    /// Of those unassigned, how many the user has not been shown in Tracking yet. Beside
+    /// `unassigned` rather than replacing it: `unassigned` keeps its meaning, because
+    /// somebody may already be templating against it.
+    let newUnassigned: Int
     let sleptDuringRun: Bool
     /// Whether this run relaunched Find My. The cache advances because we launch Find My, so
     /// "did the cache move" only means something beside "did we ask it to".
@@ -44,6 +48,10 @@ struct SyncStatusReport {
             "skipped_unchanged": skippedUnchanged,
             "no_location": noLocation,
             "unassigned": unassigned,
+            // Published whatever `showNewEntityCount` says. That setting decides whether the
+            // sidebar draws a badge; an automation in Home Assistant should keep working
+            // when somebody turns the badge off.
+            "new_unassigned": newUnassigned,
             // A run that overlapped a sleep looks broken and is not; this says why it took so long.
             "slept_during_run": sleptDuringRun,
             "find_my_launched": findMyLaunched,
