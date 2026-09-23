@@ -2,6 +2,28 @@
 
 Release notes for each FindMySyncPlus release, newest first. Each entry is the text published with that release, minus its install steps. The DMGs are on the [Releases page](https://github.com/manonstreet/FindMySyncPlus/releases).
 
+## [v2.1b](https://github.com/manonstreet/FindMySyncPlus/releases/tag/v2.1b) — 2026-09-23
+
+Adds a count of newly discovered entities to the sidebar, publishes the app's version to Home Assistant, and remembers the window's size.
+
+### Added
+
+**A count of newly discovered entities.** The sidebar shows a count beside Tracking for entities discovered since you last opened it, and opening Tracking clears it. Aliasing an entity prevents it from re-discovery; when Apple rotates its UUID, Auto-learn UUIDs allows the alias to remain stable while updating the underlying changed identifiers. General → Tracking turns it off.
+
+**FindMySync+ in Home Assistant's Updates.** The app publishes its installed and latest versions as an `update` entity, which puts it in Settings → Updates. Installing an update happens on the Mac; the entity is read-only.
+
+**`new_unassigned` on the Sync status sensor.** How many unassigned entities have been discovered since you last opened Tracking, beside the existing `unassigned`. An automation can tell you about a new tracker with the Mac's window closed.
+
+**Sparkle's license.** About credits Sparkle, the framework behind automatic updates, and the Licenses sheet displays the MIT license.
+
+### Changed
+
+**The window remembers its size.** It reopens at the size and position you left it.
+
+**Home shows three numbers.** Configuration Summary lists the number of aliases and the number of those that are tracked. Statistics now includes Unassigned, which links to Tracking.
+
+**General's Device Identifiers group is now Tracking**, containing the settings that govern that pane.
+
 ## [v2.0b](https://github.com/manonstreet/FindMySyncPlus/releases/tag/v2.0b) — 2026-09-23
 
 Rebuilds the interface as one window with six panes, adds automatic updates, and corrects the install steps for macOS 15.
