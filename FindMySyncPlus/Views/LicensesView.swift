@@ -80,6 +80,10 @@ enum ShippedLicense: String, CaseIterable, Identifiable {
 /// text in the reading font, the way acknowledgments read elsewhere on the Mac; a code
 /// block made the GPL a wide monospaced box.
 struct LicensesView: View {
+    /// The document's own top, so the first license can land there rather than under the
+    /// title. A String because it shares a namespace with the `ShippedLicense` ids.
+    private static let topID = "licenses-top"
+
     var showing: ShippedLicense?
     @Environment(\.dismiss) private var dismiss
 
@@ -90,6 +94,7 @@ struct LicensesView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     Text("Licenses").font(.title).fontWeight(.bold)
+                        .id(Self.topID)
                     ForEach(ShippedLicense.allCases) { license in
                         VStack(alignment: .leading, spacing: 8) {
                             Text(license.title).font(.title2).fontWeight(.semibold)
@@ -104,14 +109,23 @@ struct LicensesView: View {
                         // so a scroll lands with the gap above the heading, not the heading
                         // flush against the top.
                         .padding(.top, 28)
-                        .id(license)
+                        // The String id, so it shares a namespace with the document's own
+                        // top — `scrollTo` matches on the hashable value, and an enum and a
+                        // String would never meet.
+                        .id(license.id)
                     }
                 }
                 .padding(24)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             .onAppear {
-                if let showing { proxy.scrollTo(showing, anchor: .top) }
+                guard let showing else { return }
+                // The first license scrolls to the document top, not to its own block. Every
+                // block carries the gap above its heading, and on the first that gap would
+                // take the "Licenses" title off the top of the sheet — the one place where
+                // there is already a top to land on.
+                let target = showing == ShippedLicense.allCases.first ? Self.topID : showing.id
+                proxy.scrollTo(target, anchor: .top)
             }
         }
         .toolbar {
