@@ -1,10 +1,14 @@
 import SwiftUI
 import Combine
+import AppKit
 
 extension Notification.Name {
     static let navigateToStatus = Notification.Name("NavigateToStatus")
     static let navigateToAccess = Notification.Name("NavigateToAccess")
     static let navigateToAbout = Notification.Name("NavigateToAbout")
+    /// The fourth destination. Posted by Home's `Unassigned` value and by the sidebar's
+    /// new-entity badge, which both lead to the same place.
+    static let navigateToTracking = Notification.Name("NavigateToTracking")
 }
 
 struct HomeView: View {
@@ -96,6 +100,34 @@ struct HomeView: View {
 
                             if settings.autoLearnUUIDs {
                                 GridRow { Text("Learned UUIDs").fontWeight(.semibold); Text("\(app.learnedUUIDsCount)").monospacedDigit() }
+                            }
+
+                            // The third number, and the one that moves on its own. The value
+                            // is a way in: the sidebar badge clears when Tracking is opened,
+                            // and the entities stay unassigned, so after that this is the
+                            // only thing still pointing at the work.
+                            //
+                            // `Text` with a tap gesture, not a `Button`. A `.link` Button is
+                            // an AppKit control, which `ImageRenderer` draws as a placeholder
+                            // — as a Button the number left the render, and every Home
+                            // baseline with it. (`Find My Key: Not set` below is a `.link`
+                            // Button and has the same property; no fixture reaches that error
+                            // state, so no baseline has caught it.)
+                            GridRow {
+                                Text("Unassigned").fontWeight(.semibold)
+                                Text("\(app.unassignedCount)")
+                                    .monospacedDigit()
+                                    // Accent, and no underline: `Not set` is underlined
+                                    // because it is an error, and a statistic should carry
+                                    // none of that weight.
+                                    .foregroundStyle(Color.accentColor)
+                                    .onTapGesture {
+                                        NotificationCenter.default.post(name: .navigateToTracking,
+                                                                        object: nil)
+                                    }
+                                    .onHover { inside in
+                                        inside ? NSCursor.pointingHand.push() : NSCursor.pop()
+                                    }
                             }
                         }
                         .innerBox()
@@ -227,8 +259,17 @@ struct HomeView: View {
                                 }
                             }
 
+                            // Two rows, not one. Aliasing is a configuration act and the
+                            // Tracked switch is a second one on top of it, so an alias
+                            // switched off is still configuration. The single `Aliases
+                            // Tracked` row collapsed them: ten aliases with three
+                            // deliberately off read the same as seven all tracked.
                             GridRow {
-                                Text("Aliases Tracked").fontWeight(.semibold)
+                                Text("Aliases").fontWeight(.semibold)
+                                Text("\(settings.aliases.count)").monospacedDigit()
+                            }
+                            GridRow {
+                                Text("Tracked").fontWeight(.semibold)
                                 Text("\(settings.aliases.filter { $0.tracked }.count)").monospacedDigit()
                             }
                         }

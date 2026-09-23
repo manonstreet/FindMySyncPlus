@@ -47,21 +47,28 @@ final class WindowManager: NSObject, NSWindowDelegate {
         return true
     }
 
-    /// The size every window opens at. There is no autosave, so this is the size, every
-    /// time — which is what makes a screenshot set consistent.
+    /// The size a window opens at with no saved frame and no override.
+    static let defaultContentSize = NSSize(width: 800, height: 810)
+
+    /// Where the main window's frame is kept. One window uses it — `showWindow` has a single
+    /// caller — so the name needs no qualifier.
+    static let mainFrameAutosaveName = "FMSMainWindow"
+
+    /// A screenshot session's size, as `WIDTHxHEIGHT`. Nil unless `demoWindowSize` is set,
+    /// the same contract as `demoRoot`.
     ///
-    /// `demoWindowSize` overrides it, as `WIDTHxHEIGHT`. Inert unless the key is set, the
-    /// same contract as `demoRoot`. A screenshot session wants more height than the default,
-    /// so the lists show their rows rather than their scrollbars, and it has to be the same
-    /// height every session or the set comes out mismatched — About taken a week later
-    /// alongside the rest.
-    static var contentSize: NSSize {
-        let fallback = NSSize(width: 800, height: 810)
-        guard let raw = UserDefaults.standard.string(forKey: "demoWindowSize") else { return fallback }
+    /// It reads as `nil` rather than as the default so the caller can tell "no override" from
+    /// "an override that happens to match": with autosave, an override has to beat a restored
+    /// frame, and returning the default for an absent key would beat it too. A screenshot
+    /// session wants more height than the default, so the lists show their rows rather than
+    /// their scrollbars, and the same height every session or the set comes out mismatched —
+    /// About taken a week later alongside the rest.
+    static var demoContentSizeOverride: NSSize? {
+        guard let raw = UserDefaults.standard.string(forKey: "demoWindowSize") else { return nil }
         let parts = raw.lowercased().split(separator: "x")
         guard parts.count == 2,
               let width = Double(parts[0]), let height = Double(parts[1]),
-              width > 200, height > 200 else { return fallback }
+              width > 200, height > 200 else { return nil }
         return NSSize(width: width, height: height)
     }
 
@@ -75,19 +82,31 @@ final class WindowManager: NSObject, NSWindowDelegate {
         hosting.sceneBridgingOptions = [.toolbars, .title]
         let win = NSWindow(contentViewController: hosting)
         win.title = title
-        win.setContentSize(WindowManager.contentSize)
         win.delegate = self
         win.isReleasedWhenClosed = false
         win.styleMask.insert(.fullSizeContentView)
         win.toolbarStyle = .unified
         win.titlebarSeparatorStyle = .automatic
 
+        // Order matters, and the restore is `setFrameUsingName`. `setFrameAutosaveName`
+        // is documented as naming where the frame is *saved*; reading it back is the other
+        // call, and its return value is the only way to tell a first launch from a restored
+        // one. The default goes on first so a first launch has a size, then the restore, then
+        // a screenshot session's override last so it beats a saved frame.
+        win.setContentSize(WindowManager.defaultContentSize)
+        let restored = win.setFrameUsingName(WindowManager.mainFrameAutosaveName)
+        win.setFrameAutosaveName(WindowManager.mainFrameAutosaveName)
+        let override = WindowManager.demoContentSizeOverride
+        if let override { win.setContentSize(override) }
+
         let controller = NSWindowController(window: win)
         self.mainWindowController = controller
         controllers.insert(controller)
 
         controller.showWindow(nil)
-        win.center()
+        // Centering a restored window throws the restore away, so it happens on a first
+        // launch and for a screenshot session, which wants the same position every time.
+        if !restored || override != nil { win.center() }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
             NSRunningApplication.current.activate(options: [.activateAllWindows])
             win.makeKeyAndOrderFront(nil)

@@ -6,6 +6,9 @@ enum ShippedLicense: String, CaseIterable, Identifiable {
     case findMySyncIcon = "FindMySync-GPL-3.0"
     case cocoaMQTT = "CocoaMQTT-EDL-1.0"
     case ink = "Ink-MIT"
+    /// One file covers Sparkle: its 134 lines are the MIT text plus the bsdiff and bspatch
+    /// notices (Colin Percival, 2003–2005) that Sparkle embeds.
+    case sparkle = "Sparkle-MIT"
 
     var id: String { rawValue }
 
@@ -14,6 +17,7 @@ enum ShippedLicense: String, CaseIterable, Identifiable {
         case .findMySyncIcon: "FindMySync icon"
         case .cocoaMQTT: "CocoaMQTT"
         case .ink: "Ink"
+        case .sparkle: "Sparkle"
         }
     }
 
@@ -22,6 +26,7 @@ enum ShippedLicense: String, CaseIterable, Identifiable {
         case .findMySyncIcon: "GNU General Public License 3.0"
         case .cocoaMQTT: "Eclipse Distribution License 1.0"
         case .ink: "MIT License"
+        case .sparkle: "MIT License"
         }
     }
 

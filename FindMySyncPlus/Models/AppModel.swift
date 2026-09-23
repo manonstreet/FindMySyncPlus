@@ -35,6 +35,14 @@ final class AppModel: NSObject, ObservableObject {
     @Published var totalRunsCount: Int = 0
     @Published var postedUpdatesCount: Int = 0
     @Published var learnedUUIDsCount: Int = 0
+    /// What the last run found that nobody has aliased. Run state, so it belongs with the
+    /// counters here and on Home's Statistics card — it changes with no configuration
+    /// touched. Written by every run, a dry one included.
+    ///
+    /// `resetCounters` leaves it alone. Runs, Warning Runs and Posts are tallies and zeroing
+    /// them means something; this is the last run's finding, and a zero here would claim
+    /// there is nothing to assign until the next run says otherwise.
+    @Published var unassignedCount: Int = 0
     @Published var lastLocatedDevices: [DevicePoint] = []
     @Published var lastLocatedEntries: [LocatedEntry] = []
 

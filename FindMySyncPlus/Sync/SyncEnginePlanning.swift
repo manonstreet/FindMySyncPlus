@@ -132,6 +132,11 @@ extension SyncEngine {
             noLocationCount: noLocationCount
         )
 
+        // Home reads this, and so does the status entity's `unassigned`. Published here
+        // rather than in the run summary so a dry run updates it too: a dry run reads and
+        // decrypts everything, and the number it finds is as true as any other run's.
+        app.unassignedCount = acc.unassignedCount
+
         return PlanPhase(toPost: deduped.points, aliasByUUID: acc.aliasByUUID, metrics: metrics)
     }
 

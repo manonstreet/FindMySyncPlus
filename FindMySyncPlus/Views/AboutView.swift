@@ -217,6 +217,14 @@ struct AboutView: View {
                     license: .ink,
                     onLicense: { licenseShown = $0 }
                 )
+                CreditLink(
+                    title: "Sparkle",
+                    author: "Sparkle Project",
+                    url: "https://github.com/sparkle-project/Sparkle",
+                    description: "The framework behind automatic updates.",
+                    license: .sparkle,
+                    onLicense: { licenseShown = $0 }
+                )
             }
         }
     }

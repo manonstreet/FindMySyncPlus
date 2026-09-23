@@ -3,9 +3,9 @@ import Testing
 
 /// The Licenses sheet shows the bundle's license files with the wraps inside a paragraph
 /// undone, so a paragraph fills the sheet instead of stopping at the file's seventy-odd
-/// columns. These pin what is joined and what is left alone, on the shapes the three files
+/// columns. These pin what is joined and what is left alone, on the shapes the four files
 /// actually have: the GPL's centered headings, indented first lines and notice template,
-/// the EDL's short title lines, MIT's plain paragraphs.
+/// the EDL's short title lines, MIT's plain paragraphs under both Ink and Sparkle.
 @Suite("License text reflow")
 struct LicenseReflowTests {
 
@@ -72,5 +72,21 @@ struct LicenseReflowTests {
         """
         #expect(ShippedLicense.reflow(raw) ==
                 "<one line to give the program's name and a brief idea of what it does.>\nCopyright (C) <year>  <name of author>")
+    }
+
+    /// Every case resolves to a file in the bundle.
+    ///
+    /// `text` falls back to "<name>.txt is missing from the app bundle.", which is what the
+    /// sheet then shows. The reflow tests above run on synthetic strings and open the bundle
+    /// at no point, so a case added without its file reached a user unchallenged. 2.0b shipped
+    /// `Sparkle.framework` with no Sparkle notice anywhere; this is what keeps the fourth file
+    /// in the bundle now that it is there.
+    @Test("Every shipped license resolves to real text", arguments: ShippedLicense.allCases)
+    func everyLicenseResolves(_ license: ShippedLicense) {
+        let text = license.text
+        #expect(text.hasSuffix("is missing from the app bundle.") == false,
+                "\(license.rawValue).txt did not reach the bundle")
+        // Every one of these is a real license; the shortest is MIT at well over this.
+        #expect(text.count > 500)
     }
 }

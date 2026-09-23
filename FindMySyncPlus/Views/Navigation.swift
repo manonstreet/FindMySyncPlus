@@ -102,6 +102,9 @@ struct RootView: View {
         .onReceive(NotificationCenter.default.publisher(for: .navigateToAbout)) { _ in
             selection = .about
         }
+        .onReceive(NotificationCenter.default.publisher(for: .navigateToTracking)) { _ in
+            selection = .tracking
+        }
     }
 
     @ViewBuilder private var pane: some View {
