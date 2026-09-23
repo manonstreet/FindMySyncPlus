@@ -178,21 +178,36 @@ private struct NewEntityBadge: View {
 
     var body: some View {
         if count > 0 {
-            Text("\(count)")
-                .font(.caption.weight(.semibold))
-                .monospacedDigit()
-                // Inverted on the selected row. macOS fills a selected source-list row with
-                // the accent color, where an accent pill has nothing left to work with; this
-                // is what an unread count does there.
-                .foregroundStyle(selected
-                                 ? Color(nsColor: .selectedContentBackgroundColor)
-                                 : Color.white)
-                .padding(.horizontal, 7)
-                .padding(.vertical, 2)
-                .background(Capsule().fill(selected ? Color.white : Color.accentColor))
+            NewEntityBadgePill(count: count, selected: selected)
                 .help(count == 1 ? "1 entity discovered since you last looked"
                                  : "\(count) entities discovered since you last looked")
         }
+    }
+}
+
+/// The pill on its own, without the stores behind it.
+///
+/// Separate so it can be rendered and compared away from the sidebar. This is the badge's
+/// only pixel coverage: the harness renders panes and never the shell, and the real
+/// `List(.sidebar)` is not something `ImageRenderer` can draw — which is also why the mock
+/// that designed this had to rebuild the sidebar as a plain stack.
+struct NewEntityBadgePill: View {
+    let count: Int
+    let selected: Bool
+
+    var body: some View {
+        Text("\(count)")
+            .font(.caption.weight(.semibold))
+            .monospacedDigit()
+            // Inverted on the selected row. macOS fills a selected source-list row with the
+            // accent color, where an accent pill has nothing left to work with; this is what
+            // an unread count does there.
+            .foregroundStyle(selected
+                             ? Color(nsColor: .selectedContentBackgroundColor)
+                             : Color.white)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 2)
+            .background(Capsule().fill(selected ? Color.white : Color.accentColor))
     }
 }
 

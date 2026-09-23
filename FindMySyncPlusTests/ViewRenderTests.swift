@@ -327,4 +327,25 @@ class ViewRenderTests: XCTestCase {
     @MainActor func testAssignedBadge() throws {
         try verify(AssignedBadge(), "AssignedBadge--default")
     }
+
+    // The new-entity badge. These are its only pixel coverage: the screen tier renders panes,
+    // and the sidebar it sits in is a `List(.sidebar)`, which `ImageRenderer` cannot draw.
+    // One and nine because the whole argument for a count over a dot was that they differ.
+
+    @MainActor func testNewEntityBadgeOne() throws {
+        try verify(NewEntityBadgePill(count: 1, selected: false), "NewEntityBadge--one")
+    }
+
+    @MainActor func testNewEntityBadgeNine() throws {
+        try verify(NewEntityBadgePill(count: 9, selected: false), "NewEntityBadge--nine")
+    }
+
+    /// Drawn on the selection fill, because that is the whole point of the variant: a white
+    /// pill on a white ground would render as nothing and prove nothing.
+    @MainActor func testNewEntityBadgeSelected() throws {
+        try verify(NewEntityBadgePill(count: 9, selected: true)
+                    .padding(6)
+                    .background(Color(nsColor: .selectedContentBackgroundColor)),
+                   "NewEntityBadge--nine-selected")
+    }
 }

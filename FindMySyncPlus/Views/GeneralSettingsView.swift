@@ -161,9 +161,6 @@ struct GeneralSettingsView: View {
                 SettingRow(title: "Auto-learn UUIDs") {
                     AppSwitch(isOn: $settings.autoLearnUUIDs)
                 }
-                SettingRow(title: "Show new entity count") {
-                    AppSwitch(isOn: $settings.showNewEntityCount)
-                }
                 SettingRow(title: "Maximum UUIDs tracked") {
                     AppNumberField(text: "\(settings.maxUUIDsPerAlias)", width: 56) {
                         HStack(spacing: 6) {
@@ -175,6 +172,11 @@ struct GeneralSettingsView: View {
                                 .labelsHidden()
                         }
                     }
+                }
+                // Last, so Auto-learn UUIDs and Maximum UUIDs tracked stay adjacent — they
+                // are one subject, how much UUID history an alias keeps.
+                SettingRow(title: "Show new entity count") {
+                    AppSwitch(isOn: $settings.showNewEntityCount)
                 }
             }
         }
