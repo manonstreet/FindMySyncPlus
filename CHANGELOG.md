@@ -8,7 +8,7 @@ Adds a count of newly discovered entities to the sidebar, publishes the app's ve
 
 ### Added
 
-**A count of newly discovered entities.** The sidebar shows a count beside Tracking for entities discovered since you last opened it, and opening Tracking clears it. Aliasing an entity prevents it from re-discovery; when Apple rotates its UUID, Auto-learn UUIDs allows the alias to remain stable while updating the underlying changed identifiers. General → Tracking turns it off.
+**A count of newly discovered entities.** The sidebar shows a count beside Tracking for entities discovered since you last opened it, and opening Tracking clears it. Aliasing an entity prevents it from re-discovery; when Apple rotates its UUID, Auto-learn UUIDs allows the alias to remain stable while updating the underlying changed identifiers. General → Tracking turns it off. Requested by @DriesA.
 
 **FindMySync+ in Home Assistant's Updates.** The app publishes its installed and latest versions as an `update` entity, which puts it in Settings → Updates. Installing an update happens on the Mac; the entity is read-only.
 
@@ -20,7 +20,7 @@ Adds a count of newly discovered entities to the sidebar, publishes the app's ve
 
 **The window remembers its size.** It reopens at the size and position you left it.
 
-**Home shows three numbers.** Configuration Summary lists the number of aliases and the number of those that are tracked. Statistics now includes Unassigned, which links to Tracking.
+**Home shows three numbers.** Configuration Summary lists the number of aliases and the number of those that are tracked. Statistics now includes Unassigned, which links to Tracking. Requested by @DriesA.
 
 **General's Device Identifiers group is now Tracking**, containing the settings that govern that pane.
 
@@ -36,7 +36,7 @@ Rebuilds the interface as one window with six panes, adds automatic updates, and
 
 **The interface is rebuilt.** Six panes in a single window with a sidebar — Home, Status, Tracking, Access, General and About — in place of the settings window and both Device Manager windows. Each pane has a colored icon in the sidebar, and settings are grouped into cards.
 
-**Device Manager is now Tracking**, a pane in that window. The same aliases and the same two lists, with grouped accessories shown under their parent.
+**Device Manager is now Tracking**, a pane in that window. The same aliases and the same two lists, with grouped accessories shown under their parent. Requested by @DriesA.
 
 **Tracking's help opens beside the list it describes**, and covers grouped accessories such as AirPods and what reaches Home Assistant.
 
