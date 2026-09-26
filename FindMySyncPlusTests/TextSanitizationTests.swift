@@ -30,7 +30,7 @@ final class TextSanitizationTests: XCTestCase {
     }
 
     func testSlugify_apostrophe() {
-        XCTAssertEqual(slugifyAlias("Joel's AirTag"), "joel-s-airtag")
+        XCTAssertEqual(slugifyAlias("Kid's AirTag"), "kid-s-airtag")
     }
 
     func testSlugify_emptyReturnsDevice() {
