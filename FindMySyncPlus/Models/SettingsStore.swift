@@ -360,8 +360,8 @@ final class SettingsStore: ObservableObject {
         self.aliases = result.aliases
     }
 
-    /// Defensive decode: corrupt data resets to empty rather than throwing. The cost of losing this set is one run of badges, so there is
-    /// nothing here worth failing a launch over.
+    /// Defensive decode: corrupt data resets to empty rather than throwing. The cost of losing this
+    /// set is one run of badges, so there is nothing here worth failing a launch over.
     private func loadSeenUnassignedFromStorage() {
         let data = Data(seenUnassignedJSON.utf8)
         guard !data.isEmpty,

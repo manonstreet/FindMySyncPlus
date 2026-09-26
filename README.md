@@ -59,6 +59,7 @@ Based on [FindMySync](https://github.com/MartinPham/FindMySync) and the decrypti
 - Optionally auto-launches Find My to refresh cache before each sync — no AppleScript required
 - All credentials (encryption key, HA token) stored in the macOS **Keychain**
 - Menu bar agent — runs silently in the background with open-at-login support
+- **Update checks** — once a day the app checks this project's release feed on GitHub; a new version appears in About with an **Install Update** button. The **Automatically check for updates** switch in About turns the daily check off
 - Full Disk Access gating with clear in-app guidance when permission is missing
 
 ---
@@ -82,7 +83,7 @@ device entry, giving family members the best of both sources.
 **Requires macOS 15 or later.** macOS 14 does not store friend locations, so there is nothing to
 process. The FMF and LocalStorage keys are not used there.
 
-**Setup:** Import `LocalStorage.key` in the Access Settings tab (extracted alongside the other keys in Phase 1) — the Friends source auto-enables when the key is imported.
+**Setup:** Import `LocalStorage.key` in the Access pane (extracted alongside the other keys in Phase 1) — the Friends source auto-enables when the key is imported.
 
 ---
 
@@ -127,7 +128,7 @@ The extractor saves all three keys to a `keys/` folder:
 | `keys/FMFDataManager.bplist` | Friend metadata |
 | `keys/LocalStorage.key` | Friend location tracking |
 
-Import all three in the **Access** settings tab (Phase 3) — select the **All** tab under Decryption Keys and click **Import All from Folder**, then point it at the `keys/` directory.
+Import all three in the **Access** pane (Phase 3) — select the **All** tab under Decryption Keys and click **Import All from Folder**, then point it at the `keys/` directory.
 
 ### Phase 2 — Install
 
