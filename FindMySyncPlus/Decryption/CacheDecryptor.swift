@@ -117,7 +117,7 @@ actor CacheDecryptor {
             logger.info("FMIP key loaded from Keychain (\(count) bytes)")
             logger.debug("Keychain location: \(Bundle.main.bundleIdentifier ?? "com.manonstreet.findmysyncplus")")
         } else {
-            logger.error("FMIP key not found in Keychain. Use Extras -> Load Key to import.")
+            logger.error("FMIP key not found in Keychain. Import it in Access, under Decryption Keys.")
         }
     }
 
