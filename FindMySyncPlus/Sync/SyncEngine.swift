@@ -120,6 +120,13 @@ final class SyncEngine {
 
     func run(kind: RunKind, dryRun: Bool) async {
         guard let settings, let logger, let app else { return }
+        // Every caller reaches here through a Task, so a run can be requested while another
+        // is in flight — a scheduler tick during Run Now. Checked and set with no `await`
+        // between, so exactly one proceeds.
+        guard !app.isPerformingRun else {
+            logger.info("Skipped a \(kind) run: another run is in progress")
+            return
+        }
 
         let t0 = Date()
 
