@@ -9,9 +9,11 @@
 	<key>CFBundleIdentifier</key>
 	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 	<key>CFBundleInfoDictionaryVersion</key>
-	<array>
-		<string>en</string>
-	</array>
+	<string>6.0</string>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
 	<key>CFBundleName</key>
 	<string>FindMySync+</string>
 	<key>CFBundleShortVersionString</key>
