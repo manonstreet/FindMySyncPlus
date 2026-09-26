@@ -24,6 +24,8 @@
 	<string>$(GIT_COMMIT)</string>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.utilities</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>FindMySync+ sends locations to your Home Assistant server or MQTT broker on your local network.</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<!-- Sparkle schedules its own checks and persists the preference; these two are
