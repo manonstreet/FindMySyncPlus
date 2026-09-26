@@ -1,5 +1,9 @@
 # SwiftLint configuration for FindMySyncPlus
 
+included:
+  - FindMySyncPlus
+  - FindMySyncPlusTests
+
 excluded:
   - .build
 
