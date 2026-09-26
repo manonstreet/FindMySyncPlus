@@ -270,6 +270,21 @@ final class SettingsStore: ObservableObject {
         didSet { saveAliasesToStorage() }
     }
 
+    /// Set at launch, just before `AppModel.bind`. The aliases load in `init`, before a
+    /// logger exists, so what that finds waits in `pendingLog` and is written when this is set.
+    weak var logger: LogStore? {
+        didSet {
+            guard let logger else { return }
+            for (level, message) in pendingLog { logger.log(level, message) }
+            pendingLog.removeAll()
+        }
+    }
+    private var pendingLog: [(LogLevel, String)] = []
+
+    private func report(_ level: LogLevel, _ message: String) {
+        if let logger { logger.log(level, message) } else { pendingLog.append((level, message)) }
+    }
+
     /// Identities Tracking has already shown. `@Published` rather than read straight off
     /// `@AppStorage`, because the sidebar's badge has to redraw the moment a visit records
     /// them — `@AppStorage` publishes to a View, not to an `ObservableObject`'s observers.
@@ -323,24 +338,29 @@ final class SettingsStore: ObservableObject {
         enableFriends = true
     }
 
+    /// Where the stored alias text is copied when any of it fails to decode. Assigning
+    /// `aliases` saves, which replaces the stored text with what survived.
+    static let unreadableAliasesKey = "deviceAliasesJSON.unreadable"
+
     private func loadAliasesFromStorage() {
-        // Defensive decode; never throw. Corrupt data -> reset to empty.
-        let data = Data(deviceAliasesJSON.utf8)
-        if data.isEmpty {
-            self.aliases = []
-            return
+        let raw = deviceAliasesJSON
+        let result = DeviceAlias.decodeStored(raw)
+        if result.unreadable != nil || result.dropped > 0 {
+            UserDefaults.standard.set(raw, forKey: Self.unreadableAliasesKey)
         }
-        do {
-            let decoded = try JSONDecoder().decode([DeviceAlias].self, from: data)
-            self.aliases = decoded
-        } catch {
-            // Corrupt or incompatible -> reset
-            self.aliases = []
+        if let reason = result.unreadable {
+            // Error, which stops the scheduler: a run now would learn a new alias set over
+            // the one that failed to load.
+            report(.error, "Saved aliases could not be read (\(reason)). The stored text is kept under "
+                   + "\(Self.unreadableAliasesKey); starting with none.")
+        } else if result.dropped > 0 {
+            report(.warn, "Dropped \(result.dropped) saved alias(es) that could not be read; kept "
+                   + "\(result.aliases.count). The stored text is kept under \(Self.unreadableAliasesKey).")
         }
+        self.aliases = result.aliases
     }
 
-    /// Defensive decode, matching `loadAliasesFromStorage`: corrupt data resets to empty
-    /// rather than throwing. The cost of losing this set is one run of badges, so there is
+    /// Defensive decode: corrupt data resets to empty rather than throwing. The cost of losing this set is one run of badges, so there is
     /// nothing here worth failing a launch over.
     private func loadSeenUnassignedFromStorage() {
         let data = Data(seenUnassignedJSON.utf8)
@@ -365,7 +385,8 @@ final class SettingsStore: ObservableObject {
                 self.deviceAliasesJSON = s
             }
         } catch {
-            // Ignore persistence failure; keep in-memory state
+            report(.error, "Aliases could not be saved: \(error.localizedDescription). "
+                   + "Changes since the last save are lost at quit.")
         }
     }
 

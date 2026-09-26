@@ -272,7 +272,9 @@ private struct InstallCoordinator: View {
                         updates: updates
                     )
                 }
-                // Bind core models and optionally start scheduler on launch
+                // Bind core models and optionally start scheduler on launch. Settings first:
+                // it holds what it found loading in `init` until it has a logger.
+                settings.logger = logger
                 app.bind(settings: settings, logger: logger)
                 // The sync run publishes the update entity's versions, so it needs to be
                 // able to ask the checker what the feed said.

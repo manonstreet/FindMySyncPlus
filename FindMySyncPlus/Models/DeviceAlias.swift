@@ -86,3 +86,45 @@ struct DeviceAlias: Equatable, Identifiable, Codable {
         try c.encodeIfPresent(parentGroupName, forKey: .parentGroupName)
     }
 }
+
+/// What `DeviceAlias.decodeStored` recovered from the stored alias list.
+struct StoredAliasDecode: Equatable {
+    var aliases: [DeviceAlias]
+    /// Entries present in the list that did not decode.
+    var dropped: Int
+    /// Set when the stored text is not a JSON array, so nothing was recovered.
+    var unreadable: String?
+}
+
+extension DeviceAlias {
+    /// Decodes the stored list one entry at a time: a malformed entry costs that entry, and
+    /// the caller reports the count.
+    static func decodeStored(_ json: String) -> StoredAliasDecode {
+        let data = Data(json.utf8)
+        guard !data.isEmpty else { return StoredAliasDecode(aliases: [], dropped: 0) }
+        let entries: [Any]
+        do {
+            guard let array = try JSONSerialization.jsonObject(with: data) as? [Any] else {
+                return StoredAliasDecode(aliases: [], dropped: 0, unreadable: "not a JSON array")
+            }
+            entries = array
+        } catch {
+            return StoredAliasDecode(aliases: [], dropped: 0, unreadable: error.localizedDescription)
+        }
+        let decoder = JSONDecoder()
+        var aliases: [DeviceAlias] = []
+        var dropped = 0
+        for entry in entries {
+            // `isValidJSONObject` first: `data(withJSONObject:)` raises on a bare string or
+            // number, which Swift cannot catch.
+            guard JSONSerialization.isValidJSONObject(entry),
+                  let entryData = try? JSONSerialization.data(withJSONObject: entry),
+                  let alias = try? decoder.decode(DeviceAlias.self, from: entryData) else {
+                dropped += 1
+                continue
+            }
+            aliases.append(alias)
+        }
+        return StoredAliasDecode(aliases: aliases, dropped: dropped)
+    }
+}
