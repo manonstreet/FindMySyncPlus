@@ -14,9 +14,14 @@ final class RecordingPublisher: MQTTPublishing {
     private(set) var messages: [CocoaMQTTMessage] = []
     private(set) var subscribed: [String] = []
     private(set) var unsubscribed: [String] = []
+    /// Topics the recorder drops, returning `false` the way a full CocoaMQTT queue does.
+    var refusedTopics: Set<String> = []
 
-    func send(_ message: CocoaMQTTMessage) {
+    @discardableResult
+    func send(_ message: CocoaMQTTMessage) -> Bool {
+        guard !refusedTopics.contains(message.topic) else { return false }
         messages.append(message)
+        return true
     }
 
     func subscribe(to topic: String) { subscribed.append(topic) }
@@ -181,5 +186,30 @@ struct MQTTPublishSequenceTests {
                                                   prefix: Self.prefix)
 
         #expect(recorder.messages.isEmpty)
+    }
+
+    // MARK: - A dropped publish
+
+    @Test("attributes the client drops are failed, not remembered, and sent on the next run")
+    func droppedAttributesAreRetried() {
+        let mqtt = MQTTClient()
+        let recorder = RecordingPublisher()
+        let logger = LogStore()
+        let device = point(battery: nil)
+        let cycle = MQTTClient.AttributeCycle(prefix: Self.prefix, iso: ISO8601DateFormatter(),
+                                              skipRepeats: true, minimumMovementMeters: 0)
+        let topic = MQTTClient.attributesTopic(forDevId: Self.devId, prefix: Self.prefix)
+        func publish() -> MQTTClient.AttributePublishOutcome {
+            mqtt.publishAttributes(client: recorder, device: device, devId: Self.devId,
+                                   cycle: cycle, logger: logger)
+        }
+
+        recorder.refusedTopics = [topic]
+        #expect(publish() == .failed)
+
+        recorder.refusedTopics = []
+        #expect(publish() == .published)
+        #expect(publish() == .skippedIdentical)
+        #expect(recorder.topics == [topic])
     }
 }

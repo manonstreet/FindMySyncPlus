@@ -383,11 +383,11 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
     /// Sound only because `last_update` carries the fix time — see `buildAttributes`. A
     /// record Apple gives no timestamp for keeps the publish time and so never matches
     /// itself: it publishes, loudly, rather than going quiet on a record we cannot reason about.
-    private func publishAttributes(client: MQTTPublishing,
-                                   device: DevicePoint,
-                                   devId: String,
-                                   cycle: AttributeCycle,
-                                   logger: LogStore) -> AttributePublishOutcome {
+    func publishAttributes(client: MQTTPublishing,
+                           device: DevicePoint,
+                           devId: String,
+                           cycle: AttributeCycle,
+                           logger: LogStore) -> AttributePublishOutcome {
         let (prefix, iso, skipRepeats) = (cycle.prefix, cycle.iso, cycle.skipRepeats)
         let attrs = buildAttributes(for: device, iso: iso)
         guard let json = Self.jsonString(attrs), let signature = Self.signature(of: attrs) else {
@@ -413,8 +413,13 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
             break
         }
 
-        client.send(CocoaMQTTMessage(topic: Self.attributesTopic(forDevId: devId, prefix: prefix),
-                                     string: json, qos: .qos1, retained: true))
+        let sent = client.send(CocoaMQTTMessage(topic: Self.attributesTopic(forDevId: devId, prefix: prefix),
+                                                string: json, qos: .qos1, retained: true))
+        guard sent else {
+            // Not recorded as published, so the next run sends it rather than skipping it.
+            logger.warn("[\(devId)] MQTT: the client's outgoing queue is full; attributes not published")
+            return .failed
+        }
         lastPublishedAttributes[devId] = state
         logger.info("[\(devId)] MQTT published")
         return .published

@@ -5,19 +5,23 @@ import CocoaMQTT
 /// holds. Narrow on purpose: a test cannot construct a `CocoaMQTT` without a socket, and
 /// everything worth asserting is what goes on the wire, in what order.
 ///
-/// Named `send` rather than `publish` because `CocoaMQTT.publish` returns `Int` and so
-/// cannot satisfy a `Void` requirement directly. The subscription pair carries labels because
-/// `CocoaMQTT.subscribe(_:qos:)` has a defaulted parameter and could not witness an
+/// Named `send` rather than `publish` because `CocoaMQTT.publish` returns an `Int` message id
+/// and so cannot satisfy a `Bool` requirement directly. The subscription pair carries labels
+/// because `CocoaMQTT.subscribe(_:qos:)` has a defaulted parameter and could not witness an
 /// unlabeled requirement.
 @MainActor
 protocol MQTTPublishing: AnyObject {
-    func send(_ message: CocoaMQTTMessage)
+    /// `false` when the client dropped the message, which CocoaMQTT does when its outgoing
+    /// queue is full.
+    @discardableResult
+    func send(_ message: CocoaMQTTMessage) -> Bool
     func subscribe(to topic: String)
     func unsubscribe(from topic: String)
 }
 
 extension CocoaMQTT: MQTTPublishing {
-    func send(_ message: CocoaMQTTMessage) { _ = publish(message) }
+    @discardableResult
+    func send(_ message: CocoaMQTTMessage) -> Bool { publish(message) >= 0 }
     func subscribe(to topic: String) { subscribe(topic, qos: .qos1) }
     func unsubscribe(from topic: String) { unsubscribe(topic) }
 }
