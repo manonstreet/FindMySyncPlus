@@ -242,10 +242,10 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
     func ensureConnected(settings: SettingsStore) async -> Bool {
         if connectionState == .connected { return true }
 
-        // Don't restart an attempt that is already in flight: `connect()` begins by
-        // tearing the current client down, which surfaces as an unexpected disconnect.
-        let stalled = connectingSince.map { Date().timeIntervalSince($0) > Self.connectingTimeout } ?? true
-        if connectionState != .connecting || stalled {
+        let retryPending = reconnectTask.map { !$0.isCancelled } ?? false
+        if Self.shouldStartNewConnection(state: connectionState,
+                                         retryPending: retryPending,
+                                         connectingSince: connectingSince) {
             connect(settings: settings)
         }
         // Wait up to 5 seconds for connection
@@ -793,8 +793,7 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
             reconnectTask = nil
             return
         }
-        // Same schedule as `backoffDelay(forAttempt:)`.
-        let delay = min(0.25 * pow(2.0, Double(reconnectAttempts - 1)), 60.0)
+        let delay = Self.backoffDelay(forAttempt: reconnectAttempts)
         connectionState = .connecting
         logger?.warn(String(format: "MQTT reconnecting (attempt %d, %.2fs)", reconnectAttempts, delay))
         let settingsRef = settings
