@@ -27,6 +27,16 @@ enum DecryptorError: LocalizedError {
     }
 }
 
+/// What reading the FMF contact cache found.
+enum FMFNamesResult: Equatable {
+    /// DSID → display name. Empty when the cache decrypted but carries no names.
+    case names([String: String])
+    /// The key did not authenticate the payload, so it is not this account's FMF key.
+    case incorrectKey
+    /// No key, no readable cache or no payload; the reason is for the debug log.
+    case unavailable(String)
+}
+
 /// Where the Find My files are read from.
 ///
 /// Normally the user's home directory. `demoRoot` points it at a fixture tree
@@ -136,46 +146,46 @@ actor CacheDecryptor {
         }
     }
 
-    /// Decrypt FriendCacheData.data and extract contact display names.
-    /// Returns a mapping of DSID → displayName, or nil if decryption failed/unavailable.
-    func readFMFContactNames(logger: LogStore) -> [String: String]? {
-        guard let key = fmfKey else { return nil }
-
-        let home = ReadRoot.url
-        let fileURL = home.appendingPathComponent(FMIPCacheFile.friendCache.relativePath)
-
+    /// Decrypt FriendCacheData.data and extract contact display names, keyed by DSID.
+    func readFMFContactNames(logger: LogStore) -> FMFNamesResult {
+        guard let key = fmfKey else { return .unavailable("no FMF key loaded") }
+        let fileURL = ReadRoot.url.appendingPathComponent(FMIPCacheFile.friendCache.relativePath)
         let outerData: Data
         do {
             outerData = try Data(contentsOf: fileURL)
         } catch {
-            logger.debug("FMF cache not found or unreadable: \(error.localizedDescription)")
-            return nil
+            return .unavailable("FMF cache not found or unreadable: \(error.localizedDescription)")
         }
+        let result = Self.fmfContactNames(fromCache: outerData, key: key)
+        if case .names(let names) = result {
+            logger.debug(names.isEmpty ? "FMF cache: decrypted, no contact names in it"
+                                       : "FMF contacts: loaded \(names.count) display name(s)")
+        }
+        return result
+    }
 
-        // Parse outer plist to get encryptedData
+    /// The decoding half of `readFMFContactNames`, apart from the file so it can be tested.
+    nonisolated static func fmfContactNames(fromCache outerData: Data, key: SymmetricKey) -> FMFNamesResult {
         guard let outerPL = try? PropertyListSerialization.propertyList(from: outerData, options: [], format: nil),
               let outer = outerPL as? [String: Any],
               let encrypted = outer["encryptedData"] as? Data,
               encrypted.count >= (12 + 16) else {
-            logger.debug("FMF cache: no encryptedData found or too short")
-            return nil
+            return .unavailable("FMF cache: no encryptedData found or too short")
         }
 
-        // Decrypt with ChaChaPoly (same scheme as FMIP)
         let plaintext: Data
         do {
-            plaintext = try Self.chaChaPolyOpen(encrypted, using: key)
+            plaintext = try chaChaPolyOpen(encrypted, using: key)
+        } catch let error as CryptoKit.CryptoKitError where error == .authenticationFailure {
+            return .incorrectKey
         } catch {
-            logger.debug("FMF cache decrypt failed: \(error.localizedDescription)")
-            return nil
+            return .unavailable("FMF cache decrypt failed: \(error.localizedDescription)")
         }
 
-        // Parse decrypted plist — expected structure: dict with "contacts" key
         guard let innerPL = try? PropertyListSerialization.propertyList(from: plaintext, options: [], format: nil),
               let root = innerPL as? [String: Any],
               let contacts = root["contacts"] as? [String: Any] else {
-            logger.debug("FMF cache: decrypted data has no contacts dict")
-            return [:]
+            return .names([:])
         }
 
         var names: [String: String] = [:]
@@ -187,11 +197,7 @@ actor CacheDecryptor {
                 names[dsid] = shortName
             }
         }
-
-        if !names.isEmpty {
-            logger.debug("FMF contacts: loaded \(names.count) display name(s)")
-        }
-        return names
+        return .names(names)
     }
 
     /// Shared ChaChaPoly decryption: nonce (12 bytes) || ciphertext || tag (16 bytes).

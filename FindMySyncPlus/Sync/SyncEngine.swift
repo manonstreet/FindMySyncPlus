@@ -308,7 +308,25 @@ final class SyncEngine {
         // Gating on `enabled` still matters: with Friends off the key is not consulted,
         // so the indicator reads "not applicable" rather than going green.
         guard enabled else { return entries }
-        guard let fmfNames = await cacheDecryptor.readFMFContactNames(logger: logger) else { return entries }
+        // Status resets to `.present` on import and at launch, so an invalid key is tried
+        // once per launch and once per import, not every run.
+        guard settings.fmfKeyStatus != .invalid else {
+            logger.debug("Friends: FMF key is invalid; publishing friends without display names")
+            return entries
+        }
+        let fmfNames: [String: String]
+        switch await cacheDecryptor.readFMFContactNames(logger: logger) {
+        case .names(let names):
+            fmfNames = names
+        case .incorrectKey:
+            settings.fmfKeyStatus = .invalid
+            logger.warn("FMF key is incorrect; friends are published without their display names. "
+                        + "Import a current FMF key in Access.")
+            return entries
+        case .unavailable(let reason):
+            logger.debug(reason)
+            return entries
+        }
         settings.fmfKeyStatus = .valid
         guard !entries.isEmpty, !fmfNames.isEmpty else { return entries }
         let enriched = entries.map { entry in
