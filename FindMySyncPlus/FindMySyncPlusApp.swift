@@ -263,15 +263,19 @@ private struct InstallCoordinator: View {
         Color.clear
             .frame(width: 0, height: 0)
             .onAppear {
-                if WindowCoordinator.shared == nil {
-                    WindowCoordinator.shared = WindowCoordinator(
-                        policy: policy,
-                        settings: settings,
-                        logger: logger,
-                        app: app,
-                        updates: updates
-                    )
+                // The coordinator is created here and never cleared, so it marks that launch
+                // setup has run: a second appearance would bind twice and start a second updater.
+                guard WindowCoordinator.shared == nil else {
+                    logger.debug("Menu bar label appeared again; launch setup already ran")
+                    return
                 }
+                WindowCoordinator.shared = WindowCoordinator(
+                    policy: policy,
+                    settings: settings,
+                    logger: logger,
+                    app: app,
+                    updates: updates
+                )
                 // Bind core models and optionally start scheduler on launch. Settings first:
                 // it holds what it found loading in `init` until it has a logger.
                 settings.logger = logger
