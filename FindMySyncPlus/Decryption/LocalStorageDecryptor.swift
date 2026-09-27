@@ -43,6 +43,8 @@ actor LocalStorageDecryptor {
             }
             key = raw
             Task { @MainActor in logger.info("LocalStorage key loaded from Keychain (\(raw.count) bytes)") }
+        } else if let failure = Keychain.read(.localStorageKey).failure {
+            Task { @MainActor in logger.warn("LocalStorage key could not be read from the Keychain: \(failure).") }
         } else {
             Task { @MainActor in logger.debug("LocalStorage key not found in Keychain.") }
         }
@@ -113,19 +115,33 @@ actor LocalStorageDecryptor {
     /// signal either — a live database can be 4096 bytes with everything in its
     /// `-wal`. So each candidate is judged by whether page 0 actually decrypts
     /// to a SQLite header with this key, and the freshest of those wins.
-    private func resolveDBURL(logger: LogStore) -> URL? {
-        guard let key else { return nil }
+    private func resolveDBURL(logger: LogStore) -> Result<URL, LocalStorageDecryptorError> {
+        guard let key else { return .failure(.keyNotLoaded) }
         var valid: [(url: URL, modified: Date)] = []
         var tried: [String] = []
+        var permissionDenied = false
 
         for url in Self.candidateDBURLs() {
-            tried.append(url.path)
-            guard let data = try? Data(contentsOf: url), data.count >= Self.pageSize else { continue }
+            let data: Data
+            do {
+                data = try Data(contentsOf: url)
+            } catch {
+                let (reason, denied) = Self.unreadableReason(error)
+                permissionDenied = permissionDenied || denied
+                tried.append("\(url.path) (\(reason))")
+                continue
+            }
+            guard data.count >= Self.pageSize else {
+                tried.append("\(url.path) (shorter than one page)")
+                continue
+            }
             let page0 = decryptPage(data.prefix(Self.pageSize), pageIndex: 0, key: key)
             guard page0.prefix(16) == Self.sqliteMagic else {
+                tried.append("\(url.path) (not a database for this key)")
                 logger.debug("Friends: \(url.path) did not decrypt to a SQLite header; ignoring it.")
                 continue
             }
+            tried.append(url.path)
             let modified = (try? url.resourceValues(forKeys: [.contentModificationDateKey])
                 .contentModificationDate) ?? .distantPast
             valid.append((url, modified))
@@ -135,22 +151,29 @@ actor LocalStorageDecryptor {
             // Loudly, and naming every path checked: this failing silently is
             // what made it invisible for months.
             logger.warn("Friends: no readable LocalStorage.db. Checked: \(tried.joined(separator: ", "))")
-            return nil
+            return .failure(permissionDenied ? .fdaRequired : .dbNotFound)
         }
         if valid.count > 1 {
             logger.warn("Friends: more than one readable LocalStorage.db; using the most recently modified (\(chosen.path)).")
         } else {
             logger.debug("Friends: using \(chosen.path)")
         }
-        return chosen
+        return .success(chosen)
+    }
+
+    /// Why a candidate database could not be read, for the list of paths checked.
+    private nonisolated static func unreadableReason(_ error: Error) -> (reason: String, permissionDenied: Bool) {
+        let ns = error as NSError
+        if ns.domain == NSCocoaErrorDomain && ns.code == NSFileReadNoSuchFileError { return ("absent", false) }
+        if error.isPermissionDenied { return ("permission denied", true) }
+        return (error.localizedDescription, false)
     }
 
     func readFriendLocations(logger: LogStore) -> Result<[DevicePoint], LocalStorageDecryptorError> {
         guard let key else { return .failure(.keyNotLoaded) }
 
-        guard let dbURL = resolveDBURL(logger: logger) else {
-            return .failure(.dbNotFound)
-        }
+        let resolved = resolveDBURL(logger: logger)
+        guard case .success(let dbURL) = resolved else { return resolved.map { _ in [] } }
         let walURL = URL(fileURLWithPath: dbURL.path + "-wal")
 
         // Read encrypted DB
@@ -172,7 +195,7 @@ actor LocalStorageDecryptor {
         guard pageCount > 0 else { return .failure(.dbCorrupted("DB file is empty")) }
 
         // Parse WAL if present
-        let wal = parseWAL(walURL)
+        let wal = parseWAL(walURL, logger: logger)
 
         // Build encrypted page array, merging WAL overrides on top.
         let basePages: [Data] = (0..<pageCount).map { i in
@@ -422,8 +445,19 @@ actor LocalStorageDecryptor {
 
     /// Read the WAL file and parse it. A missing WAL is normal — the DB may simply be
     /// fully checkpointed, so that case is not an anomaly.
-    nonisolated func parseWAL(_ walURL: URL) -> WALParseResult {
-        guard let walData = try? Data(contentsOf: walURL) else { return WALParseResult() }
+    nonisolated func parseWAL(_ walURL: URL, logger: LogStore? = nil) -> WALParseResult {
+        let walData: Data
+        do {
+            walData = try Data(contentsOf: walURL)
+        } catch {
+            // No `-wal` is normal: everything is in the database file.
+            let ns = error as NSError
+            if !(ns.domain == NSCocoaErrorDomain && ns.code == NSFileReadNoSuchFileError) {
+                logger?.warn("Friends: could not read \(walURL.lastPathComponent) (\(error.localizedDescription)); "
+                             + "friend locations may be stale this run.")
+            }
+            return WALParseResult()
+        }
         return parseWALFrames(walData)
     }
 

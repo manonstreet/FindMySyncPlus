@@ -14,6 +14,11 @@ enum Keychain {
 
     @discardableResult
     static func set(_ data: Data, for key: KeychainKey) -> Bool {
+        save(data, for: key) == nil
+    }
+
+    /// Stores `data`, returning why the Keychain refused it, or `nil` on success.
+    static func save(_ data: Data, for key: KeychainKey) -> String? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -31,7 +36,7 @@ enum Keychain {
             attrs.forEach { add[$0.key] = $0.value }
             status = SecItemAdd(add as CFDictionary, nil)
         }
-        return status == errSecSuccess
+        return status == errSecSuccess ? nil : describe(status)
     }
 
     @discardableResult
@@ -39,7 +44,17 @@ enum Keychain {
         set(Data(string.utf8), for: key)
     }
 
+    static func saveString(_ string: String, for key: KeychainKey) -> String? {
+        save(Data(string.utf8), for: key)
+    }
+
     static func getData(for key: KeychainKey) -> Data? {
+        read(key).data
+    }
+
+    /// The stored bytes, and why the read failed when the item exists but could not be
+    /// returned — a locked keychain or a refused access prompt. Absent is not a failure.
+    static func read(_ key: KeychainKey) -> (data: Data?, failure: String?) {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -49,8 +64,14 @@ enum Keychain {
         ]
         var item: CFTypeRef?
         let status = SecItemCopyMatching(query as CFDictionary, &item)
-        guard status == errSecSuccess, let data = item as? Data else { return nil }
-        return data
+        if status == errSecSuccess, let data = item as? Data { return (data, nil) }
+        if status == errSecItemNotFound { return (nil, nil) }
+        return (nil, describe(status))
+    }
+
+    static func describe(_ status: OSStatus) -> String {
+        let text = SecCopyErrorMessageString(status, nil) as String? ?? "unknown error"
+        return "\(text) (status \(status))"
     }
 
     static func getString(for key: KeychainKey) -> String? {

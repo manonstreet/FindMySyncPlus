@@ -159,7 +159,9 @@ final class SettingsStore: ObservableObject {
 
     @Published var mqttPassword: String = "" {
         didSet {
-            _ = Keychain.setString(mqttPassword, for: .mqttPassword)
+            if let failure = Keychain.saveString(mqttPassword, for: .mqttPassword) {
+                report(.warn, "Couldn't save the MQTT password to the Keychain: \(failure). It works until the app quits.")
+            }
         }
     }
 
@@ -591,6 +593,8 @@ final class SettingsStore: ObservableObject {
 
     func updateEndpointAuth(_ newValue: String) {
         endpointAuth = newValue
-        _ = Keychain.setString(newValue, for: .endpointAuth)
+        if let failure = Keychain.saveString(newValue, for: .endpointAuth) {
+            report(.warn, "Couldn't save the Home Assistant token to the Keychain: \(failure). It works until the app quits.")
+        }
     }
 }

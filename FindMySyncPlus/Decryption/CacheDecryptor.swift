@@ -126,6 +126,8 @@ actor CacheDecryptor {
             fmipKey = SymmetricKey(data: raw)
             logger.info("FMIP key loaded from Keychain (\(count) bytes)")
             logger.debug("Keychain location: \(Bundle.main.bundleIdentifier ?? "com.manonstreet.findmysyncplus")")
+        } else if let failure = Keychain.read(.fmipSymmetricKey).failure {
+            logger.error("FMIP key could not be read from the Keychain: \(failure).")
         } else {
             logger.error("FMIP key not found in Keychain. Import it in Access, under Decryption Keys.")
         }
@@ -141,6 +143,8 @@ actor CacheDecryptor {
             }
             fmfKey = SymmetricKey(data: raw)
             logger.info("FMF key loaded from Keychain (\(count) bytes)")
+        } else if let failure = Keychain.read(.fmfKey).failure {
+            logger.warn("FMF key could not be read from the Keychain: \(failure). Friends are published without display names.")
         } else {
             logger.debug("FMF key not found in Keychain; friend name lookup unavailable.")
         }

@@ -292,7 +292,8 @@ final class SyncEngine {
             // The resolver logs which paths it checked.
             logger.warn("Friends: no readable LocalStorage.db; skipping friends this run.")
         case .failure(.fdaRequired):
-            logger.error("Friends: Full Disk Access required to read LocalStorage.db.")
+            // Warn, not error: devices and items still publish correctly without friends.
+            logger.warn("Friends: Full Disk Access is required to read LocalStorage.db; skipping friends this run.")
         case .failure(let e):
             logger.warn("Friends: \(e.localizedDescription)")
         }
