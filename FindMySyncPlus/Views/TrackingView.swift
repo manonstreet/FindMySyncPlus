@@ -640,8 +640,11 @@ struct TrackingView: View {
                       source: entry.source,
                       onAssign: {
             if isUpdate, let match = matching.first {
-                _ = settings.updateAliasWithCap(match.alias, addUUID: d.id, lastSeenName: d.name)
+                let evicted = settings.updateAliasWithCap(match.alias, addUUID: d.id, lastSeenName: d.name)
                 logger.info("Alias \"\(match.alias)\" updated with UUID \(d.id.normalized())")
+                if !evicted.isEmpty {
+                    logger.debug("Alias \"\(match.alias)\" reached cap; evicted \(evicted.count) old UUID(s)")
+                }
             } else {
                 assignUUID = d.id
                 assignName = d.name
