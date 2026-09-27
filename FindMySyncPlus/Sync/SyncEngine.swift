@@ -379,6 +379,8 @@ final class SyncEngine {
             if run.postSummary.skippedUnchangedCount > 0 {
                 parts.append("skipped_unchanged=\(run.postSummary.skippedUnchangedCount)")
             }
+            let failed = run.postSummary.authRejectedCount + run.postSummary.transientCount
+            if failed > 0 { parts.append("failed=\(failed)") }
         }
         if m.noLocationCount > 0 { parts.append("no_location=\(m.noLocationCount)") }
         if m.locatedFriends > 0 { parts.append("friends=\(m.locatedFriends)") }
