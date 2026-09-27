@@ -64,11 +64,12 @@ struct StatusView: View {
                 let even = Color(nsColor: NSColor.alternatingContentBackgroundColors[0])
                 let odd  = Color(nsColor: NSColor.alternatingContentBackgroundColors[1])
 
-                ForEach(Array(logger.entries.enumerated()), id: \.element.id) { index, entry in
+                ForEach(logger.entries) { entry in
                     logRow(entry)
                         .id(entry.id)
                         .padding(.leading, barWidth + gutter)
-                        .background(index.isMultiple(of: 2) ? even : odd)
+                        // By sequence, so a row keeps its stripe when the oldest entries drop off.
+                        .background(entry.sequence.isMultiple(of: 2) ? even : odd)
                         .overlay(alignment: .leading) {
                             Rectangle()
                                 .fill(entry.level.accentColor)
@@ -101,7 +102,8 @@ struct StatusView: View {
                 scrollPos = id
             }
         }
-        .onChange(of: logger.entries.count) {
+        // The last entry, not the count: at the cap the count stops changing.
+        .onChange(of: logger.entries.last?.id) {
             if autoScroll {
                 withAnimation(.easeOut(duration: 0.18)) {
                     scrollPos = bottomSentinelID

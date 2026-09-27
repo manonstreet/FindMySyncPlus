@@ -6,6 +6,9 @@ struct LogEntry: Identifiable {
     let ts = Date()
     let level: LogLevel
     let message: String
+    /// Position in the whole session, which keeps counting after the buffer starts
+    /// dropping its oldest entries.
+    let sequence: Int
 
     private static let dateFormatter: DateFormatter = {
         let formatter = DateFormatter()
@@ -31,6 +34,8 @@ final class LogStore: ObservableObject, @unchecked Sendable {
 
     let errorSignal = PassthroughSubject<String, Never>()
     let warningSignal = PassthroughSubject<String, Never>()
+    /// Only touched on the main queue, where entries are appended.
+    private var nextSequence = 0
 
     func clear() {
         entries.removeAll()
@@ -57,7 +62,8 @@ final class LogStore: ObservableObject, @unchecked Sendable {
         let message = msg()
 
         DispatchQueue.main.async {
-            self.entries.append(LogEntry(level: level, message: message))
+            self.entries.append(LogEntry(level: level, message: message, sequence: self.nextSequence))
+            self.nextSequence += 1
             if level == .error {
                 self.errorSignal.send(message)
             } else if level == .warn {
