@@ -123,7 +123,8 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
         mqtt.willMessage = Self.willMessage(prefix: settings.mqttTopicPrefix)
         if settings.mqttUseTLS {
             mqtt.enableSSL = true
-            mqtt.allowUntrustCACertificate = true
+            // The system checks the chain and expiry by default, but the name only when given one.
+            mqtt.sslSettings = [kCFStreamSSLPeerName as String: settings.mqttHost as NSString]
         }
         mqtt.delegate = self
         client = mqtt
@@ -848,6 +849,11 @@ extension MQTTClient: CocoaMQTTDelegate {
             guard token == self.activeClientToken else { return }
             self.connectionState = .disconnected
             self.connectingSince = nil
+            if let err, let reason = Self.tlsRefusal(err) {
+                // Error, which stops the scheduler, and no retry: retrying cannot change the certificate.
+                self.logger?.error("MQTT TLS: the broker's certificate was refused — \(reason). See Access Help.")
+                return
+            }
             if let err {
                 self.logger?.warn("MQTT disconnected: \(err.localizedDescription)")
             }

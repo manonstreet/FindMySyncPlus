@@ -6,6 +6,24 @@ import CocoaMQTT
 // that decide whether an entity goes quiet or a Find My relaunch fires are testable.
 extension MQTTClient {
 
+    /// Why a TLS handshake refused the broker's certificate, or `nil` when the error is not
+    /// a certificate refusal. The socket reports these in `kCFStreamErrorDomainSSL` with the
+    /// Secure Transport status as the code.
+    nonisolated static func tlsRefusal(_ error: any Error) -> String? {
+        let ns = error as NSError
+        guard ns.domain == "kCFStreamErrorDomainSSL" else { return nil }
+        switch OSStatus(ns.code) {
+        case errSSLCertExpired, errSSLCertNotYetValid:
+            return "it has expired or is not yet valid"
+        case errSSLHostNameMismatch:
+            return "it is issued to a different name than the host you entered"
+        case errSSLXCertChainInvalid, errSSLBadCert, errSSLUnknownRootCert, errSSLNoRootCert:
+            return "this Mac does not trust it"
+        default:
+            return nil
+        }
+    }
+
     /// The stored client id, or a fresh one when nothing is stored yet. Pure, because a test
     /// must never build a `SettingsStore` (it shares the app's real UserDefaults). A stable
     /// id buys one identity on the broker instead of one per launch; sessions are not
