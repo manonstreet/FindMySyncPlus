@@ -483,7 +483,6 @@ final class AppModel: NSObject, ObservableObject {
                 } catch {
                     break
                 }
-
                 if !Task.isCancelled {
                     if self.sleepStartedAt != nil {
                         // Ordinary now that the scheduler no longer stops on `willSleep`:
@@ -493,7 +492,8 @@ final class AppModel: NSObject, ObservableObject {
                         // as having had one.
                         self.logger?.debug("Scheduled run firing while the system is asleep")
                     }
-                    await self.syncEngine.run(kind: .scheduled, dryRun: false)
+                    // Its own task, so cancelling this loop stops future ticks but not a run in progress.
+                    await Task { await self.syncEngine.run(kind: .scheduled, dryRun: false) }.value
                 }
             }
         }
