@@ -24,7 +24,7 @@ final class CacheDecryptorTests: XCTestCase {
         XCTAssertEqual(result[0].name, "Test AirTag")
         XCTAssertEqual(result[0].latitude, 37.7749, accuracy: 0.0001)
         XCTAssertEqual(result[0].longitude, -122.4194, accuracy: 0.0001)
-        XCTAssertEqual(result[0].accuracy, 5.0, accuracy: 0.001)
+        XCTAssertEqual(result[0].accuracy ?? -1, 5.0, accuracy: 0.001)
         XCTAssertEqual(result[0].battery ?? 0, 0.8, accuracy: 0.001)
     }
 

@@ -188,6 +188,20 @@ struct MQTTPublishSequenceTests {
         #expect(recorder.messages.isEmpty)
     }
 
+    // MARK: - Accuracy
+
+    @Test("attributes carry gps_accuracy when known and omit it when not")
+    func accuracyPresentAndAbsent() {
+        let known = MQTTClient().buildAttributes(for: point(battery: nil), iso: ISO8601DateFormatter())
+        #expect(known["gps_accuracy"] as? Double == 3)
+
+        let unknown = DevicePoint(id: "uuid", name: "Test Friend", latitude: 1, longitude: 2,
+                                  accuracy: nil, battery: nil)
+        let attrs = MQTTClient().buildAttributes(for: unknown, iso: ISO8601DateFormatter())
+        #expect(attrs["gps_accuracy"] == nil)
+        #expect(attrs["latitude"] as? Double == 1)
+    }
+
     // MARK: - A dropped publish
 
     @Test("attributes the client drops are failed, not remembered, and sent on the next run")

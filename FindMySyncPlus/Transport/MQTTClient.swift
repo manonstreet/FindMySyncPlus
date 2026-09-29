@@ -566,12 +566,12 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
         var attrs: [String: Any] = [
             "latitude": device.latitude,
             "longitude": device.longitude,
-            "gps_accuracy": device.accuracy,
             // The fix time, not the publish time — the publish time made every entity's
             // "last updated" read as fresh and the payload unstable every cycle. Falls back
             // to now when Apple supplied no timestamp, so the field stays present.
             "last_update": iso.string(from: device.richAttributes?.timestamp ?? now)
         ]
+        if let accuracy = device.accuracy { attrs["gps_accuracy"] = accuracy }
         // Four attributes, split by meaning rather than by Apple's key name. A single
         // raw value would be ambiguous: `batteryLevel` is a 0–1 fraction and
         // `batteryStatus` a small ordinal, so 1 could mean 100% or the ordinal "full".

@@ -511,6 +511,7 @@ actor LocalStorageDecryptor {
         defer { sqlite3_finalize(stmt) }
 
         var results: [DevicePoint] = []
+        var missingAccuracy = 0
 
         while sqlite3_step(stmt) == SQLITE_ROW {
             let prettyName = columnText(stmt, 0)
@@ -532,7 +533,7 @@ actor LocalStorageDecryptor {
             guard let lat = locDict["latitude"] as? Double,
                   let lon = locDict["longitude"] as? Double else { continue }
 
-            let acc = (locDict["horizontalAccuracy"] as? Double) ?? 0
+            let acc = locDict["horizontalAccuracy"] as? Double
 
             // Extract rich location attributes from the bplist blob
             let richTimestamp: Date? = {
@@ -564,6 +565,10 @@ actor LocalStorageDecryptor {
             Task { @MainActor in
                 logger.debug("Friend \"\(name)\" serverID=\(serverIdentifier) types=\(types ?? "nil")")
             }
+            if acc == nil {
+                missingAccuracy += 1
+                Task { @MainActor in logger.debug("Friend \"\(name)\": a location with no horizontalAccuracy") }
+            }
 
             results.append(DevicePoint(
                 id: serverIdentifier,
@@ -576,6 +581,13 @@ actor LocalStorageDecryptor {
             ))
         }
 
+        // Info, not warn: if Apple routinely omits it, a warning would mark every run.
+        if missingAccuracy > 0 {
+            let count = missingAccuracy
+            Task { @MainActor in
+                logger.info("Friends: \(count) location(s) had no accuracy; published without one.")
+            }
+        }
         return .success(results)
     }
 

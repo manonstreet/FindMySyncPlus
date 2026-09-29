@@ -5,7 +5,9 @@ struct DevicePoint: Sendable {
     let name: String
     let latitude: Double
     let longitude: Double
-    let accuracy: Double
+    /// `nil` when Apple gave a position with no accuracy, which is published as absent
+    /// rather than as 0, the value Home Assistant reads as exact.
+    let accuracy: Double?
     let battery: Double?
     /// `Items.data` battery ordinal, passed through unmodified. Its meaning varies by
     /// manufacturer and is deliberately not normalized — see `BatteryParsingTests`.
@@ -21,7 +23,7 @@ struct DevicePoint: Sendable {
     let parentID: String?  // non-nil for grouped children (e.g. AirPods bud → its case/group baUUID)
 
     // swiftlint:disable:next line_length
-    init(id: String, name: String, latitude: Double, longitude: Double, accuracy: Double, battery: Double?, batteryStatusCode: Int? = nil, chargingState: String? = nil, vendorIdentifier: Int? = nil, prsId: String? = nil, richAttributes: RichLocationAttributes? = nil, parentID: String? = nil) {
+    init(id: String, name: String, latitude: Double, longitude: Double, accuracy: Double?, battery: Double?, batteryStatusCode: Int? = nil, chargingState: String? = nil, vendorIdentifier: Int? = nil, prsId: String? = nil, richAttributes: RichLocationAttributes? = nil, parentID: String? = nil) {
         self.id = id
         self.name = name
         self.latitude = latitude

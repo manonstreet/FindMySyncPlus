@@ -42,9 +42,10 @@ extension SyncEngine {
         for i in dated.indices {
             for j in dated.index(after: i)..<dated.endIndex {
                 let a = dated[i], b = dated[j]
-                guard abs(a.at.timeIntervalSince(b.at)) <= syncInterval else { continue }
+                guard abs(a.at.timeIntervalSince(b.at)) <= syncInterval,
+                      let accA = a.point.accuracy, let accB = b.point.accuracy else { continue }
                 compared = true
-                if Self.metersBetween(a.point, b.point) > a.point.accuracy + b.point.accuracy {
+                if Self.metersBetween(a.point, b.point) > accA + accB {
                     return "separated"
                 }
             }

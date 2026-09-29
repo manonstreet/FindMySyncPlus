@@ -65,4 +65,14 @@ struct RESTPayloadTests {
         #expect(body["battery"] == nil)
         #expect(!body.keys.contains("battery"))
     }
+
+    /// Absent, not zero: Home Assistant reads an accuracy of 0 as an exact fix.
+    @Test("no accuracy means no gps_accuracy key")
+    func accuracyAbsent() throws {
+        let noAccuracy = DevicePoint(id: "uuid", name: "Test Friend", latitude: 37.3349,
+                                     longitude: -122.009, accuracy: nil, battery: nil)
+        let body = try json(for: noAccuracy, alias: "friend")
+        #expect(!body.keys.contains("gps_accuracy"))
+        #expect(body["gps"] as? [Double] == [37.3349, -122.009])
+    }
 }

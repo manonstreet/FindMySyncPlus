@@ -7,7 +7,7 @@ struct HAPayload: Codable, Sendable {
     let host_name: String
     let mac: String
     let gps: [Double]
-    let gps_accuracy: Double
+    let gps_accuracy: Double?
     let battery: Int?
 }
 

@@ -302,11 +302,11 @@ extension SyncEngine {
         let useInfo = (alias != nil && tracked)
         if useInfo {
             logger.info(header)
-            logger.info("- - Location: \(d.latitude), \(d.longitude) (Accuracy \(d.accuracy))")
+            logger.info("- - Location: \(d.latitude), \(d.longitude) (Accuracy \(d.accuracy.map { "\($0)" } ?? "none"))")
             if let b = d.battery { logger.info("- - Battery level: \(b)") }
         } else {
             logger.debug(header)
-            logger.debug("- - Location: \(d.latitude), \(d.longitude) (Accuracy \(d.accuracy))")
+            logger.debug("- - Location: \(d.latitude), \(d.longitude) (Accuracy \(d.accuracy.map { "\($0)" } ?? "none"))")
             if let b = d.battery { logger.debug("- - Battery level: \(b)") }
         }
     }
