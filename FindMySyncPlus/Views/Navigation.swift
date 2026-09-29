@@ -48,9 +48,9 @@ enum Dest: String, CaseIterable, Hashable {
 struct RootView: View {
     @State private var selection: Dest = .home
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
-    /// The Tracking help, a sheet over the main window like Licenses on About.
+    /// The open help page, a sheet over the main window like Licenses on About.
     /// The state is here, not in the toolbar button: a sheet is attached to the pane.
-    @State private var showTrackingHelp = false
+    @State private var helpDoc: HelpDoc?
     // Deliberately no environment objects here. The app model publishes every second while
     // the scheduler counts down, and a shell that observed it re-rendered on each tick,
     // which kept every scroll view's overlay scroller awake. The few views that need model
@@ -84,11 +84,11 @@ struct RootView: View {
                         .help("Hide or show the sidebar")
                     }
                     ToolbarItemGroup(placement: .primaryAction) {
-                        PaneToolbarActions(selection: selection, showHelp: $showTrackingHelp)
+                        PaneToolbarActions(selection: selection, helpDoc: $helpDoc)
                     }
                 }
-                .sheet(isPresented: $showTrackingHelp) {
-                    TrackingHelpSheet().frame(width: 650, height: 500)
+                .sheet(item: $helpDoc) { doc in
+                    HelpSheet(doc: doc).frame(width: 650, height: 500)
                 }
         }
         // Wide enough for the Tracking lists' own 480 pt minimum beside the sidebar.
@@ -253,10 +253,10 @@ private struct SidebarFooterLight: View {
 /// The pane's actions as toolbar items, icon only, which the OS styles. Status gets Run Now
 /// and Dry Run and handles the notifications itself, with its toast when a run is already
 /// going. Tracking gets Run Now, straight to the model, because the Unassigned list is
-/// built from the last sync, and its help.
+/// built from the last sync, and its help. Access gets its help.
 private struct PaneToolbarActions: View {
     let selection: Dest
-    @Binding var showHelp: Bool
+    @Binding var helpDoc: HelpDoc?
     @EnvironmentObject var app: AppModel
 
     var body: some View {
@@ -277,12 +277,7 @@ private struct PaneToolbarActions: View {
             .help("Dry Run")
             .disabled(app.isPerformingRun)
         case .tracking:
-            Button {
-                showHelp = true
-            } label: {
-                Label("Tracking Help", systemImage: "questionmark.app.fill")
-            }
-            .help("Tracking Help")
+            helpButton(.tracking)
             Button {
                 _ = app.runNowIfIdle()
             } label: {
@@ -290,24 +285,19 @@ private struct PaneToolbarActions: View {
             }
             .help("Run Now")
             .disabled(app.isPerformingRun)
+        case .access:
+            helpButton(.access)
         default:
             EmptyView()
         }
     }
-}
 
-/// The Tracking help as a sheet, the shape of the Licenses sheet: the same
-/// markdown view over `TRACKING.md`, a Done button, presented at the same size.
-private struct TrackingHelpSheet: View {
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        TrackingHelpView()
-            .navigationTitle("Tracking Help")
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
-                }
-            }
+    private func helpButton(_ doc: HelpDoc) -> some View {
+        Button {
+            helpDoc = doc
+        } label: {
+            Label(doc.title, systemImage: "questionmark.app.fill")
+        }
+        .help(doc.title)
     }
 }
