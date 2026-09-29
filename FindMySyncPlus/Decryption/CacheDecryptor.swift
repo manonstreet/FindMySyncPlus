@@ -112,8 +112,10 @@ actor CacheDecryptor {
     private var fmipKey: SymmetricKey?
     private var fmfKey: SymmetricKey?
 
-    func invalidateKey() { fmipKey = nil }
-    func invalidateFMFKey() { fmfKey = nil }
+    /// Replace the key in memory with what the Keychain holds now, in one actor call, so a
+    /// run in progress never finds none.
+    func reloadKey(logger: LogStore) { fmipKey = nil; ensureFMIPKey(logger: logger) }
+    func reloadFMFKey(logger: LogStore) { fmfKey = nil; ensureFMFKey(logger: logger) }
 
     func ensureFMIPKey(logger: LogStore) {
         guard fmipKey == nil else { return }

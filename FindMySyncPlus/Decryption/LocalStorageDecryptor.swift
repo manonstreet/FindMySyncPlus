@@ -50,7 +50,9 @@ actor LocalStorageDecryptor {
         }
     }
 
-    func invalidateKey() { key = nil }
+    /// Replace the key in memory with what the Keychain holds now, in one actor call, so a
+    /// run in progress never finds none.
+    func reloadKey(logger: LogStore) { key = nil; ensureKey(logger: logger) }
 
     // MARK: - Constants
 

@@ -87,18 +87,21 @@ final class SyncEngine {
     // MARK: - Key invalidation
 
     func invalidateCacheDecryptorKey() {
-        logger?.info("A new key was loaded; invalidating the in-memory key.")
-        Task { await cacheDecryptor.invalidateKey() }
+        guard let logger else { return }
+        logger.info("The stored FMIP key changed; reloading it.")
+        Task { await cacheDecryptor.reloadKey(logger: logger) }
     }
 
     func invalidateLocalStorageKey() {
-        logger?.info("A new LocalStorage key was loaded; invalidating the in-memory key.")
-        Task { await localStorageDecryptor.invalidateKey() }
+        guard let logger else { return }
+        logger.info("The stored LocalStorage key changed; reloading it.")
+        Task { await localStorageDecryptor.reloadKey(logger: logger) }
     }
 
     func invalidateFMFKey() {
-        logger?.info("A new FMF key was loaded; invalidating the in-memory key.")
-        Task { await cacheDecryptor.invalidateFMFKey() }
+        guard let logger else { return }
+        logger.info("The stored FMF key changed; reloading it.")
+        Task { await cacheDecryptor.reloadFMFKey(logger: logger) }
     }
 
     // MARK: - Auth status
