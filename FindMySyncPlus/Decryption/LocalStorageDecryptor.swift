@@ -237,18 +237,7 @@ actor LocalStorageDecryptor {
         // Decrypt all pages and build the SQLite file
         let decryptedDB = buildDecryptedDB(encPages: encPages, key: key)
 
-        // Write to temp file and query
-        let tmpURL: URL
-        do {
-            let tmpDir = FileManager.default.temporaryDirectory
-            tmpURL = tmpDir.appendingPathComponent("fms_friends_\(ProcessInfo.processInfo.globallyUniqueString).db")
-            try decryptedDB.write(to: tmpURL)
-        } catch {
-            return .failure(.dbCorrupted("Failed to write temp DB: \(error.localizedDescription)"))
-        }
-        defer { try? FileManager.default.removeItem(at: tmpURL) }
-
-        return queryFriends(dbPath: tmpURL, logger: logger)
+        return queryFriends(database: decryptedDB, logger: logger)
     }
 
     // MARK: - Crypto
@@ -481,12 +470,11 @@ actor LocalStorageDecryptor {
 
     // MARK: - SQLite query
 
-    private nonisolated func queryFriends(dbPath: URL, logger: LogStore) -> Result<[DevicePoint], LocalStorageDecryptorError> {
-        var db: OpaquePointer?
-        guard sqlite3_open_v2(dbPath.path, &db, SQLITE_OPEN_READWRITE, nil) == SQLITE_OK else {
-            let msg = db.flatMap { String(cString: sqlite3_errmsg($0)) } ?? "unknown"
-            sqlite3_close(db)
-            return .failure(.queryFailed("sqlite3_open failed: \(msg)"))
+    nonisolated func queryFriends(database: Data, logger: LogStore) -> Result<[DevicePoint], LocalStorageDecryptorError> {
+        let db: OpaquePointer
+        switch InMemorySQLite.open(database) {
+        case .success(let handle): db = handle
+        case .failure(let failure): return .failure(.queryFailed("opening the friends database: \(failure.message)"))
         }
         defer { sqlite3_close(db) }
 
@@ -505,8 +493,7 @@ actor LocalStorageDecryptor {
 
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
-            let msg = db.flatMap { String(cString: sqlite3_errmsg($0)) } ?? "unknown error"
-            return .failure(.queryFailed("prepare failed: \(msg)"))
+            return .failure(.queryFailed("prepare failed: \(String(cString: sqlite3_errmsg(db)))"))
         }
         defer { sqlite3_finalize(stmt) }
 
