@@ -111,7 +111,7 @@ Requires Full Disk Access to read the Find My cache. `Helpers/FindMyRefresher.sw
 
 ## Testing
 
-Thirty-one test files. All use synthetic data — no real Find My files, no keys, no keychain reads. Trust
+Thirty-two test files. All use synthetic data — no real Find My files, no keys, no keychain reads. Trust
 `** TEST SUCCEEDED **` rather than counting `passed on` lines — xcodebuild interleaves
 timestamps into those, so a grep count drifts between identical runs.
 
@@ -148,6 +148,7 @@ timestamps into those, so a grep count drifts between identical runs.
 | `StatusAttributesTests` | The status entity's discovery payload and its attribute set, which is the published contract people template against |
 | `UnassignedPartitionTests` | The Unassigned split that both the pane's list and the sidebar's new-entity badge read: an aliased grouped parent stays listed while a child is unaliased, and never raises the badge |
 | `StoredAliasDecodeTests` | The saved alias list decodes entry by entry: a malformed entry or a bare value is dropped and counted, text that is not a JSON array is reported as unreadable |
+| `FMFContactNamesTests` | The FMF contact cache's decode: display names with a short-name fallback, and only a key that fails to authenticate reads as incorrect — a cache with no payload is unavailable, not a wrong key |
 
 Run via Xcode (Cmd+U) or xcodebuild test. A green suite is not sufficient for MQTT
 changes — verify those against the demo fixtures, which caught two defects the
