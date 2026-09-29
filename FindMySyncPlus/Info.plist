@@ -38,6 +38,9 @@
 	     alert; with the key false the property reads NO however it is set. -->
 	<key>SUAllowsAutomaticUpdates</key>
 	<false/>
+	<!-- Check the archive's EdDSA signature before unpacking it, not after. -->
+	<key>SUVerifyUpdateBeforeExtraction</key>
+	<true/>
 	<key>SUEnableAutomaticChecks</key>
 	<true/>
 	<key>SUScheduledCheckInterval</key>

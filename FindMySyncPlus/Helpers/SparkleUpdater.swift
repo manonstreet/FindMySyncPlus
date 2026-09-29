@@ -89,8 +89,10 @@ final class SparkleUpdater: NSObject, ObservableObject {
         // checkbox on Sparkle's own alert. Info.plist supplies the first-run values.
 
         let override = UserDefaults.standard.string(forKey: "updateFeedOverride") ?? ""
-        if !override.isEmpty {
+        if Self.usableFeedOverride(override) != nil {
             logger.warn("Update feed overridden: \(override)")
+        } else if !override.isEmpty {
+            logger.warn("Update feed override ignored, it is not https: \(override)")
         }
 
         // A probing check, straight after starting the updater, which is one of the three
@@ -131,8 +133,14 @@ extension SparkleUpdater: SPUUpdaterDelegate {
     /// not weaken the update itself: every archive is still checked against the EdDSA public
     /// key compiled into the app, so a feed nobody signed for cannot deliver anything.
     nonisolated func feedURLString(for updater: SPUUpdater) -> String? {
-        let override = UserDefaults.standard.string(forKey: "updateFeedOverride") ?? ""
-        return override.isEmpty ? nil : override
+        Self.usableFeedOverride(UserDefaults.standard.string(forKey: "updateFeedOverride") ?? "")
+    }
+
+    /// The override when it is an https URL, else `nil`. EdDSA still guards the archive over
+    /// http, but the release notes Sparkle shows would come from whoever answered.
+    nonisolated static func usableFeedOverride(_ value: String) -> String? {
+        guard let url = URL(string: value), url.scheme?.lowercased() == "https", url.host != nil else { return nil }
+        return value
     }
 
     nonisolated func updater(_ updater: SPUUpdater, didFindValidUpdate item: SUAppcastItem) {
