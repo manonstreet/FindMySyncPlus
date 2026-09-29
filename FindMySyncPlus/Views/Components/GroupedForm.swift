@@ -135,6 +135,9 @@ struct SettingRow<Control: View>: View {
     var qualifier: String?
     var disabled = false
     @ViewBuilder let control: Control
+    /// Pairs the title with the control for VoiceOver, which otherwise reads a bare switch
+    /// as "switch, on" with no setting named.
+    @Namespace private var accessibilityPair
 
     var body: some View {
         HStack(alignment: .center, spacing: 16) {
@@ -142,6 +145,7 @@ struct SettingRow<Control: View>: View {
                 HStack(alignment: .firstTextBaseline, spacing: 4) {
                     Text(title)
                         .foregroundStyle(disabled ? .secondary : .primary)
+                        .accessibilityLabeledPair(role: .label, id: title, in: accessibilityPair)
                     if let qualifier {
                         Text("(\(qualifier))")
                             .foregroundStyle(.secondary)
@@ -156,6 +160,7 @@ struct SettingRow<Control: View>: View {
             }
             Spacer(minLength: 16)
             control.fixedSize()
+                .accessibilityLabeledPair(role: .content, id: title, in: accessibilityPair)
         }
         .padding(.vertical, 12)
         .padding(.horizontal, 16)
