@@ -370,16 +370,13 @@ struct AccessSettingsView: View {
                 }
 
             case .certificateRefused:
-                // An AppKit tooltip, as on Home's buttons: `.help` does not show on a plain icon and text.
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
-                    Text("Certificate refused")
-                    if let t = authLastTest {
-                        Text("· \(t.formatted(date: .omitted, time: .shortened))")
-                            .font(.caption).foregroundStyle(.secondary)
-                    }
+                InfoTip(message: Self.certificateRefusedTip,
+                        systemImage: "exclamationmark.triangle.fill", color: .orange)
+                Text("Certificate refused")
+                if let t = authLastTest {
+                    Text("· \(t.formatted(date: .omitted, time: .shortened))")
+                        .font(.caption).foregroundStyle(.secondary)
                 }
-                .overlay(ToolTipOverlay(text: Self.certificateRefusedTip))
 
             case .invalidURL(let reason):
                 Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)

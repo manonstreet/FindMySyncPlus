@@ -2,6 +2,8 @@ import SwiftUI
 
 struct InfoTip: View {
     let message: String
+    var systemImage = "questionmark.circle"
+    var color = Color.accentColor
     @State private var show = false
 
     @State private var hovering = false
@@ -10,9 +12,9 @@ struct InfoTip: View {
         Button {
             show.toggle()
         } label: {
-            Image(systemName: "questionmark.circle")
+            Image(systemName: systemImage)
                 .symbolRenderingMode(.monochrome)
-                .foregroundStyle(hovering ? Color.accentColor : Color.accentColor.opacity(0.7))
+                .foregroundStyle(hovering ? color : color.opacity(0.7))
         }
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
