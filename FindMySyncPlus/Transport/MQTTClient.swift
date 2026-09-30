@@ -57,6 +57,19 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
     /// leaving the client wedged in `.connecting`.
     private var connectingSince: Date?
 
+    /// What the current connection was made with, so a settings change is noticed.
+    private var connectionTarget: ConnectionTarget?
+
+    private static func target(of settings: SettingsStore) -> ConnectionTarget {
+        ConnectionTarget(host: settings.mqttHost, port: settings.mqttPort, useTLS: settings.mqttUseTLS,
+                         username: settings.mqttUsername, password: settings.mqttPassword)
+    }
+
+    /// Connected, and with the settings as they are now.
+    private func isConnected(to settings: SettingsStore) -> Bool {
+        connectionState == .connected && connectionTarget == Self.target(of: settings)
+    }
+
     /// Why the current attempt's certificate was refused, for Verify to report. Cleared when
     /// an attempt starts.
     private(set) var tlsRefusal: String?
@@ -98,6 +111,7 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
             logger?.warn("MQTT: host not configured")
             return
         }
+        connectionTarget = Self.target(of: settings)
 
         // Generated once and persisted, so the broker sees one identity for this
         // install rather than one per launch.
@@ -246,12 +260,15 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
     #endif
 
     func ensureConnected(settings: SettingsStore) async -> Bool {
-        if connectionState == .connected { return true }
+        if isConnected(to: settings) { return true }
 
         let retryPending = reconnectTask.map { !$0.isCancelled } ?? false
-        if Self.shouldStartNewConnection(state: connectionState,
-                                         retryPending: retryPending,
-                                         connectingSince: connectingSince) {
+        if connectionState == .connected {
+            logger?.info("MQTT settings changed; reconnecting to \(settings.mqttHost):\(settings.mqttPort)")
+            connect(settings: settings)
+        } else if Self.shouldStartNewConnection(state: connectionState,
+                                                retryPending: retryPending,
+                                                connectingSince: connectingSince) {
             connect(settings: settings)
         }
         // Wait up to 5 seconds for connection
@@ -265,7 +282,8 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
     // MARK: - Connection test
 
     func testConnection(settings: SettingsStore) async -> (Bool, String) {
-        let wasConnected = connectionState == .connected
+        // A connection made with other settings says nothing about these; test them fresh.
+        let wasConnected = isConnected(to: settings)
         if !wasConnected {
             connect(settings: settings)
         }

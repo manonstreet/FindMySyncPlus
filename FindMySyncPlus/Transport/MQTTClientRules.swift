@@ -6,6 +6,16 @@ import CocoaMQTT
 // that decide whether an entity goes quiet or a Find My relaunch fires are testable.
 extension MQTTClient {
 
+    /// What a connection is made with. A live connection whose target differs from the
+    /// settings is to the wrong broker, or with the wrong credentials or security.
+    struct ConnectionTarget: Equatable {
+        let host: String
+        let port: Int
+        let useTLS: Bool
+        let username: String
+        let password: String
+    }
+
     /// Why a TLS handshake refused the broker's certificate, or `nil` when the error is not
     /// a certificate refusal. The socket reports these in `kCFStreamErrorDomainSSL` with the
     /// Secure Transport status as the code.
