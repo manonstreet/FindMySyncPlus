@@ -44,7 +44,7 @@ For the Mosquitto add-on, copy `broker.pem` and `broker.key` into Home Assistant
 
 ### When a certificate is refused
 
-macOS usually reports all three problems below the same way, so the error often says the certificate could not be verified and lists them. Check each:
+macOS usually reports all three problems below the same way, so the error often lists all three. Check each:
 
 - **It has expired or is not yet valid.** A Let's Encrypt certificate lasts 90 days; check that the add-on that renews it is still running, then restart the Mosquitto add-on so it loads the new one.
 - **It is issued to a different name than the host you entered.** Enter the certificate's name in the host field, with the `/etc/hosts` line above if needed.
