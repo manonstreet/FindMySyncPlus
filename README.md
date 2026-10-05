@@ -168,6 +168,12 @@ If prompted by Keychain, click **Always Allow**.
 > 2. Select the project in the navigator, open **Signing & Capabilities**, enable **Automatically manage signing**, and choose your Personal Team from the Team dropdown
 > 3. Build and run — if Keychain prompts appear, click **Always Allow** once
 >
+> **Building with `xcodebuild`?** Put your team ID in `Configs/Local.xcconfig`, which git ignores:
+> ```
+> DEVELOPMENT_TEAM = ABCDE12345
+> ```
+> Xcode uses the file too. Or pass `DEVELOPMENT_TEAM=ABCDE12345` to `xcodebuild` on each build. If you chose a team in step 2, its ID is in `project.pbxproj`: copy it from there, then revert that file.
+>
 > See [Choosing a Membership](https://developer.apple.com/support/compare-memberships/) for a full comparison of free vs paid Apple Developer accounts.
 
 Under the **General** pane, recommended settings:
