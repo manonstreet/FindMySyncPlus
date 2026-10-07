@@ -17,14 +17,14 @@ Before finishing, land it:
 # from inside the worktree
 ExitWorktree(action: "keep")          # returns the session to this checkout
 git merge --ff-only <feature-branch>
-git push <remote> <release-branch>      # the repo's default branch, one per minor
+git push origin main                  # the default branch; releases are tags on it
 ```
 
 **Why this is a rule rather than a nicety.** A worktree-isolated session cannot run git
 against this checkout by any route — `-C` and `--git-dir` are blocked, `git branch -f` is
 refused because the branch is checked out here, and `update-ref` moves the pointer while
 leaving this checkout's files behind it, which is worse than stale. So a session that
-finishes inside a worktree leaves the release branch behind and **cannot fix it from where
+finishes inside a worktree leaves `main` behind and **cannot fix it from where
 it is standing.**
 
 That drift then survives releases and gets built from. It happened across two, and a full
