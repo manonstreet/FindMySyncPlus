@@ -2,6 +2,24 @@
 
 Release notes for each FindMySyncPlus release, newest first. Each entry is the text published with that release, minus its install steps. The DMGs are on the [Releases page](https://github.com/manonstreet/FindMySyncPlus/releases).
 
+## [v2.2b](https://github.com/manonstreet/FindMySyncPlus/releases/tag/v2.2b) — 2026-10-11
+
+Fixes MQTT over TLS, adds a help page for setting it up, and includes smaller fixes.
+
+### Added
+
+**Access Help.** A help page for connecting to an MQTT broker over TLS, opened from the Access pane's toolbar. It covers connecting by the name on the certificate, trusting a self-signed certificate, what macOS requires of one, and what each refusal reason means.
+
+### Fixed
+
+**MQTT over TLS connects.** With TLS turned on (the lock beside the port), connecting to the broker failed. The app now checks the broker's certificate the way a web browser does: it has to be current, trusted by this Mac, and issued to the name in the host field. When a certificate is refused, Verify shows **Certificate refused** and the Status log says why.
+
+**One unreadable saved alias no longer erases the rest.** A single malformed entry made the app discard the whole alias list at launch, and every Home Assistant entity lost its alias. Now only that entry is dropped, with a warning in the Status log.
+
+**A friend's position without an accuracy value is published without one.** If Apple reports a friend's position with no accuracy, the app published `gps_accuracy` 0, which Home Assistant treats as exact. It now leaves the field out.
+
+**Smaller fixes** to MQTT connection handling, sync runs, the Status log and VoiceOver labels.
+
 ## [v2.1b](https://github.com/manonstreet/FindMySyncPlus/releases/tag/v2.1b) — 2026-09-23
 
 Adds a count of newly discovered entities to the sidebar, publishes the app's version to Home Assistant, and remembers the window's size.
