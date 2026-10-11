@@ -9,7 +9,7 @@ Click the lock beside the port under **Broker** to turn TLS on. FindMySync+ then
 
 ### Connect by the name on the certificate
 
-A certificate is issued to a specific hostname, such as `yourname.duckdns.org`. Enter that name in the host field, in place of `homeassistant.local` or an IP address.
+A certificate from a public authority, such as Let's Encrypt through the DuckDNS add-on, is issued to a specific hostname (e.g. `yourname.duckdns.org`). Enter that name in the host field, in place of `homeassistant.local` or an IP address.
 
 Inside your own network that name may point at your public address, or a DNS filter may block it to prevent rebinding attacks. In either case, add a line to `/etc/hosts` on this Mac that points the name at the broker's local address:
 
@@ -30,13 +30,13 @@ macOS accepts such a certificate only when it:
 - lists server authentication as an Extended Key Usage
 - uses an RSA key of 2048 bits or more and a SHA-2 signature
 
-This command makes one that meets all four, for the host `yourname.duckdns.org`:
+A self-signed certificate can carry any name you choose. This command generates and signs a certificate that meets all four for `homeassistant.local`, the name Home Assistant uses on your network, so you keep that name in the host field and can skip the `/etc/hosts` line above:
 
 ```
 openssl req -x509 -newkey rsa:2048 -nodes -days 825 \
   -keyout broker.key -out broker.pem \
-  -subj "/CN=yourname.duckdns.org" \
-  -addext "subjectAltName=DNS:yourname.duckdns.org" \
+  -subj "/CN=homeassistant.local" \
+  -addext "subjectAltName=DNS:homeassistant.local" \
   -addext "extendedKeyUsage=serverAuth"
 ```
 
