@@ -17,8 +17,10 @@ extension MQTTClient {
             return "it has expired or is not yet valid"
         case errSSLHostNameMismatch:
             return "it is issued to a different name than the host you entered"
+        // macOS 27 reports an expired or wrongly named certificate with these codes too, so
+        // the reason cannot be narrowed further here.
         case errSSLXCertChainInvalid, errSSLBadCert, errSSLUnknownRootCert, errSSLNoRootCert:
-            return "this Mac does not trust it"
+            return "it may be expired, issued to a different name, or not trusted (status \(ns.code))"
         default:
             return nil
         }

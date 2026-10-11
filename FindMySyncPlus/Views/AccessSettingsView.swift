@@ -23,8 +23,10 @@ struct AccessSettingsView: View {
     @State private var hoveringMqttEye: Bool = false
 
     private enum ConnectionTestStatus {
-        case idle, running, success, rejected, failed, invalidURL(String)
+        case idle, running, success, rejected, failed, certificateRefused, invalidURL(String)
     }
+    private static let certificateRefusedTip =
+        "Could not verify the certificate. See Status for details and Help in toolbar for certificate requirements."
     @State private var connectionTestStatus: ConnectionTestStatus = .idle
     @State private var bulkImportResult: String? = nil
 
@@ -301,7 +303,8 @@ struct AccessSettingsView: View {
                                     authLastTest = Date()
                                     connectionTestStatus = ok ? .success : .failed
                                     if !ok {
-                                        connectionTestStatus = .invalidURL(msg)
+                                        connectionTestStatus = app.syncEngine.mqtt.tlsRefusal != nil
+                                            ? .certificateRefused : .invalidURL(msg)
                                     }
                                 }
                             }
@@ -365,6 +368,18 @@ struct AccessSettingsView: View {
                     Text("· \(t.formatted(date: .omitted, time: .shortened))")
                         .font(.caption).foregroundStyle(.secondary)
                 }
+
+            case .certificateRefused:
+                // An AppKit tooltip, as on Home's buttons: `.help` does not show on a plain icon and text.
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+                    Text("Certificate refused")
+                    if let t = authLastTest {
+                        Text("· \(t.formatted(date: .omitted, time: .shortened))")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+                .overlay(ToolTipOverlay(text: Self.certificateRefusedTip))
 
             case .invalidURL(let reason):
                 Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)

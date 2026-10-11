@@ -1,17 +1,17 @@
 # Access
 
-The Access pane holds the connection to Home Assistant and the three decryption keys. This page covers connecting to an MQTT broker over TLS.
+The Access pane manages the connection to Home Assistant and the three decryption keys. This page covers connecting to an MQTT broker over TLS.
 
 
 ## MQTT over TLS
 
-Click the lock beside the port under **Broker** to turn TLS on; the port changes to 8883. FindMySync+ then checks the broker's certificate the way Safari checks a website's: it has to be current, trusted by this Mac, and issued to the name in the host field. When a check fails, the Status log shows one error with the reason and the scheduler stops.
+Click the lock beside the port under **Broker** to turn TLS on. FindMySync+ then checks the broker's certificate using the same mechanism as a web browser: it has to be current, trusted by this Mac, and issued to the name in the host field. When a check fails, the Status log shows one error with the reason and the scheduler stops.
 
 ### Connect by the name on the certificate
 
-A certificate names the host it belongs to, such as `yourname.duckdns.org`. Enter that name in the host field, in place of `homeassistant.local` or an IP address.
+A certificate is issued to a specific hostname, such as `yourname.duckdns.org`. Enter that name in the host field, in place of `homeassistant.local` or an IP address.
 
-Inside your own network that name may point at your public address, or a DNS filter may block it. In either case, add a line to `/etc/hosts` on this Mac that points the name at the broker's local address:
+Inside your own network that name may point at your public address, or a DNS filter may block it to prevent rebinding attacks. In either case, add a line to `/etc/hosts` on this Mac that points the name at the broker's local address:
 
 ```
 192.168.1.10  yourname.duckdns.org
@@ -21,7 +21,7 @@ Open the file with `sudo nano /etc/hosts` in Terminal. A local DNS record on you
 
 ### A self-signed certificate
 
-If you made the broker's certificate yourself, this Mac has to trust it first. Open the certificate, or the certificate authority that signed it, in Keychain Access, expand **Trust**, and set **When using this certificate** to **Always Trust**.
+If you issued the broker's certificate using an untrusted certificate authority, this Mac has to trust it first. Open the certificate, or the certificate authority that signed it, in Keychain Access, expand **Trust**, and set **When using this certificate** to **Always Trust**.
 
 macOS accepts such a certificate only when it:
 
@@ -44,7 +44,7 @@ For the Mosquitto add-on, copy `broker.pem` and `broker.key` into Home Assistant
 
 ### When a certificate is refused
 
-The error names one of three reasons:
+macOS usually reports all three problems below the same way, so the error often says the certificate could not be verified and lists them. Check each:
 
 - **It has expired or is not yet valid.** A Let's Encrypt certificate lasts 90 days; check that the add-on that renews it is still running, then restart the Mosquitto add-on so it loads the new one.
 - **It is issued to a different name than the host you entered.** Enter the certificate's name in the host field, with the `/etc/hosts` line above if needed.

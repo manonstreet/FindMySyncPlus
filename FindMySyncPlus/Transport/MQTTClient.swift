@@ -57,6 +57,10 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
     /// leaving the client wedged in `.connecting`.
     private var connectingSince: Date?
 
+    /// Why the current attempt's certificate was refused, for Verify to report. Cleared when
+    /// an attempt starts.
+    private(set) var tlsRefusal: String?
+
     /// How long the client is kept alive after saying `offline`, so its queued writes
     /// reach the socket before it is released.
     nonisolated static let goodbyeGraceMilliseconds = 500
@@ -132,6 +136,7 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
 
         connectionState = .connecting
         connectingSince = Date()
+        tlsRefusal = nil
         logger?.info("MQTT connecting to \(settings.mqttHost):\(settings.mqttPort)")
         _ = mqtt.connect()
     }
@@ -264,8 +269,8 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
         if !wasConnected {
             connect(settings: settings)
         }
-        // Wait up to 5 seconds
-        for _ in 0..<50 {
+        // Wait up to 5 seconds, less when the certificate is refused.
+        for _ in 0..<50 where tlsRefusal == nil {
             try? await Task.sleep(for: .milliseconds(100))
             if connectionState == .connected {
                 if !wasConnected {
@@ -850,6 +855,7 @@ extension MQTTClient: CocoaMQTTDelegate {
             self.connectionState = .disconnected
             self.connectingSince = nil
             if let err, let reason = Self.tlsRefusal(err) {
+                self.tlsRefusal = reason
                 // Error, which stops the scheduler, and no retry: retrying cannot change the certificate.
                 self.logger?.error("MQTT TLS: the broker's certificate was refused — \(reason). See Access Help.")
                 return

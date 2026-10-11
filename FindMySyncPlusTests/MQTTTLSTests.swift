@@ -13,7 +13,8 @@ struct MQTTTLSTests {
     @Test func certificateRefusalsAreNamed() {
         #expect(MQTTClient.tlsRefusal(sslError(errSSLCertExpired))?.contains("expired") == true)
         #expect(MQTTClient.tlsRefusal(sslError(errSSLHostNameMismatch))?.contains("different name") == true)
-        #expect(MQTTClient.tlsRefusal(sslError(errSSLXCertChainInvalid))?.contains("trust") == true)
+        #expect(MQTTClient.tlsRefusal(sslError(errSSLXCertChainInvalid))?.contains("may be expired") == true)
+        #expect(MQTTClient.tlsRefusal(sslError(errSSLXCertChainInvalid))?.contains("-9807") == true)
         #expect(MQTTClient.tlsRefusal(sslError(errSSLUnknownRootCert))?.contains("trust") == true)
     }
 
