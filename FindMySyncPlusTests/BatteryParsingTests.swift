@@ -360,7 +360,7 @@ struct ReconnectBackoffTests {
         let c = MQTTClient()
         c.setReconnectAttemptsForTesting(5)
 
-        c.disconnect(resetBackoff: false)
+        c.disconnect(reason: .connectionSettingsChanged, resetBackoff: false)
 
         #expect(c.reconnectAttempts == 5, "a retry must not restart the backoff schedule")
     }
@@ -371,7 +371,7 @@ struct ReconnectBackoffTests {
         let c = MQTTClient()
         c.setReconnectAttemptsForTesting(5)
 
-        c.disconnect()
+        c.disconnect(reason: .schedulerStopped)
 
         #expect(c.reconnectAttempts == 0, "a new connection starts a fresh schedule")
     }

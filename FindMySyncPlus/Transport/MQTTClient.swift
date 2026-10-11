@@ -65,6 +65,11 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
                          username: settings.mqttUsername, password: settings.mqttPassword)
     }
 
+    /// `host:port` of the current attempt, for log lines.
+    private var targetText: String {
+        connectionTarget.map { "\($0.host):\($0.port)" } ?? "the broker"
+    }
+
     /// Connected, and with the settings as they are now.
     private func isConnected(to settings: SettingsStore) -> Bool {
         connectionState == .connected && connectionTarget == Self.target(of: settings)
@@ -103,9 +108,10 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
     ///   pre-flight, the connection test), which starts a fresh retry schedule. `false`
     ///   for a scheduled reconnect, which must keep advancing the existing one.
     func connect(settings: SettingsStore, resetBackoff: Bool = true) {
-        // `announce: false` — tearing down to reconnect is not going away, and saying
-        // offline here would flap the Connected sensor on every retry.
-        disconnect(resetBackoff: resetBackoff, announce: false)
+        // A live connection is closed by `disconnect(reason:)` first, so it is logged and
+        // announced; what is left here is a dead or half-open client.
+        assert(connectionState != .connected, "close a live connection with a reason before connecting")
+        close(resetBackoff: resetBackoff, announce: false)
         intentionalDisconnect = false
         guard !settings.mqttHost.isEmpty else {
             logger?.warn("MQTT: host not configured")
@@ -151,13 +157,21 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
         connectionState = .connecting
         connectingSince = Date()
         tlsRefusal = nil
-        logger?.info("MQTT connecting to \(settings.mqttHost):\(settings.mqttPort)")
+        logger?.info("MQTT connecting to \(settings.mqttHost):\(settings.mqttPort)\(settings.mqttUseTLS ? " with TLS" : "")")
         _ = mqtt.connect()
     }
 
-    /// - Parameter announce: whether to say `offline` before closing. Quitting passes
-    ///   `false` and relies on the will instead, having nothing it can wait for.
-    func disconnect(resetBackoff: Bool = true, announce: Bool = true) {
+    /// Close the connection on purpose. A live one is logged with the reason and announced
+    /// `offline`; with none live, this only clears the client.
+    func disconnect(reason: DisconnectReason, resetBackoff: Bool = true) {
+        if connectionState == .connected, let target = connectionTarget {
+            logger?.info("MQTT disconnected from \(target.host):\(target.port) (\(reason.text))")
+        }
+        close(resetBackoff: resetBackoff, announce: true)
+    }
+
+    /// - Parameter announce: whether to say `offline` before closing a live connection.
+    private func close(resetBackoff: Bool, announce: Bool) {
         // A clean DISCONNECT makes the broker discard the will, so an intentional close has
         // to say `offline` itself or Home Assistant keeps reading Connected. An unexpected
         // drop has no client to publish through and is covered by the will.
@@ -259,13 +273,22 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
     }
     #endif
 
+    /// Start a connection with the settings as they are now, unless one is live with them. A
+    /// live one with other settings is closed first.
+    func connectIfNeeded(settings: SettingsStore) {
+        if isConnected(to: settings) { return }
+        if connectionState == .connected {
+            disconnect(reason: .connectionSettingsChanged)
+        }
+        connect(settings: settings)
+    }
+
     func ensureConnected(settings: SettingsStore) async -> Bool {
         if isConnected(to: settings) { return true }
 
         let retryPending = reconnectTask.map { !$0.isCancelled } ?? false
         if connectionState == .connected {
-            logger?.info("MQTT settings changed; reconnecting to \(settings.mqttHost):\(settings.mqttPort)")
-            connect(settings: settings)
+            connectIfNeeded(settings: settings)
         } else if Self.shouldStartNewConnection(state: connectionState,
                                                 retryPending: retryPending,
                                                 connectingSince: connectingSince) {
@@ -285,21 +308,21 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
         // A connection made with other settings says nothing about these; test them fresh.
         let wasConnected = isConnected(to: settings)
         if !wasConnected {
-            connect(settings: settings)
+            connectIfNeeded(settings: settings)
         }
         // Wait up to 5 seconds, less when the certificate is refused.
         for _ in 0..<50 where tlsRefusal == nil {
             try? await Task.sleep(for: .milliseconds(100))
             if connectionState == .connected {
                 if !wasConnected {
-                    disconnect()
+                    disconnect(reason: .testFinished)
                 }
                 return (true, "Connected successfully to \(settings.mqttHost):\(settings.mqttPort)")
             }
         }
         let msg = "Connection failed to \(settings.mqttHost):\(settings.mqttPort)"
         if !wasConnected {
-            disconnect()
+            disconnect(reason: .testFinished)
         }
         return (false, msg)
     }
@@ -816,7 +839,7 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
         reconnectTask?.cancel()
         reconnectAttempts += 1
         guard reconnectAttempts <= Self.maxReconnectAttempts else {
-            logger?.warn("MQTT: max reconnect attempts reached")
+            logger?.warn("MQTT gave up on \(targetText) after \(Self.maxReconnectAttempts) attempts; the next run will try again")
             // Hand ownership back: with no retry queued, the next sync run's pre-flight
             // starts a fresh schedule rather than leaving the client dead forever.
             reconnectTask = nil
@@ -824,7 +847,7 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
         }
         let delay = Self.backoffDelay(forAttempt: reconnectAttempts)
         connectionState = .connecting
-        logger?.warn(String(format: "MQTT reconnecting (attempt %d, %.2fs)", reconnectAttempts, delay))
+        logger?.warn("MQTT retrying \(targetText) in \(String(format: "%g", delay)) s (attempt \(reconnectAttempts) of \(Self.maxReconnectAttempts))")
         let settingsRef = settings
         reconnectTask = Task { @MainActor [weak self] in
             try? await Task.sleep(for: .seconds(delay))
@@ -839,7 +862,7 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
 extension MQTTClient: CocoaMQTTDelegate {
     nonisolated func mqtt(_ mqtt: CocoaMQTT, didConnectAck ack: CocoaMQTTConnAck) {
         let accepted = (ack == .accept)
-        let ackDesc = "\(ack)"
+        let ackDesc = Self.rejectionText(ack)
         let token = ObjectIdentifier(mqtt)
         Task { @MainActor in
             guard token == self.activeClientToken else { return }
@@ -853,12 +876,12 @@ extension MQTTClient: CocoaMQTTDelegate {
                 self.publishedAppEntities = false
                 self.settledRefreshButton = false
                 self.lastPublishedAttributes.removeAll()
-                self.logger?.info("MQTT connected (discovery will re-publish)")
+                self.logger?.info("MQTT connected to \(self.targetText)")
                 self.publishAvailability(Self.availabilityOnline)
                 self.subscribeToRefreshTopic()
                 self.publishAppEntityDiscovery()
             } else {
-                self.logger?.error("MQTT connection rejected: \(ackDesc)")
+                self.logger?.error("MQTT connection to \(self.targetText) rejected by the broker: \(ackDesc)")
                 self.connectionState = .disconnected
             }
         }
@@ -870,6 +893,7 @@ extension MQTTClient: CocoaMQTTDelegate {
             // A disconnect from a client we've already replaced is our own teardown
             // arriving late, not a connection failure.
             guard token == self.activeClientToken else { return }
+            let wasLive = self.connectionState == .connected
             self.connectionState = .disconnected
             self.connectingSince = nil
             if let err, let reason = Self.tlsRefusal(err) {
@@ -878,8 +902,11 @@ extension MQTTClient: CocoaMQTTDelegate {
                 self.logger?.error("MQTT TLS: the broker's certificate was refused — \(reason). See Access Help.")
                 return
             }
-            if let err {
-                self.logger?.warn("MQTT disconnected: \(err.localizedDescription)")
+            if wasLive, let target = self.connectionTarget {
+                let cause = err?.localizedDescription ?? "closed by the broker"
+                self.logger?.warn("MQTT disconnected from \(target.host):\(target.port) (connection lost: \(cause))")
+            } else if let err {
+                self.logger?.warn("MQTT could not connect to \(self.targetText): \(err.localizedDescription)")
             }
             if !self.intentionalDisconnect, let settings = self.settings {
                 self.scheduleReconnect(settings: settings)

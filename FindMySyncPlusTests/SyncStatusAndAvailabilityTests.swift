@@ -123,7 +123,7 @@ struct SyncStatusAndAvailabilityTests {
         let client = MQTTClient()
         client.setConnectedForTesting(publisher: recorder, prefix: Self.prefix)
 
-        client.disconnect()
+        client.disconnect(reason: .schedulerStopped)
 
         #expect(recorder.topics == ["findmysyncplus/availability"])
         let message = try #require(recorder.messages.first)
@@ -152,7 +152,7 @@ struct SyncStatusAndAvailabilityTests {
         let recorder = RecordingPublisher()
         let client = MQTTClient()
 
-        client.disconnect()
+        client.disconnect(reason: .schedulerStopped)
 
         #expect(recorder.messages.isEmpty)
     }

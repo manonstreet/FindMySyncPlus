@@ -6,6 +6,32 @@ import CocoaMQTT
 // that decide whether an entity goes quiet or a Find My relaunch fires are testable.
 extension MQTTClient {
 
+    /// The broker's reason for refusing a connection, in words.
+    nonisolated static func rejectionText(_ ack: CocoaMQTTConnAck) -> String {
+        switch ack {
+        case .badUsernameOrPassword: "bad username or password"
+        case .notAuthorized: "not authorized"
+        case .identifierRejected: "client id rejected"
+        case .serverUnavailable: "server unavailable"
+        case .unacceptableProtocolVersion: "unsupported protocol version"
+        default: "\(ack)"
+        }
+    }
+
+    /// Why the app closed a live connection; required, so every close is logged with one.
+    enum DisconnectReason {
+        case testFinished, schedulerStopped, idle, connectionSettingsChanged
+
+        var text: String {
+            switch self {
+            case .testFinished: "connection test finished"
+            case .schedulerStopped: "scheduler stopped"
+            case .idle: "idle"
+            case .connectionSettingsChanged: "connection settings changed"
+            }
+        }
+    }
+
     /// What a connection is made with. A live connection whose target differs from the
     /// settings is to the wrong broker, or with the wrong credentials or security.
     struct ConnectionTarget: Equatable {

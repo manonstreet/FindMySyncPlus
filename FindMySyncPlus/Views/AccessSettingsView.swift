@@ -347,7 +347,7 @@ struct AccessSettingsView: View {
 
             case .success:
                 Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
-                Text(settings.transportMode == .rest ? "Auth OK" : "Connected")
+                Text(settings.transportMode == .rest ? "Auth OK" : "Connection OK")
                 if let t = authLastTest {
                     Text("· \(t.formatted(date: .omitted, time: .shortened))")
                         .font(.caption).foregroundStyle(.secondary)

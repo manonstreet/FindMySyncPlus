@@ -502,7 +502,7 @@ final class SyncEngine {
                 if connected {
                     logger.debug("Pre-flight check passed: MQTT broker connected.")
                 } else {
-                    logger.warn("Pre-flight: MQTT broker not reachable. Aborting run.")
+                    logger.warn("Pre-flight: no MQTT connection to \(settings.mqttHost):\(settings.mqttPort). Aborting run.")
                     return false
                 }
             }

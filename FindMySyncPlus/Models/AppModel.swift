@@ -233,8 +233,7 @@ final class AppModel: NSObject, ObservableObject {
         idleDisconnectTask = Task { @MainActor [weak self] in
             try? await Task.sleep(for: .seconds(Self.idleDisconnectSeconds))
             guard !Task.isCancelled, let self, !self.isRunning else { return }
-            self.syncEngine.mqtt.disconnect()
-            self.logger?.info("MQTT: disconnected after idle — scheduler is not running")
+            self.syncEngine.mqtt.disconnect(reason: .idle)
         }
     }
 
@@ -302,9 +301,9 @@ final class AppModel: NSObject, ObservableObject {
         guard let settings, let logger else { return (false, "Unavailable") }
         let (ok, msg) = await syncEngine.mqtt.testConnection(settings: settings)
         if ok {
-            logger.info("MQTT Test: connected to \(settings.mqttHost):\(settings.mqttPort)")
+            logger.info("MQTT Test: connection OK to \(settings.mqttHost):\(settings.mqttPort)")
         } else {
-            logger.error("MQTT Test: \(msg)")
+            logger.error("MQTT Test: connection to \(settings.mqttHost):\(settings.mqttPort) failed")
         }
         return (ok, msg)
     }
@@ -373,7 +372,7 @@ final class AppModel: NSObject, ObservableObject {
         runWarningsCount = 0
         postedUpdatesCount = 0
         if let settings, settings.transportMode == .mqtt {
-            syncEngine.mqtt.connect(settings: settings)
+            syncEngine.mqtt.connectIfNeeded(settings: settings)
         }
         runOnce()
         scheduleTimer()
@@ -386,7 +385,7 @@ final class AppModel: NSObject, ObservableObject {
         timerTask = nil
         nextRun = nil
         lastRunHadWarnings = false
-        syncEngine.mqtt.disconnect()
+        syncEngine.mqtt.disconnect(reason: .schedulerStopped)
     }
 
     @discardableResult
