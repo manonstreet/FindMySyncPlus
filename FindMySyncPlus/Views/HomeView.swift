@@ -329,7 +329,7 @@ struct HomeView: View {
             Text("Status").fontWeight(.semibold)
             HStack(spacing: 8) {
                 Circle()
-                    .foregroundColor(statusColor)
+                    .foregroundStyle(statusColor)
                     .frame(width: 10, height: 10)
                     .scaleEffect(isPulsing ? 1.4 : 1.0)
                     .opacity(isPulsing ? 0.5 : 1.0)

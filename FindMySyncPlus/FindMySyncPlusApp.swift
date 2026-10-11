@@ -355,35 +355,14 @@ struct FindMySyncPlusApp: App {
             .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 8, weight: .bold))
         else { return base }
         let size = NSSize(width: base.size.width + 6, height: base.size.height)
-        let out = NSImage(size: size)
-        out.lockFocusFlipped(false)
-        base.draw(at: NSPoint(x: 0, y: 0), from: .zero, operation: .sourceOver, fraction: 1)
-        arrow.draw(at: NSPoint(x: size.width - arrow.size.width, y: size.height - arrow.size.height),
-                   from: .zero, operation: .sourceOver, fraction: 1)
-        out.unlockFocus()
+        let out = NSImage(size: size, flipped: false) { _ in
+            base.draw(at: NSPoint(x: 0, y: 0), from: .zero, operation: .sourceOver, fraction: 1)
+            arrow.draw(at: NSPoint(x: size.width - arrow.size.width, y: size.height - arrow.size.height),
+                       from: .zero, operation: .sourceOver, fraction: 1)
+            return true
+        }
         out.isTemplate = true
         return out
-    }
-
-    private func nsColor(from color: Color) -> NSColor {
-        // Attempt to resolve Color to NSColor; fall back to system secondary
-        let cgColor = color.resolve(in: .init()).cgColor
-        return NSColor(cgColor: cgColor) ?? .secondaryLabelColor
-    }
-
-    private func coloredDotImage(color: Color, diameter: CGFloat = 12) -> NSImage {
-        let size = NSSize(width: diameter, height: diameter)
-        let img = NSImage(size: size)
-        img.lockFocusFlipped(false)
-        defer { img.unlockFocus() }
-
-        let rect = NSRect(origin: .zero, size: size)
-        let path = NSBezierPath(ovalIn: rect)
-        nsColor(from: color).setFill()
-        path.fill()
-
-        img.isTemplate = false
-        return img
     }
 
     private func toggleScheduler() {
@@ -391,7 +370,6 @@ struct FindMySyncPlusApp: App {
     }
 
     private var statusTextInMenu: String { app.statusText }
-    private var statusColorInMenu: Color { app.statusColor }
 
     private var nextRunMenuText: String {
         guard let nextRun = app.nextRun else { return "Next: —" }
@@ -417,16 +395,12 @@ struct FindMySyncPlusApp: App {
                     }
                 }
             } label: {
-                Label {
-                    Text(statusTextInMenu)
-                        .font(.body)
-                        .underline(app.lastRunHadFatalError, color: .primary)
-                        .foregroundStyle(.primary)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                } icon: {
-                    Image(nsImage: coloredDotImage(color: statusColorInMenu, diameter: 12))
-                }
+                Text(statusTextInMenu)
+                    .font(.body)
+                    .underline(app.lastRunHadFatalError, color: .primary)
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
             }
             .buttonStyle(.plain)
             .allowsHitTesting(app.lastRunHadFatalError)

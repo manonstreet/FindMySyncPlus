@@ -16,9 +16,9 @@ struct FullDiskAccessPill: View {
         } label: {
             HStack(spacing: 6) {
                 Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundColor(.black)
+                    .foregroundStyle(.black)
                 Text("Full Disk Access required")
-                    .foregroundColor(.black)
+                    .foregroundStyle(.black)
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 5)
