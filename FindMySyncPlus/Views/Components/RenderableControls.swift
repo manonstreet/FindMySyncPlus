@@ -99,13 +99,20 @@ struct AppButton: View {
     }
 }
 
-/// A link-styled button.
+/// A link-styled button, with the pointing-hand cursor links have elsewhere in macOS.
 struct AppLink: View {
     let title: String
     let action: () -> Void
     var body: some View {
         substituting({
             Button(title, action: action).buttonStyle(.link)
+                // Set, not pushed: a push needs a matching pop, which a missed exit event skips.
+                .onContinuousHover { phase in
+                    switch phase {
+                    case .active: NSCursor.pointingHand.set()
+                    case .ended:  NSCursor.arrow.set()
+                    }
+                }
         }, whileRendering: {
             Text(title).foregroundStyle(Color.accentColor)
         })

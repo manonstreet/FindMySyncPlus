@@ -57,7 +57,7 @@ struct AboutView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 4) {
                         if let destination = URL(string: url) {
-                            Link(title, destination: destination)
+                            AppLink(title: title) { NSWorkspace.shared.open(destination) }
                                 .font(.headline)
                         } else {
                             Text(title)
