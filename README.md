@@ -16,10 +16,10 @@ coordinates by decrypting `LocalStorage.db`, something no other tool supports. S
 Rotating UUIDs are handled automatically, and all sensitive credentials are stored securely in the
 macOS Keychain.
 
-Based on [FindMySync](https://github.com/MartinPham/FindMySync) and the decryption research by
+Inspired by [FindMySync](https://github.com/MartinPham/FindMySync) by Martin Pham, and built on the decryption research by
 [Pnut-GGG](https://github.com/Pnut-GGG/findmy-cache-decryptor).
 
-> If you're coming from FindMySync — this is the version that ***works on macOS 14.4 and later***. See [Migrating from FindMySync](#migrating-from-findmysync).
+> Coming from FindMySync? FindMySync+ ***works on macOS 14.4 and later***. See [Migrating from FindMySync](#migrating-from-findmysync).
 
 ---
 
@@ -240,7 +240,7 @@ reflects that journey.
 
 ## Acknowledgements
 
-- [FindMySync](https://github.com/MartinPham/FindMySync) by Martin Pham — the original project this is based on
+- [FindMySync](https://github.com/MartinPham/FindMySync) by Martin Pham — the original application, and the inspiration for this project's core functionality
 - [findmy-cache-decryptor](https://github.com/Pnut-GGG/findmy-cache-decryptor) by Pnut-GGG — reverse-engineered the Find My `.data` file encryption
 - `LocalStorage.db` cipher — reverse-engineered from Apple's `sqliteCodecCCCrypto` in `libsqlite3.dylib` via `lldb` disassembly, with [Claude](https://claude.ai)
 - [findmy-key-extractor](https://github.com/manonstreet/findmy-key-extractor) — extracts all 3 Find My encryption keys required for setup
