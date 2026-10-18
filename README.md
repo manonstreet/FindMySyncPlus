@@ -1,4 +1,9 @@
-<p align="center"><img src="screenshots/icon.png" width="128" alt="FindMySync+ icon"></p>
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="screenshots/icon-dark.png">
+    <img src="screenshots/icon.png" width="128" alt="FindMySync+ icon">
+  </picture>
+</p>
 
 # FindMySyncPlus
 
