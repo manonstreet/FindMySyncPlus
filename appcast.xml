@@ -3,12 +3,12 @@
     <channel>
         <title>FindMySyncPlus</title>
         <item>
-            <title>2.2b</title>
-            <pubDate>Sun, 11 Oct 2026 19:16:07 -0400</pubDate>
-            <sparkle:version>4</sparkle:version>
-            <sparkle:shortVersionString>2.2b</sparkle:shortVersionString>
+            <title>2.2.1b</title>
+            <pubDate>Sun, 18 Oct 2026 17:49:00 -0400</pubDate>
+            <sparkle:version>5</sparkle:version>
+            <sparkle:shortVersionString>2.2.1b</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.4</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/manonstreet/FindMySyncPlus/releases/download/v2.2b/FindMySyncPlus-2.2b.dmg" length="4919895" type="application/octet-stream" sparkle:edSignature="bU5ak1Zrv2MnNGkfOUsEeRa4xxNA+1IPs9OnrSBJmqwo5Q+J4PZ6YHFz+jrMlJAvVueqJ65dtp7I5qcGoormCg=="/>
+            <enclosure url="https://github.com/manonstreet/FindMySyncPlus/releases/download/v2.2.1b/FindMySyncPlus-2.2.1b.dmg" length="6268176" type="application/octet-stream" sparkle:edSignature="muhdL4/PiYH2oQDGXq19l/K+TGhX6Jyl45APho5YmbqwQshm1YIjnsDNzmuz/3ESlChnKBqr5goOFKanHWmeBQ=="/>
         </item>
     </channel>
 </rss>
