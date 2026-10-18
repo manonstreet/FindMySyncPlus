@@ -31,8 +31,10 @@ final class DockStatusOverlay {
                 )
             case .error:
                 return BadgeStyle(
-                    // The red of the system's own Dock badge, sampled beside Messages.
-                    backgroundColor: NSColor(srgbRed: 0.867, green: 0.314, blue: 0.247, alpha: 1.0),
+                    // The system badge's red, matched beside Messages in Display P3 screenshots.
+                    // In P3 because sRGB cannot reach it, and a little brighter than measured,
+                    // because the Dock dims a drawn tile by a few percent and not its own badge.
+                    backgroundColor: NSColor(displayP3Red: 0.941, green: 0.302, blue: 0.231, alpha: 1.0),
                     symbolName: "exclamationmark",
                     symbolScale: 0.56,
                     symbolWeight: .heavy
@@ -65,17 +67,26 @@ final class DockStatusOverlay {
                 height: overlaySide
             )
 
-            // Badge circle with shadow
+            // The shadow falls only outside the disc: under a 90% disc, the part beneath it
+            // showed through and dimmed the badge. An opaque fill casts it, clipped away.
             let circle = NSBezierPath(ovalIn: badgeRect)
             NSGraphicsContext.saveGraphicsState()
+            let outside = NSBezierPath(rect: bounds)
+            outside.append(circle)
+            outside.windingRule = .evenOdd
+            outside.addClip()
             let shadow = NSShadow()
             shadow.shadowBlurRadius = max(1, w * 0.035)
             shadow.shadowOffset     = NSSize(width: 0, height: -1)
             shadow.shadowColor      = NSColor.black.withAlphaComponent(0.25)
             shadow.set()
-            style.backgroundColor.setFill()
+            NSColor.black.setFill()
             circle.fill()
             NSGraphicsContext.restoreGraphicsState()
+
+            // 90% opaque, like the system badge, which lets a little of the icon through.
+            style.backgroundColor.withAlphaComponent(0.9).setFill()
+            circle.fill()
 
             // The symbol's color comes from its configuration: drawing a symbol image after
             // setting a color does not tint it.
