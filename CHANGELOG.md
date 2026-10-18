@@ -2,6 +2,12 @@
 
 Release notes for each FindMySyncPlus release, newest first. Each entry is the text published with that release, minus its install steps. The DMGs are on the [Releases page](https://github.com/manonstreet/FindMySyncPlus/releases).
 
+## [v2.2.1b](https://github.com/manonstreet/FindMySyncPlus/releases/tag/v2.2.1b) — 2026-10-18
+
+### Changed
+
+**New app icon and updated Dock status badges.** A new look, no longer borrowing from the original FindMySync icon.
+
 ## [v2.2b](https://github.com/manonstreet/FindMySyncPlus/releases/tag/v2.2b) — 2026-10-11
 
 Fixes MQTT over TLS, adds a help page for setting it up, and includes smaller fixes.
