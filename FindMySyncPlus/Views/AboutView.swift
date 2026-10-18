@@ -42,9 +42,6 @@ struct AboutView: View {
         /// The license whose text the app ships, opening the Licenses sheet at it. Absent for
         /// the research the app draws on without shipping its code.
         var license: ShippedLicense?
-        /// The link's text, where the license name alone would mislead: the GPL covers the
-        /// icon, not the app.
-        var licenseLabel: String?
         var onLicense: (ShippedLicense) -> Void = { _ in }
 
         var body: some View {
@@ -72,7 +69,7 @@ struct AboutView: View {
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                     if let license {
-                        AppLink(title: licenseLabel ?? license.licenseName) { onLicense(license) }
+                        AppLink(title: license.licenseName) { onLicense(license) }
                             .font(.callout)
                     }
                 }
@@ -183,11 +180,7 @@ struct AboutView: View {
                     title: "FindMySync",
                     author: "Martin Pham",
                     url: "https://github.com/MartinPham/FindMySync",
-                    description: "The original application, icon, and conceptual inspiration for this project's "
-                        + "core functionality. The icon is used with a plus added.",
-                    license: .findMySyncIcon,
-                    licenseLabel: "Icon license: GNU General Public License 3.0",
-                    onLicense: { licenseShown = $0 }
+                    description: "The original application, and the inspiration for this project's core functionality."
                 )
                 CreditLink(
                     title: "findmy-cache-decryptor",

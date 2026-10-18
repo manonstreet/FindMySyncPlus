@@ -1,0 +1,132 @@
+{
+  "fill" : {
+    "solid" : "srgb:0.07843,0.31373,0.16471,1.00000"
+  },
+  "groups" : [
+    {
+      "layers" : [
+        {
+          "blend-mode-specializations" : [
+            {
+              "appearance" : "dark",
+              "value" : "normal"
+            }
+          ],
+          "glass" : false,
+          "hidden" : false,
+          "image-name" : "circuit-tree.png",
+          "name" : "Circuit tree"
+        },
+        {
+          "glass" : false,
+          "hidden" : false,
+          "image-name" : "house.png",
+          "name" : "House"
+        }
+      ],
+      "name" : "House",
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.5
+      },
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.3
+      }
+    },
+    {
+      "layers" : [
+        {
+          "glass" : true,
+          "hidden" : false,
+          "image-name" : "sync-arrows.png",
+          "name" : "Sync arrows",
+          "opacity" : 0.82
+        },
+        {
+          "glass" : true,
+          "image-name" : "inner-ring.png",
+          "name" : "Inner ring",
+          "opacity" : 0.82
+        }
+      ],
+      "name" : "Sync",
+      "shadow" : {
+        "kind" : "none",
+        "opacity" : 0.5
+      },
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.3
+      }
+    },
+    {
+      "layers" : [
+        {
+          "blend-mode-specializations" : [
+            {
+              "value" : "overlay"
+            },
+            {
+              "appearance" : "dark",
+              "value" : "overlay"
+            }
+          ],
+          "glass" : true,
+          "hidden" : false,
+          "image-name" : "beam.png",
+          "name" : "Beam",
+          "opacity-specializations" : [
+            {
+              "value" : 0.5
+            },
+            {
+              "appearance" : "dark",
+              "value" : 0.5
+            }
+          ]
+        },
+        {
+          "glass" : true,
+          "image-name" : "crosshairs.png",
+          "name" : "Crosshairs",
+          "opacity" : 0.78
+        },
+        {
+          "blend-mode-specializations" : [
+            {
+              "value" : "darken"
+            },
+            {
+              "appearance" : "dark",
+              "value" : "darken"
+            }
+          ],
+          "glass" : false,
+          "hidden" : false,
+          "image-name" : "sweep.png",
+          "name" : "Sweep"
+        },
+        {
+          "glass" : false,
+          "hidden" : false,
+          "image-name" : "radar-disc.png",
+          "name" : "Radar disc",
+          "opacity" : 0.15
+        }
+      ],
+      "name" : "Radar",
+      "shadow" : {
+        "kind" : "none",
+        "opacity" : 0.5
+      },
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.3
+      }
+    }
+  ],
+  "supported-platforms" : {
+    "squares" : "shared"
+  }
+}

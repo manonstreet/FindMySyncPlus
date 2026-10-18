@@ -3,7 +3,6 @@ import SwiftUI
 /// The licenses whose text the app ships. The files in the bundle are the copies the
 /// licenses require to accompany the app; this is how they are read from inside it.
 enum ShippedLicense: String, CaseIterable, Identifiable {
-    case findMySyncIcon = "FindMySync-GPL-3.0"
     case cocoaMQTT = "CocoaMQTT-EDL-1.0"
     case ink = "Ink-MIT"
     /// One file covers Sparkle: its 134 lines are the MIT text plus the bsdiff and bspatch
@@ -14,7 +13,6 @@ enum ShippedLicense: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .findMySyncIcon: "FindMySync icon"
         case .cocoaMQTT: "CocoaMQTT"
         case .ink: "Ink"
         case .sparkle: "Sparkle"
@@ -23,7 +21,6 @@ enum ShippedLicense: String, CaseIterable, Identifiable {
 
     var licenseName: String {
         switch self {
-        case .findMySyncIcon: "GNU General Public License 3.0"
         case .cocoaMQTT: "Eclipse Distribution License 1.0"
         case .ink: "MIT License"
         case .sparkle: "MIT License"
