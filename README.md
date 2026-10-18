@@ -1,10 +1,12 @@
+<p align="center"><img src="screenshots/icon.png" width="128" alt="FindMySync+ icon"></p>
+
 # FindMySyncPlus
 
 ![macOS 14.4+](https://img.shields.io/badge/macOS-14.4%2B-blue)
 ![License: MIT](https://img.shields.io/badge/License-MIT-green)
 ![Swift](https://img.shields.io/badge/Swift-native-orange)
 
-> Publish Apple Find My locations to Home Assistant — devices, items, and friends — privately, locally, no third-party services.
+> Publish Apple Find My locations to Home Assistant: devices, items and friends, privately and locally, with no third-party services.
 
 FindMySyncPlus reads your encrypted Find My cache files, decrypts them, and posts location updates
 directly to your Home Assistant instance on a configurable schedule. No cloud relay. No tracking
