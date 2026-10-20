@@ -1,32 +1,32 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="screenshots/icon-dark.png">
-    <img src="screenshots/icon.png" width="128" alt="FindMySync+ icon">
+    <img src="screenshots/icon.png" width="128" alt="FindMySyncPlus icon">
   </picture>
 </p>
 
-# FindMySyncPlus
+<h1 align="center">FindMySyncPlus</h1>
 
-![macOS 14.4+](https://img.shields.io/badge/macOS-14.4%2B-blue)
-![License: MIT](https://img.shields.io/badge/License-MIT-green)
-![Swift](https://img.shields.io/badge/Swift-native-orange)
+<p align="center">
+  <a href="https://github.com/manonstreet/FindMySyncPlus/releases/latest"><img src="https://img.shields.io/github/v/release/manonstreet/FindMySyncPlus?label=release" alt="Latest release"></a>
+  <img src="https://img.shields.io/badge/macOS-14.4%2B-blue" alt="macOS 14.4+">
+  <img src="https://img.shields.io/badge/License-MIT-green" alt="License: MIT">
+  <img src="https://img.shields.io/badge/Swift-native-orange" alt="Swift">
+</p>
 
-> Publish Apple Find My locations to Home Assistant: devices, items and friends, privately and locally, with no third-party services.
+<p align="center"><strong>Publish Apple Find My locations to Home Assistant: devices, items and friends, privately and locally, with no third-party services.</strong></p>
 
-FindMySyncPlus reads your encrypted Find My cache files, decrypts them, and posts location updates
-directly to your Home Assistant instance on a configurable schedule. No cloud relay. No tracking
-service. Your Find My data goes straight to your home network and nowhere else.
+<p align="center">
+  <img src="screenshots/hero.png" width="600" alt="The Tracking pane">
+</p>
 
-It tracks Devices (iPhones, Apple Watch), Items (AirTags), and Friends — including live friend
-coordinates by decrypting `LocalStorage.db`, something no other tool supports. Supports both
-**REST** (`device_tracker/see`) and **MQTT** (with HA auto-discovery and rich attributes) transports.
-Rotating UUIDs are handled automatically, and all sensitive credentials are stored securely in the
-macOS Keychain.
+FindMySyncPlus (FMS+) reads your encrypted Find My cache files, decrypts them, and posts location updates directly to your Home Assistant instance on a configurable schedule. No cloud relay. No tracking service. Your Find My data goes straight to your home network and nowhere else.
 
-Inspired by [FindMySync](https://github.com/MartinPham/FindMySync) by Martin Pham, and built on the decryption research by
-[Pnut-GGG](https://github.com/Pnut-GGG/findmy-cache-decryptor).
+It tracks Devices (iPhones, Apple Watch), Items (AirTags), and Friends, including their live locations. It publishes over **MQTT**, with Home Assistant auto-discovery and rich attributes, or over legacy **REST** (`device_tracker/see`). Rotating UUIDs are handled automatically, and all sensitive credentials are stored securely in the macOS Keychain.
 
-> Coming from FindMySync? FindMySync+ ***works on macOS 14.4 and later***. See [Migrating from FindMySync](#migrating-from-findmysync).
+Inspired by [FindMySync](https://github.com/MartinPham/FindMySync) by Martin Pham, and built on the decryption research by [Pnut-GGG](https://github.com/Pnut-GGG/findmy-cache-decryptor).
+
+> Coming from FindMySync? FMS+ **works on macOS 14.4 and later**. See [Migrating from FindMySync](#migrating-from-findmysync).
 
 ---
 
@@ -46,49 +46,56 @@ Inspired by [FindMySync](https://github.com/MartinPham/FindMySync) by Martin Pha
 | Ongoing configuration | 🟢 Low | 🟢 Low | 🔴 High |
 | Update frequency | Configurable (≥1 min) | External AppleScript | Near real-time |
 
+➖ Not applicable
+
 ---
 
 ## Features
 
-- Tracks **Devices** (iPhone, Apple Watch), **Items** (AirTags), and **Friends**
-- **Two transport modes** — REST (`device_tracker/see`) or MQTT with Home Assistant auto-discovery
-- **MQTT rich attributes** — altitude, speed, course, motion state, location labels via `json_attributes_topic`
-- **MQTT sensors** — a status sensor reports the last successful sync as a timestamp, along with many attributes to understand the run and app state. A binary state sensor shows the connection status of FMS+
-- **Skip repeated locations** (MQTT) — publish an entity update only when Find My reports a different location, with a minimum movement threshold
-- **Refresh from Home Assistant** (MQTT) — an MQTT exposed button to launch Find My and runs one sync on demand from within Home Assistant
-- **Friend location tracking** — decrypts `LocalStorage.db` for live friend coordinates; family members already tracked via Devices are automatically deduplicated using Apple's universal person identifier (DSID)
-- **Tracking** — assign friendly aliases to devices, items, and friends; aliases become stable HA entity IDs even as UUIDs rotate
-- **Grouped accessories** — AirPods Pro pairs (and similar) appear as a single Tracking entry; sub-items (Case, Left Bud, Right Bud) can be revealed and aliased individually if needed. This grouping is within FindMySyncPlus — in Home Assistant every entity appears under a single `FindMySync+` device
-- **Battery sensor** — devices that report a real battery level (iPhone, Apple Watch, Mac) get a `device_class: battery` sensor, so battery works with the battery card and low-battery blueprints. AirTags and third-party trackers report a small vendor-specific code rather than a percentage, so they get the raw value as an attribute instead of an invented one
-- **Auto-learn UUIDs** — automatically re-maps devices when Apple rotates their identifier
-- Configurable scheduler with selectable refresh interval and manual **Run Now** and **Dry Run** modes
-- **Four log levels** (Error / Warn / Info / Debug) with per-run statistics — posted updates, warnings, learned UUIDs
-- Optionally auto-launches Find My to refresh cache before each sync — no AppleScript required
-- All credentials (encryption key, HA token) stored in the macOS **Keychain**
-- Menu bar agent — runs silently in the background with open-at-login support
-- **Update checks** — once a day the app checks this project's release feed on GitHub; a new version appears in About with an **Install Update** button. The **Automatically check for updates** switch in About turns the daily check off
-- Full Disk Access gating with clear in-app guidance when permission is missing
+**Tracking**
+
+- **Devices, Items and Friends**: iPhone, Apple Watch, Mac, AirTags, and the people who share their location with you
+- **Aliases**: a name you choose becomes the Home Assistant entity ID, and FMS+ re-links it when Apple rotates a device's UUID
+- **Grouped accessories**: AirPods Pro are one entry, and the Case and each Bud can be tracked separately
+- **Find My refresh**: optionally opens Find My before each sync to refresh its cache
+
+**Home Assistant**
+
+- **MQTT with auto-discovery**: Home Assistant creates the entities automatically, with altitude, speed, course, motion state and location labels as attributes
+- **Battery sensor** for devices that report a battery level
+- **Status and connection sensors**: the last successful sync, details of each run, and whether FMS+ is connected
+- **Refresh button**: opens Find My and runs one sync, pressed from Home Assistant
+- **Skip repeated locations**: publishes only when a location changes, with a minimum movement threshold
+- **Legacy REST** (`device_tracker/see`) for setups without MQTT
+
+**The app**
+
+- **Menu bar app** that opens at login and runs on a schedule you set, with **Run Now** and **Dry Run**
+- **Keychain storage** for your decryption keys and Home Assistant credentials
+- **Automatic updates**: a daily check, installed from About
+- **Logs** at four levels, with statistics for each run
+
+---
+
+## Privacy
+
+- FMS+ decrypts the Find My cache on your Mac, in memory. It keeps decrypted locations in memory and never writes unencrypted location data to disk.
+- FMS+ sends locations only to your Home Assistant, through your MQTT broker or REST endpoint, encrypted with TLS when you enable it for MQTT or use an `https` REST URL.
+- FMS+ does not collect data about you and does not make use of analytics. Its only other connection is a daily update check against this project's release feed on GitHub, which you can turn off in About.
+- Your decryption keys, Home Assistant token and MQTT password are stored in the macOS Keychain.
+- Home Assistant stores the locations it receives, as it does for any tracker.
 
 ---
 
 ## Friend Location Tracking
 
-FindMySyncPlus is the only tool that tracks friend locations from Apple Find My. Apple discontinued
-the Find My Friends (FMF) API, and live friend coordinates are not available in the `.data` cache
-files that other tools read. The only remaining source is `LocalStorage.db` — an encrypted SQLite
-database owned by `findmylocateagent`.
+Friend location tracking is rare among Find My tools. FMS+ does it through original reverse engineering of how Apple encrypts friend locations on the Mac. Apple discontinued the Find My Friends (FMF) API, and live friend coordinates are not available in the `.data` cache files that other tools read. The only remaining source is `LocalStorage.db` — an encrypted SQLite database owned by `findmylocateagent`.
 
-FMS+ decrypts this database using the same AES-256 keystream XOR cipher that Apple's `libsqlite3`
-codec uses internally, discovered by reverse-engineering the `sqliteCodecCCCrypto` function.
+FMS+ decrypts this database using the same AES-256 keystream XOR cipher that Apple's `libsqlite3` codec uses internally, discovered by reverse-engineering the `sqliteCodecCCCrypto` function.
 
-**Family member dedup & enrichment** — Family members appear in both `Devices.data` (as shared devices) and
-`LocalStorage.db` (as friends). FMS+ automatically detects this overlap using Apple's universal
-person identifier (DSID) and skips duplicates, so each family member is only tracked once. Rich
-attributes from LocalStorage (altitude, speed, course, motion state) are merged onto the FMIP
-device entry, giving family members the best of both sources.
+**Family member dedup & enrichment** — Family members appear in both `Devices.data` (as shared devices) and `LocalStorage.db` (as friends). FMS+ automatically detects this overlap using Apple's universal person identifier (DSID) and skips duplicates, so each family member is only tracked once. Rich attributes from LocalStorage (altitude, speed, course, motion state) are merged onto the FMIP device entry, giving family members the best of both sources.
 
-**Requires macOS 15 or later.** macOS 14 does not store friend locations, so there is nothing to
-process. The FMF and LocalStorage keys are not used there.
+**Requires macOS 15 or later.** macOS 14 does not store friend locations, so there is nothing to process. The FMF and LocalStorage keys are not used there.
 
 **Setup:** Import `LocalStorage.key` in the Access pane (extracted alongside the other keys in Phase 1) — the Friends source auto-enables when the key is imported.
 
@@ -113,8 +120,8 @@ process. The FMF and LocalStorage keys are not used there.
 
 - macOS 14.4 (Sonoma) or later — 14.4 is where Apple began encrypting the Find My caches, which is what this app decrypts
 - Friend locations require macOS 15 or later — on macOS 14 only the Find My key is needed
-- A running Home Assistant instance — either the `device_tracker.see` REST API or an MQTT broker (e.g. Mosquitto add-on)
-- Find My encryption keys extracted from Keychain (see Phase 1 below)
+- A running Home Assistant instance with an MQTT broker (e.g. the Mosquitto add-on), or the legacy `device_tracker.see` REST API
+- Find My encryption keys extracted from Keychain, a one-time step that needs SIP and AMFI temporarily disabled (see Phase 1 below)
 
 ---
 
@@ -122,10 +129,7 @@ process. The FMF and LocalStorage keys are not used there.
 
 ### Phase 1 — Extract Keys
 
-Extract your Find My encryption keys using
-[findmy-key-extractor](https://github.com/manonstreet/findmy-key-extractor).
-This is a one-time step — keys are stable across reboots. Requires temporarily disabling SIP + AMFI;
-see the extractor README for the full procedure.
+Extract your Find My encryption keys using [findmy-key-extractor](https://github.com/manonstreet/findmy-key-extractor). This is a one-time step — keys are stable across reboots. Requires temporarily disabling SIP + AMFI; see the extractor README for the full procedure.
 
 The extractor saves all three keys to a `keys/` folder:
 
@@ -139,16 +143,11 @@ Import all three in the **Access** pane (Phase 3) — select the **All** tab und
 
 ### Phase 2 — Install
 
-Download the latest `.dmg` from [Releases](../../releases), open it, and drag FindMySyncPlus to
-your Applications folder.
+Download the latest `.dmg` from [Releases](../../releases), open it, and drag FindMySyncPlus to your Applications folder.
 
-The app is signed but not notarized, so macOS blocks the first launch. Open it, and when macOS
-says it cannot be opened, go to **System Settings → Privacy & Security**, scroll down to
-Security, and click **Open Anyway** beside the message naming FindMySyncPlus. Confirm once more
-and the app launches. Later launches open normally.
+The app is signed but not notarized, so macOS blocks the first launch. Open it, and when macOS says it cannot be opened, go to **System Settings → Privacy & Security**, scroll down to Security, and click **Open Anyway** beside the message naming FindMySyncPlus. Confirm once more and the app launches. Later launches open normally.
 
-> Older guides say to right-click and choose **Open**. That shortcut was removed in macOS 15
-> for software that is not notarized, so use the steps above on any current macOS.
+> Older guides say to right-click and choose **Open**. That shortcut was removed in macOS 15 for software that is not notarized, so use the steps above on any current macOS.
 
 What changed in each release is in [CHANGELOG.md](CHANGELOG.md).
 
@@ -167,21 +166,6 @@ Launch the app and open the **Access** pane (the Home screen will show "Not Set"
 6. Quit and relaunch the app
 
 If prompted by Keychain, click **Always Allow**.
-
-> **Building from source?** You do not need a paid Apple Developer account. A free Apple ID is enough —
-> Xcode calls this a **Personal Team** and it signs macOS apps indefinitely for local use.
->
-> 1. In Xcode, go to **Xcode → Settings → Accounts** and add your Apple ID — Xcode automatically creates a Personal Team and generates a signing certificate for you
-> 2. Select the project in the navigator, open **Signing & Capabilities**, enable **Automatically manage signing**, and choose your Personal Team from the Team dropdown
-> 3. Build and run — if Keychain prompts appear, click **Always Allow** once
->
-> **Building with `xcodebuild`?** Put your team ID in `Configs/Local.xcconfig`, which git ignores:
-> ```
-> DEVELOPMENT_TEAM = ABCDE12345
-> ```
-> Xcode uses the file too. Or pass `DEVELOPMENT_TEAM=ABCDE12345` to `xcodebuild` on each build. If you chose a team in step 2, its ID is in `project.pbxproj`: copy it from there, then revert that file.
->
-> See [Choosing a Membership](https://developer.apple.com/support/compare-memberships/) for a full comparison of free vs paid Apple Developer accounts.
 
 Under the **General** pane, recommended settings:
 - Enable **Open at Login**
@@ -235,13 +219,27 @@ The trade-off: keeping your IDs means no changes on the Home Assistant side, but
 
 ---
 
+## Building from Source
+
+You do not need a paid Apple Developer account. A free Apple ID is enough — Xcode calls this a **Personal Team** and it signs macOS apps indefinitely for local use.
+
+1. In Xcode, go to **Xcode → Settings → Accounts** and add your Apple ID — Xcode automatically creates a Personal Team and generates a signing certificate for you
+2. Select the project in the navigator, open **Signing & Capabilities**, enable **Automatically manage signing**, and choose your Personal Team from the Team dropdown
+3. Build and run — if Keychain prompts appear, click **Always Allow** once
+
+**Building with `xcodebuild`?** Put your team ID in `Configs/Local.xcconfig`, which git ignores:
+```
+DEVELOPMENT_TEAM = ABCDE12345
+```
+Xcode uses the file too. Or pass `DEVELOPMENT_TEAM=ABCDE12345` to `xcodebuild` on each build. If you chose a team in step 2, its ID is in `project.pbxproj`: copy it from there, then revert that file.
+
+See [Choosing a Membership](https://developer.apple.com/support/compare-memberships/) for a full comparison of free vs paid Apple Developer accounts.
+
+---
+
 ## A Note on AI Co-creation
 
-This project was my first experience building software collaboratively with AI — using ChatGPT,
-Gemini, and Claude as thinking partners throughout the process. It started as a learning exercise
-and grew into a working tool I run daily. Later versions — including friend location tracking and
-the `LocalStorage.db` cipher reverse-engineering — were built exclusively with Claude. The code
-reflects that journey.
+This project was my first experience building software collaboratively with AI — using ChatGPT, Gemini, and Claude as thinking partners throughout the process. It started as a learning exercise and grew into a working tool I run daily. Later versions — including friend location tracking and the `LocalStorage.db` cipher reverse-engineering — were built exclusively with Claude. The code reflects that journey.
 
 ---
 
@@ -249,8 +247,17 @@ reflects that journey.
 
 - [FindMySync](https://github.com/MartinPham/FindMySync) by Martin Pham — the original application, and the inspiration for this project's core functionality
 - [findmy-cache-decryptor](https://github.com/Pnut-GGG/findmy-cache-decryptor) by Pnut-GGG — reverse-engineered the Find My `.data` file encryption
-- `LocalStorage.db` cipher — reverse-engineered from Apple's `sqliteCodecCCCrypto` in `libsqlite3.dylib` via `lldb` disassembly, with [Claude](https://claude.ai)
 - [findmy-key-extractor](https://github.com/manonstreet/findmy-key-extractor) — extracts all 3 Find My encryption keys required for setup
 - [Ink](https://github.com/JohnSundell/Ink) — MIT-licensed Markdown parser used in-app
-- [FollowMyFriends](https://github.com/bytePatrol/FollowMyFriends) — reference for MQTT transport pattern
-- [CocoaMQTT](https://github.com/emqx/CocoaMQTT) — MIT-licensed MQTT client for Swift
+- [CocoaMQTT](https://github.com/emqx/CocoaMQTT) — EDL-licensed MQTT client for Swift
+- [Sparkle](https://github.com/sparkle-project/Sparkle) — MIT-licensed framework behind automatic updates
+
+---
+
+## Support
+
+Report bugs and ask questions in [Issues](../../issues).
+
+## License
+
+MIT. See [LICENSE](LICENSE).
