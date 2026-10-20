@@ -1,11 +1,11 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="screenshots/icon-dark.png">
-    <img src="screenshots/icon.png" width="128" alt="FindMySyncPlus icon">
+    <img src="screenshots/icon.png" width="128" alt="FindMySync+ icon">
   </picture>
 </p>
 
-<h1 align="center">FindMySyncPlus</h1>
+<h1 align="center">FindMySync+</h1>
 
 <p align="center">
   <a href="https://github.com/manonstreet/FindMySyncPlus/releases/latest"><img src="https://img.shields.io/github/v/release/manonstreet/FindMySyncPlus?label=release" alt="Latest release"></a>
@@ -20,7 +20,7 @@
   <img src="screenshots/hero.png" width="600" alt="The Tracking pane">
 </p>
 
-FindMySyncPlus (FMS+) reads your encrypted Find My cache files, decrypts them, and posts location updates directly to your Home Assistant instance on a configurable schedule. No cloud relay. No tracking service. Your Find My data goes straight to your home network and nowhere else.
+FindMySync+ (FMS+) reads your encrypted Find My cache files, decrypts them, and posts location updates directly to your Home Assistant instance on a configurable schedule. No cloud relay. No tracking service. Your Find My data goes straight to your home network and nowhere else.
 
 It tracks Devices (iPhones, Apple Watch), Items (AirTags), and Friends, including their live locations. It publishes over **MQTT**, with Home Assistant auto-discovery and rich attributes, or over legacy **REST** (`device_tracker/see`). Rotating UUIDs are handled automatically, and all sensitive credentials are stored securely in the macOS Keychain.
 
@@ -30,9 +30,9 @@ Inspired by [FindMySync](https://github.com/MartinPham/FindMySync) by Martin Pha
 
 ---
 
-## Why FindMySyncPlus?
+## Why FindMySync+?
 
-|  | FindMySyncPlus | FindMySync (original) | iCloud3 |
+|  | FindMySync+ | FindMySync (original) | iCloud3 |
 |--|:-:|:-:|:-:|
 | macOS 14.4+ (encrypted caches) support | ✅ | ❌ | ➖ |
 | AirTag / Items support | ✅ | ✅ | ❌ |
@@ -203,23 +203,25 @@ findmy_a1b2c3d4e5f6478899aabbccddeeff00:
   track: true
 ```
 
-FindMySyncPlus names entities after the alias you choose, as `findmy_<alias>`. That leaves two options.
+FindMySync+ names entities after the alias you choose, as `findmy_<alias>`. That leaves two options.
 
 **Keep your existing entity IDs.** Set each alias to the device's UUID with the hyphens removed — the UUID is shown in the Assign dialog and can be copied from there. `findmy_<that hex>` will match what you have now, and existing automations keep working untouched.
 
 Delete the old entities in Home Assistant first by commenting out or deleting the entries in your `known_devices.yaml` and restarting. Home Assistant won't reuse an entity ID that is still in use, and skipping this leaves you with `_2` suffixes.
 
-**Or use readable aliases and rename once.** The alias exists as an abstraction over the UUID, because Apple rotates the UUIDs of its own devices — iPhones, Apple Watches and AirTags all get new ones periodically. FindMySyncPlus notices and re-links them to the alias automatically, so tracking survives. An entity ID pinned to a UUID does not: when the UUID changes, the old entity stops updating.
+**Or use readable aliases and rename once.** The alias exists as an abstraction over the UUID, because Apple rotates the UUIDs of its own devices — iPhones, Apple Watches and AirTags all get new ones periodically. FindMySync+ notices and re-links them to the alias automatically, so tracking survives. An entity ID pinned to a UUID does not: when the UUID changes, the old entity stops updating.
 
 I haven't tested whether third-party trackers rotate their UUIDs, so if that's all you use, the first option may work fine — but I can't promise it.
 
 The trade-off: keeping your IDs means no changes on the Home Assistant side, but leaves you exposed if a UUID ever rotates. Fresh aliases mean renaming entities once, and staying stable afterwards.
 
-**Note:** `icon` and `picture` from `known_devices.yaml` aren't supported by FindMySyncPlus. Set them on the entity in Home Assistant instead.
+**Note:** `icon` and `picture` from `known_devices.yaml` aren't supported by FindMySync+. Set them on the entity in Home Assistant instead.
 
 ---
 
 ## Building from Source
+
+The repository and the Xcode project are named FindMySyncPlus, because GitHub names cannot contain "+".
 
 You do not need a paid Apple Developer account. A free Apple ID is enough — Xcode calls this a **Personal Team** and it signs macOS apps indefinitely for local use.
 
