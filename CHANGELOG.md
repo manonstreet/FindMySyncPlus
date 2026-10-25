@@ -2,6 +2,12 @@
 
 Release notes for each FindMySyncPlus release, newest first. Each entry is the text published with that release, minus its install steps. The DMGs are on the [Releases page](https://github.com/manonstreet/FindMySyncPlus/releases).
 
+## [v2.2.2b](https://github.com/manonstreet/FindMySyncPlus/releases/tag/v2.2.2b) — 2026-10-24
+
+### Changed
+
+**New menu bar icon** to match the app icon.
+
 ## [v2.2.1b](https://github.com/manonstreet/FindMySyncPlus/releases/tag/v2.2.1b) — 2026-10-18
 
 ### Changed
