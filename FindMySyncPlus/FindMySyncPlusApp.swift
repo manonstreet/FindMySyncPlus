@@ -334,16 +334,14 @@ struct FindMySyncPlusApp: App {
         _policyController = State(initialValue: PolicyController(initial: initialPolicy))
     }
 
-    /// A template symbol, which the system tints for the light bar, the dark bar and the
+    /// A template image, which the system tints for the light bar, the dark bar and the
     /// highlighted state. A full-color app icon cannot be tinted, so it sat apart from
-    /// every other item in the bar.
+    /// every other item in the bar. The glyph is the app icon's house with its radar sweep;
+    /// the sweep's partial alpha is what the system draws as the lighter shade.
     private var statusBarIcon: NSImage {
-        let symbol = NSImage(systemSymbolName: "location.magnifyingglass",
-                             accessibilityDescription: "FindMySync+")
-        let configured = symbol?.withSymbolConfiguration(
-            NSImage.SymbolConfiguration(pointSize: 16, weight: .regular))
-        let icon = configured ?? symbol ?? NSImage(size: NSSize(width: 18, height: 18))
+        let icon = NSImage(named: "MenuBarIcon") ?? NSImage(size: NSSize(width: 20, height: 18))
         icon.isTemplate = true
+        icon.accessibilityDescription = "FindMySync+"
         return updates.updateVersion == nil ? icon : badged(icon)
     }
 
@@ -352,7 +350,7 @@ struct FindMySyncPlusApp: App {
     /// icon's own height; the width growth is the gap between the glyph and the arrow.
     private func badged(_ base: NSImage) -> NSImage {
         guard let arrow = NSImage(systemSymbolName: "arrow.up", accessibilityDescription: nil)?
-            .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 8, weight: .bold))
+            .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 7, weight: .bold))
         else { return base }
         let size = NSSize(width: base.size.width + 6, height: base.size.height)
         let out = NSImage(size: size, flipped: false) { _ in

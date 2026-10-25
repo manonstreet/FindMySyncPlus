@@ -11,9 +11,14 @@ final class EducationWindowController: NSWindowController {
         var body: some View {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(spacing: 8) {
-                    Image(systemName: "menubar.rectangle")
-                        .font(.title2)
+                    // The menu bar glyph itself, so the tip shows what to look for.
+                    Image("MenuBarIcon")
+                        .renderingMode(.template)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(height: 20)
                         .foregroundStyle(.secondary)
+                        .accessibilityHidden(true)
                     Text("Still Running in Menu Bar")
                         .font(.title3).bold()
                 }
