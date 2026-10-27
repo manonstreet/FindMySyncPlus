@@ -10,6 +10,8 @@ Release notes for each FindMySyncPlus release, newest first. Each entry is the t
 
 **Install from Home Assistant.** The update entity's Install button, in Settings → Updates or from an automation, installs the newest version. Requested by @bennydiamond.
 
+Home Assistant lists FindMySync+ as "not installable" until 2.3b itself is installed. From 2.3b on, Home Assistant shows the Install button.
+
 ## [v2.2.2b](https://github.com/manonstreet/FindMySyncPlus/releases/tag/v2.2.2b) — 2026-10-24
 
 ### Changed
