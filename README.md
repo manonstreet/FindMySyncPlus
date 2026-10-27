@@ -72,7 +72,7 @@ Inspired by [FindMySync](https://github.com/MartinPham/FindMySync) by Martin Pha
 
 - **Menu bar app** that opens at login and runs on a schedule you set, with **Run Now** and **Dry Run**
 - **Keychain storage** for your decryption keys and Home Assistant credentials
-- **Automatic updates**: a daily check, installed from About
+- **Automatic updates**: a daily check; install from About or Home Assistant, or turn on automatic installs
 - **Logs** at four levels, with statistics for each run
 
 ---

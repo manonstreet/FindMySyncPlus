@@ -2,6 +2,14 @@
 
 Release notes for each FindMySyncPlus release, newest first. Each entry is the text published with that release, minus its install steps. The DMGs are on the [Releases page](https://github.com/manonstreet/FindMySyncPlus/releases).
 
+## [v2.3b](https://github.com/manonstreet/FindMySyncPlus/releases/tag/v2.3b) — 2026-10-27
+
+### Added
+
+**Automatic installs.** When **Automatically install updates** is enabled in About, FMS+ will install a new version and relaunch when updates are available. Off by default.
+
+**Install from Home Assistant.** The update entity's Install button, in Settings → Updates or from an automation, installs the newest version. Requested by @bennydiamond.
+
 ## [v2.2.2b](https://github.com/manonstreet/FindMySyncPlus/releases/tag/v2.2.2b) — 2026-10-24
 
 ### Changed
