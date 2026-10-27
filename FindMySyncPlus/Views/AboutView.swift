@@ -104,6 +104,12 @@ struct AboutView: View {
                 AppSwitch(isOn: Binding(get: { updates.automaticallyChecks },
                                         set: { updates.automaticallyChecks = $0 }))
             }
+            // Nothing downloads without a check, so the switch follows the one above.
+            SettingRow(title: "Automatically install updates") {
+                AppSwitch(isOn: Binding(get: { updates.automaticallyInstalls },
+                                        set: { updates.automaticallyInstalls = $0 }))
+                    .disabled(!updates.automaticallyChecks)
+            }
             SettingRow(title: updateTitle, description: lastCheckedText) {
                 if updates.updateVersion != nil {
                     // The automatic check is silent by design, so this is where the offer to

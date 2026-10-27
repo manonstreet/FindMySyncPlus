@@ -32,12 +32,12 @@
 	     only the starting values, and the code must not assign them on launch. The key
 	     also stops Sparkle asking permission on second launch, since About has the
 	     switch. -->
-	<!-- No silent installs. The bundle is not notarized and holds the three keys
-	     that decrypt the cache, so replacing it is a step worth a person's
-	     attention. This also removes the checkbox offering it from Sparkle's own
-	     alert; with the key false the property reads NO however it is set. -->
+	<!-- Silent installs are allowed and off. A user opts in with About's switch, or with
+	     the checkbox this puts on Sparkle's own alert, which sets the same value; a press
+	     of Install in Home Assistant is an opt-in for that one update. Every archive is
+	     still checked against the EdDSA key before it is unpacked. -->
 	<key>SUAllowsAutomaticUpdates</key>
-	<false/>
+	<true/>
 	<!-- Check the archive's EdDSA signature before unpacking it, not after. -->
 	<key>SUVerifyUpdateBeforeExtraction</key>
 	<true/>

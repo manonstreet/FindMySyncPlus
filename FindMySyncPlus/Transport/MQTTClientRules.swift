@@ -86,6 +86,25 @@ extension MQTTClient {
         return retained ? .droppedRetained : .refresh
     }
 
+    enum InstallOutcome: Equatable {
+        case install
+        case ignoredTopic
+        case droppedRetained
+        case wrongPayload
+    }
+
+    /// The Install press, under the refresh trigger's rule: a retained message would replay on
+    /// every connect and install whatever is newest without anyone asking. The payload must be
+    /// the one discovery declared, so a stray publish to the topic does nothing.
+    nonisolated static func installOutcome(topic: String,
+                                           retained: Bool,
+                                           payload: String,
+                                           installTopic: String) -> InstallOutcome {
+        guard topic == installTopic else { return .ignoredTopic }
+        if retained { return .droppedRetained }
+        return payload == updateInstallPayload ? .install : .wrongPayload
+    }
+
     enum RefreshButtonAction: Equatable {
         case publish
         case clear

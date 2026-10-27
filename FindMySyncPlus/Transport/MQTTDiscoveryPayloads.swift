@@ -202,14 +202,22 @@ extension MQTTClient {
         "\(prefix)update/state"
     }
 
+    nonisolated static func updateInstallTopic(prefix: String) -> String {
+        "\(prefix)update/install"
+    }
+
+    /// Home Assistant's schema gives `payload_install` no default, so it is always sent.
+    nonisolated static let updateInstallPayload = "install"
+
     /// The app's version in Home Assistant's own Settings → Updates, beside everything else
     /// that reports one. An attribute on the status sensor was the cheaper option and has to
     /// be templated against to be useful, which means nobody finds it.
     ///
-    /// Read-only, which is what leaving out `command_topic` does: Sparkle owns the install
-    /// and Home Assistant has no way to drive it. No `device_class` either — `firmware` is
-    /// its only value and this is an app. A singleton like the status entity, so retired-alias
-    /// cleanup must never sweep it.
+    /// `command_topic` is what gives the entity Home Assistant's Install button. A press
+    /// publishes `payload_install`, and the app installs the newest signed release with no
+    /// dialog: the press is the user's consent for that one update. No `device_class` —
+    /// `firmware` is its only value and this is an app. A singleton like the status entity,
+    /// so retired-alias cleanup must never sweep it.
     ///
     /// One JSON state topic rather than `latest_version_topic`: two topics need
     /// `latest_version_template` on the Home Assistant side and leave the broker two retained
@@ -220,6 +228,8 @@ extension MQTTClient {
             "unique_id": updateEntityId,
             "default_entity_id": "update.\(updateEntityId)",
             "state_topic": updateStateTopic(prefix: topicPrefix),
+            "command_topic": updateInstallTopic(prefix: topicPrefix),
+            "payload_install": updateInstallPayload,
             // No availability_topic, for the status entity's reason: a version is true while
             // the app is away, and this is one of the things worth reading when it is.
             "device": [
@@ -239,10 +249,15 @@ extension MQTTClient {
     /// check. Publishing null clears it, and `UpdateEntity.state` returns `None` when either
     /// version is `None`, so the entity reads unknown. Same idiom as `cache_written` and
     /// `last_error` on the status attributes.
-    nonisolated static func updateStatePayload(installed: String, latest: String?) -> [String: Any] {
+    ///
+    /// `in_progress` is always present for the same reason: an omitted key would leave a
+    /// retained `true` from an install that ended with the app relaunching.
+    nonisolated static func updateStatePayload(installed: String, latest: String?,
+                                               installing: Bool = false) -> [String: Any] {
         [
             "installed_version": installed,
-            "latest_version": latest ?? NSNull()
+            "latest_version": latest ?? NSNull(),
+            "in_progress": installing
         ]
     }
 

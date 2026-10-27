@@ -48,6 +48,10 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
     /// non-retained request arrived on the right topic.
     var onRefreshRequested: (@MainActor () -> Void)?
 
+    /// Called when Home Assistant's Install button is pressed. Set at launch to the updater,
+    /// which decides what there is to install.
+    var onInstallRequested: (@MainActor () -> Void)?
+
     /// Last published attributes payload per devId, for suppressing repeats. Cleared on
     /// reconnect beside `publishedDiscoveryIds`: discovery is republished then, and a
     /// surviving suppression map would leave an entity with a fresh config and no state.
@@ -499,24 +503,28 @@ final class MQTTClient: NSObject, ObservableObject, TransportClient {
     /// observer across two actors for a number that moves about once a week.
     func publishUpdateState(installed: String,
                             latest: String?,
+                            installing: Bool = false,
                             prefix: String) {
         guard connectionState == .connected, let client else {
             logger?.debug("MQTT: not connected; update entity not published this run")
             return
         }
-        publishUpdateState(client: client, installed: installed, latest: latest, prefix: prefix)
+        publishUpdateState(client: client, installed: installed, latest: latest,
+                           installing: installing, prefix: prefix)
     }
 
     func publishUpdateState(client: MQTTPublishing,
                             installed: String,
                             latest: String?,
+                            installing: Bool = false,
                             prefix: String) {
         publishJSON(client: client,
                     topic: Self.updateStateTopic(prefix: prefix),
-                    payload: Self.updateStatePayload(installed: installed, latest: latest),
+                    payload: Self.updateStatePayload(installed: installed, latest: latest,
+                                                     installing: installing),
                     retain: true)
         logger?.debug("MQTT: update entity published — installed \(installed), "
-                      + "latest \(latest ?? "unknown")")
+                      + "latest \(latest ?? "unknown")" + (installing ? ", installing" : ""))
     }
 
     /// The state topic first, when there is a successful sync to name, then the attributes.
@@ -879,6 +887,7 @@ extension MQTTClient: CocoaMQTTDelegate {
                 self.logger?.info("MQTT connected to \(self.targetText)")
                 self.publishAvailability(Self.availabilityOnline)
                 self.subscribeToRefreshTopic()
+                self.subscribeToInstallTopic()
                 self.publishAppEntityDiscovery()
             } else {
                 self.logger?.error("MQTT connection to \(self.targetText) rejected by the broker: \(ackDesc)")
@@ -918,13 +927,14 @@ extension MQTTClient: CocoaMQTTDelegate {
     nonisolated func mqtt(_ mqtt: CocoaMQTT, didPublishAck id: UInt16) {}
     nonisolated func mqtt(_ mqtt: CocoaMQTT, didReceiveMessage message: CocoaMQTTMessage, id: UInt16) {
         // Read what is needed on this side: `CocoaMQTTMessage` is not Sendable, and the
-        // topic and the retained flag are the whole of what the decision uses.
+        // topic, the retained flag and the payload are the whole of what the decision uses.
         let topic = message.topic
         let retained = message.retained
+        let payload = message.string ?? ""
         let token = ObjectIdentifier(mqtt)
         Task { @MainActor in
             guard token == self.activeClientToken else { return }
-            self.handleInbound(topic: topic, retained: retained)
+            self.handleInbound(topic: topic, retained: retained, payload: payload)
         }
     }
 

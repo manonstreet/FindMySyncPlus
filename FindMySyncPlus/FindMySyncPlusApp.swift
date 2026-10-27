@@ -283,6 +283,12 @@ private struct InstallCoordinator: View {
                 // The sync run publishes the update entity's versions, so it needs to be
                 // able to ask the checker what the feed said.
                 app.syncEngine.updates = updates
+                // Home Assistant's Install button reaches the updater; an install waits for a
+                // running sync and shows in the update entity while it runs. Both objects live
+                // as long as the app, so the captures are plain.
+                app.syncEngine.mqtt.onInstallRequested = { updates.requestInstall() }
+                updates.isBusy = { app.isPerformingRun }
+                updates.onInstallingChanged = { app.syncEngine.publishUpdateStateNow() }
 
                 // Once per launch, not per run: at the default 300 s interval the
                 // scheduler would otherwise repeat this 288 times a day.

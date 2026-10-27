@@ -74,6 +74,36 @@ final class SparkleUpdater: NSObject, ObservableObject {
         }
     }
 
+    /// Download and install updates with no dialog, relaunching the app. Off unless the user
+    /// turns it on, here or with the checkbox on Sparkle's alert; Sparkle stores it.
+    var automaticallyInstalls: Bool {
+        get { controller?.updater.automaticallyDownloadsUpdates ?? false }
+        set {
+            objectWillChange.send()
+            controller?.updater.automaticallyDownloadsUpdates = newValue
+            // Turned on with an update already known: fetch it now rather than at the next
+            // scheduled check, which can be a day away.
+            if newValue, updateVersion != nil { controller?.updater.checkForUpdatesInBackground() }
+        }
+    }
+
+    /// Whether a sync run is in progress. An install waits for it rather than cutting a run
+    /// off halfway through its publishes. Set at launch.
+    var isBusy: @MainActor () -> Bool = { false }
+
+    /// Told when an install starts or ends, so Home Assistant's update entity can show it.
+    var onInstallingChanged: (@MainActor () -> Void)?
+
+    @Published private(set) var isInstalling = false
+
+    /// A press of Install in Home Assistant, waiting on Sparkle's background check.
+    private var installRequested = false
+    private var waitingLogged = false
+
+    /// Set while automatic download is on only for one Install press, so the user's own
+    /// choice can be put back — including on the next launch, if the app stopped before it was.
+    nonisolated static let temporaryAutoDownloadKey = "updateAutoDownloadForOneInstall"
+
     func start(logger: LogStore) {
         self.logger = logger
         guard !ReadRoot.isDemo else { return }
@@ -83,6 +113,11 @@ final class SparkleUpdater: NSObject, ObservableObject {
             updaterDelegate: self,
             userDriverDelegate: nil
         )
+        if UserDefaults.standard.bool(forKey: Self.temporaryAutoDownloadKey) {
+            restoreTemporaryAutoDownload()
+            logger.info("Update: automatic installs set back to off after an install request "
+                        + "that did not finish")
+        }
         // Nothing is assigned here. automaticallyChecksForUpdates, updateCheckInterval and
         // automaticallyDownloadsUpdates all persist in the app's defaults, and SPUUpdater.h
         // says setting them on launch ignores whatever the user chose — including from the
@@ -100,8 +135,16 @@ final class SparkleUpdater: NSObject, ObservableObject {
         // nothing on screen, so the arrow is up to date from launch while Sparkle's schedule
         // still owns the alert. Skipped versions are not reported, so Skip This Version
         // quiets the arrow too.
+        //
+        // With automatic installs on it is the background check instead, which downloads and
+        // hands the update over. Either check counts as the scheduled one and moves the next
+        // a full interval out, so a probe here would hold an install back for a day.
         if controller?.updater.automaticallyChecksForUpdates == true {
-            controller?.updater.checkForUpdateInformation()
+            if controller?.updater.automaticallyDownloadsUpdates == true {
+                controller?.updater.checkForUpdatesInBackground()
+            } else {
+                controller?.updater.checkForUpdateInformation()
+            }
         }
     }
 
@@ -109,6 +152,68 @@ final class SparkleUpdater: NSObject, ObservableObject {
     /// from Check Now, or from About's Install Update button.
     func checkForUpdates() {
         controller?.checkForUpdates(nil)
+    }
+
+    /// Home Assistant's Install button. The press is the user's consent for this one update,
+    /// so it works whether or not automatic installs are on: Sparkle only hands over an update
+    /// it downloaded itself, so automatic download is turned on for this check if it was off,
+    /// and put back as soon as the check answers.
+    func requestInstall() {
+        guard let updater = controller?.updater else {
+            logger?.info("Install requested, but the updater is not running")
+            return
+        }
+        guard !installRequested, !isInstalling else {
+            logger?.info("Install requested: one is already under way")
+            return
+        }
+        installRequested = true
+        setInstalling(true)
+        if !updater.automaticallyDownloadsUpdates {
+            UserDefaults.standard.set(true, forKey: Self.temporaryAutoDownloadKey)
+            updater.automaticallyDownloadsUpdates = true
+        }
+        logger?.info("Install requested: checking for an update")
+        updater.checkForUpdatesInBackground()
+    }
+
+    /// The request ended without an install: nothing newer, or the check failed.
+    private func endInstallRequest(_ message: String) {
+        guard installRequested else { return }
+        installRequested = false
+        restoreTemporaryAutoDownload()
+        setInstalling(false)
+        logger?.info(message)
+    }
+
+    private func restoreTemporaryAutoDownload() {
+        guard UserDefaults.standard.bool(forKey: Self.temporaryAutoDownloadKey) else { return }
+        controller?.updater.automaticallyDownloadsUpdates = false
+        UserDefaults.standard.removeObject(forKey: Self.temporaryAutoDownloadKey)
+    }
+
+    /// Run Sparkle's handler — install and relaunch, no dialog — once no sync is running.
+    private func install(_ handler: @escaping () -> Void, version: String) {
+        setInstalling(true)
+        if isBusy() {
+            if !waitingLogged {
+                logger?.info("Update: \(version) will install when the sync run finishes")
+                waitingLogged = true
+            }
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .seconds(5))
+                self?.install(handler, version: version)
+            }
+            return
+        }
+        logger?.info("Update: installing \(version) and relaunching")
+        handler()
+    }
+
+    private func setInstalling(_ value: Bool) {
+        guard isInstalling != value else { return }
+        isInstalling = value
+        onInstallingChanged?()
     }
 
     private func finish(_ newState: State, log: String, level: LogLevel) {
@@ -154,6 +259,7 @@ extension SparkleUpdater: SPUUpdaterDelegate {
     nonisolated func updaterDidNotFindUpdate(_ updater: SPUUpdater) {
         Task { @MainActor [weak self] in
             self?.finish(.current, log: "Update check: up to date", level: .debug)
+            self?.endInstallRequest("Install requested: already up to date")
         }
     }
 
@@ -165,6 +271,27 @@ extension SparkleUpdater: SPUUpdaterDelegate {
         Task { @MainActor [weak self] in
             self?.finish(.failed("Could not check for updates"),
                          log: "Update check: \(message)", level: .debug)
+            self?.endInstallRequest("Install requested: the update failed — \(message)")
+        }
+    }
+
+    /// Sparkle downloaded an update by itself and would install it when the app quits. Taking
+    /// it — returning true — installs it now instead, with no dialog, but only when the user
+    /// asked: automatic installs are on, or Install was pressed in Home Assistant. Otherwise
+    /// Sparkle keeps its install-on-quit.
+    nonisolated func updater(_ updater: SPUUpdater, willInstallUpdateOnQuit item: SUAppcastItem,
+                             immediateInstallationBlock immediateInstallHandler: @escaping () -> Void) -> Bool {
+        let version = item.displayVersionString
+        nonisolated(unsafe) let handler = immediateInstallHandler
+        return MainActor.assumeIsolated {
+            let temporary = UserDefaults.standard.bool(forKey: Self.temporaryAutoDownloadKey)
+            let optedIn = (controller?.updater.automaticallyDownloadsUpdates ?? false) && !temporary
+            guard installRequested || optedIn else { return false }
+            installRequested = false
+            restoreTemporaryAutoDownload()
+            logger?.info("Update: \(version) downloaded")
+            install(handler, version: version)
+            return true
         }
     }
 }

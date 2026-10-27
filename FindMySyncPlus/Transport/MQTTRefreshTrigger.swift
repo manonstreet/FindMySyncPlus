@@ -1,7 +1,8 @@
 import Foundation
 import CocoaMQTT
 
-// The one thing Home Assistant can ask this app to do, and the button that asks it.
+// The two things Home Assistant can ask this app to do — refresh and sync, and install an
+// update — and the button that asks for the first.
 // One entry point from the connect ack and one from the delegate. The members it reaches
 // are internal rather than private: `private` is file-scoped, so a same-type extension in
 // another file cannot see them.
@@ -44,12 +45,44 @@ extension MQTTClient {
         settleRefreshButton(client: client, enabled: enabled, prefix: prefix)
     }
 
-    /// Decide what an inbound message means. The rule is pure so the retained-message guard
+    /// Decide what an inbound message means. The rules are pure so the retained-message guard
     /// can be asserted on; a delegate callback cannot be reached by a test.
-    func handleInbound(topic: String, retained: Bool) {
+    func handleInbound(topic: String, retained: Bool, payload: String = "") {
         guard let settings else { return }
+        let installTopic = Self.updateInstallTopic(prefix: settings.mqttTopicPrefix)
+        if topic == installTopic {
+            handleInstallPress(topic: topic, retained: retained, payload: payload,
+                               installTopic: installTopic)
+            return
+        }
         handleInbound(topic: topic, retained: retained,
                       refreshTopic: Self.refreshSyncTopic(prefix: settings.mqttTopicPrefix))
+    }
+
+    // MARK: - Install button
+
+    /// Subscribed on every connection, whatever the refresh setting: the update entity always
+    /// has its Install button, and a press with nothing listening would look broken.
+    func subscribeToInstallTopic() {
+        guard let settings, let client else { return }
+        client.subscribe(Self.updateInstallTopic(prefix: settings.mqttTopicPrefix), qos: .qos1)
+    }
+
+    func handleInstallPress(topic: String, retained: Bool, payload: String, installTopic: String) {
+        switch Self.installOutcome(topic: topic, retained: retained, payload: payload,
+                                   installTopic: installTopic) {
+        case .install:
+            logger?.info("MQTT: install requested on \(topic)")
+            onInstallRequested?()
+        case .droppedRetained:
+            logger?.warn("MQTT: dropped a retained message on \(topic). A retained press "
+                         + "would install on every reconnect — republish it with retain off.")
+        case .wrongPayload:
+            logger?.warn("MQTT: ignored \"\(payload)\" on \(topic) — "
+                         + "the Install button sends \"\(Self.updateInstallPayload)\"")
+        case .ignoredTopic:
+            break
+        }
     }
 
     /// The decision and what follows from it, with the refresh topic handed in.

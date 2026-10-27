@@ -5,8 +5,8 @@ import Foundation
 /// The `update` entity, which puts FindMySync+ in Home Assistant's Settings → Updates beside
 /// everything else that reports a version.
 ///
-/// It is read-only: Sparkle owns the install and Home Assistant has no way to drive it. A
-/// read-only update entity is a valid one, not a degraded one.
+/// Its Install button installs the newest signed release with no dialog; the press is the
+/// user's consent for that one update.
 @Suite("Home Assistant update entity")
 struct MQTTUpdateEntityTests {
 
@@ -14,11 +14,44 @@ struct MQTTUpdateEntityTests {
 
     // MARK: - Discovery
 
-    @Test("It is read-only, which is what leaving out the command topic does")
-    func readOnly() {
+    /// `command_topic` is what gives the entity its Install button, and Home Assistant's
+    /// schema has no default for `payload_install`, so both are sent.
+    @Test("It has an Install button: a command topic and an explicit install payload")
+    func installable() {
         let payload = MQTTClient.updatePayload(topicPrefix: prefix)
-        #expect(payload["command_topic"] == nil)
-        #expect(payload["payload_install"] == nil)
+        #expect(payload["command_topic"] as? String == "findmysyncplus/update/install")
+        #expect(payload["payload_install"] as? String == "install")
+    }
+
+    // MARK: - The Install press
+
+    @Test("A live press with the declared payload installs")
+    func livePressInstalls() {
+        #expect(MQTTClient.installOutcome(topic: "findmysyncplus/update/install", retained: false,
+                                          payload: "install",
+                                          installTopic: "findmysyncplus/update/install") == .install)
+    }
+
+    /// A retained press would replay on every connect and install without anyone asking.
+    @Test("A retained press is dropped")
+    func retainedPressDropped() {
+        #expect(MQTTClient.installOutcome(topic: "findmysyncplus/update/install", retained: true,
+                                          payload: "install",
+                                          installTopic: "findmysyncplus/update/install") == .droppedRetained)
+    }
+
+    @Test("Any other payload on the topic does nothing")
+    func wrongPayloadIgnored() {
+        #expect(MQTTClient.installOutcome(topic: "findmysyncplus/update/install", retained: false,
+                                          payload: "INSTALL",
+                                          installTopic: "findmysyncplus/update/install") == .wrongPayload)
+    }
+
+    @Test("Other topics are not the Install button")
+    func otherTopicIgnored() {
+        #expect(MQTTClient.installOutcome(topic: "findmysyncplus/refresh_sync", retained: false,
+                                          payload: "install",
+                                          installTopic: "findmysyncplus/update/install") == .ignoredTopic)
     }
 
     @Test("The entity id carries the update domain")
@@ -74,10 +107,19 @@ struct MQTTUpdateEntityTests {
         #expect(payload["installed_version"] as? String == "2.0b")
     }
 
-    @Test("The payload is exactly the two versions")
+    @Test("The payload is exactly the two versions and whether an install is running")
     func payloadKeysAreSettled() {
         let keys = Set(MQTTClient.updateStatePayload(installed: "2.0b", latest: "2.1b").keys)
-        #expect(keys == ["installed_version", "latest_version"])
+        #expect(keys == ["installed_version", "latest_version", "in_progress"])
+    }
+
+    /// Always sent, so a retained `true` from an install that ended in a relaunch is cleared
+    /// by the first publish after it.
+    @Test("in_progress is false unless an install is running, and never omitted")
+    func inProgress() {
+        #expect(MQTTClient.updateStatePayload(installed: "2.0b", latest: "2.1b")["in_progress"] as? Bool == false)
+        #expect(MQTTClient.updateStatePayload(installed: "2.0b", latest: "2.1b",
+                                              installing: true)["in_progress"] as? Bool == true)
     }
 
     // MARK: - What Sparkle's state means

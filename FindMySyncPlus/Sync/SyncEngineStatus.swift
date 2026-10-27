@@ -97,11 +97,6 @@ extension SyncEngine {
         // The update entity, from the same run. `nil` whenever no check has answered, which
         // Home Assistant reads as unknown — a demo session never starts the updater, so that
         // is what every harness run publishes.
-        mqtt.publishUpdateState(
-            installed: installedVersion,
-            latest: updates.flatMap {
-                SparkleUpdater.latestVersion(for: $0.state, installed: installedVersion)
-            },
-            prefix: settings.mqttTopicPrefix)
+        publishUpdateStateNow()
     }
 }

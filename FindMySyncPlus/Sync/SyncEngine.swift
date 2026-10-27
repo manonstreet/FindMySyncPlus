@@ -84,6 +84,21 @@ final class SyncEngine {
         mqttClient.bind(logger: logger, settings: settings)
     }
 
+    /// Home Assistant's `update` entity on its own, at the end of a run and between runs: an
+    /// install starting or ending shows at once rather than at the next sync.
+    func publishUpdateStateNow() {
+        guard let settings, settings.transportMode == .mqtt else { return }
+        let installedVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString")
+            as? String ?? "—"
+        mqttClient.publishUpdateState(
+            installed: installedVersion,
+            latest: updates.flatMap {
+                SparkleUpdater.latestVersion(for: $0.state, installed: installedVersion)
+            },
+            installing: updates?.isInstalling ?? false,
+            prefix: settings.mqttTopicPrefix)
+    }
+
     // MARK: - Key invalidation
 
     func invalidateCacheDecryptorKey() {
