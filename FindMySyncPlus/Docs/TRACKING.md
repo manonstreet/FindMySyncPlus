@@ -12,7 +12,7 @@ This list shows the entries from the last sync that have no alias yet. The filte
 - **Assign** opens a sheet with the alias prefilled from the entry's name. Letters, numbers, hyphens and underscores are allowed, and the app normalizes the alias when you save it. From then on that alias is the entry's Home Assistant identity.
 - **Update** is shown in place of Assign when an entry's name matches an alias you already have but its UUID is new, which means Apple has rotated the identifier. Clicking it adds the new UUID to the existing alias.
 
-A family member who appears both as a Device and as a Friend is listed once, as a Device, with the Friend data merged in.
+A family member who appears both as a Device and as a Friend is listed once by default, as a Device, with the Friend data merged in. Enable **Track family members as Friends** in General to list and alias the stable person record separately. That Friend alias follows the person's DSID rather than a particular iPhone, Watch or other device.
 
 
 ## Grouped accessories

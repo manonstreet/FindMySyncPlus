@@ -89,6 +89,12 @@ extension SyncEngine {
             groupNamesByID: Dictionary(allDevices.map { ($0.id.normalized(), $0.name) },
                                        uniquingKeysWith: { first, _ in first }))
         let familyDSIDs = context.familyDSIDs
+        let visibleFriendEntries = friendEntries.filter {
+            Self.shouldTrackFriend(
+                id: $0.id,
+                familyDSIDs: familyDSIDs,
+                trackFamilyMembersAsFriends: settings.trackFamilyMembersAsFriends)
+        }
         var acc = PlanAccumulator()
 
         planDevices(allDevices, context: context, aliasByUUIDLocal: &aliasByUUIDLocal, into: &acc)
@@ -99,10 +105,10 @@ extension SyncEngine {
         settings.batchUpdateParentAliases(acc.parentAliasUpdates)
         settings.batchUpdateParentGroups(acc.parentGroupUpdates)
 
-        // The UI list gains the non-family friends; family members are already there as
-        // their devices.
+        // By default the UI list gains only non-family friends; the opt-in keeps a stable
+        // person row beside each family member's device row.
         var allEntries = app.lastLocatedEntries
-        for f in friendEntries where !familyDSIDs.contains(f.id.normalized()) {
+        for f in visibleFriendEntries {
             allEntries.append(LocatedEntry(point: f, source: .friend))
         }
         app.lastLocatedEntries = allEntries
@@ -124,7 +130,7 @@ extension SyncEngine {
             discoveredFriends: friendEntries.count,
             locatedDevices: devicesBySource[.devices]?.count ?? 0,
             locatedItems: devicesBySource[.items]?.count ?? 0,
-            locatedFriends: friendEntries.count(where: { !familyDSIDs.contains($0.id.normalized()) }),
+            locatedFriends: visibleFriendEntries.count,
             unassignedCount: acc.unassignedCount,
             notTrackedCount: acc.notTrackedCount,
             toPostCount: deduped.points.count,
@@ -229,9 +235,17 @@ extension SyncEngine {
         for f in friendEntries {
             let friendID = f.id.normalized()
 
-            if context.familyDSIDs.contains(friendID) {
+            if !Self.shouldTrackFriend(
+                id: friendID,
+                familyDSIDs: context.familyDSIDs,
+                trackFamilyMembersAsFriends: context.settings.trackFamilyMembersAsFriends
+            ) {
                 logger.debug("Friend \"\(f.name.isEmpty ? f.id : f.name)\" is a family member (DSID match) — skipping (devices already tracked)")
                 continue
+            }
+
+            if context.familyDSIDs.contains(friendID) {
+                logger.debug("Friend \"\(f.name.isEmpty ? f.id : f.name)\" is a family member (DSID match) — keeping a separate Friend tracker")
             }
 
             if let rec = aliasByUUIDLocal[friendID] {
@@ -260,6 +274,15 @@ extension SyncEngine {
             }
         }
         return dsids
+    }
+
+    /// Whether a LocalStorage friend should get its own identity in Tracking and Home
+    /// Assistant. DSIDs are stable person identifiers; this opt-in deliberately keeps
+    /// them separate from the rotating hardware identifiers in Devices.data.
+    nonisolated static func shouldTrackFriend(id: String,
+                                              familyDSIDs: Set<String>,
+                                              trackFamilyMembersAsFriends: Bool) -> Bool {
+        trackFamilyMembersAsFriends || !familyDSIDs.contains(id.normalized())
     }
 
     /// Rich attributes from the LocalStorage friend records, by DSID, for the family merge.

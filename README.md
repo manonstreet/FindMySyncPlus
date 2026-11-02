@@ -93,7 +93,7 @@ Friend location tracking is rare among Find My tools. FMS+ does it through origi
 
 FMS+ decrypts this database using the same AES-256 keystream XOR cipher that Apple's `libsqlite3` codec uses internally, discovered by reverse-engineering the `sqliteCodecCCCrypto` function.
 
-**Family member dedup & enrichment** — Family members appear in both `Devices.data` (as shared devices) and `LocalStorage.db` (as friends). FMS+ automatically detects this overlap using Apple's universal person identifier (DSID) and skips duplicates, so each family member is only tracked once. Rich attributes from LocalStorage (altitude, speed, course, motion state) are merged onto the FMIP device entry, giving family members the best of both sources.
+**Family member identity** — Family members appear in both `Devices.data` (as shared devices) and `LocalStorage.db` (as friends). By default FMS+ detects this overlap using Apple's universal person identifier (DSID) and skips the duplicate Friend row. Enable **Track family members as Friends** in General to keep a stable person tracker beside the device tracker instead. The Friend identity then follows the person even when they replace or switch devices. Rich attributes from LocalStorage (altitude, speed, course, motion state) continue to enrich the FMIP device entry in either mode.
 
 **Requires macOS 15 or later.** macOS 14 does not store friend locations, so there is nothing to process. The FMF and LocalStorage keys are not used there.
 
@@ -172,6 +172,7 @@ Under the **General** pane, recommended settings:
 - Disable **Open Main Window on Startup** (runs as a menu bar agent)
 - Enable **Auto-start Scheduler**
 - Enable **Auto-learn UUIDs**
+- Enable **Track family members as Friends** when person automations should survive a family member changing devices
 
 ### Phase 4 — First Run & Tracking
 

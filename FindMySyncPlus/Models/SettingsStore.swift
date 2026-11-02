@@ -182,6 +182,13 @@ final class SettingsStore: ObservableObject {
     @AppStorage("enableDevices") var enableDevices: Bool = true
     @AppStorage("enableItems") var enableItems: Bool = true
     @AppStorage("enableFriends") var enableFriends: Bool = false
+    /// Publish a stable Friend tracker even when the same person also appears in the
+    /// Devices cache as a family member.
+    ///
+    /// Off preserves the historical one-entity behavior. Turning it on keeps the
+    /// LocalStorage DSID as the person's identity, so replacing an iPhone or Apple Watch
+    /// cannot silently move a person automation to a different device.
+    @AppStorage("trackFamilyMembersAsFriends") var trackFamilyMembersAsFriends: Bool = false
     @AppStorage("maxUUIDsPerAlias") var maxUUIDsPerAlias: Int = 2
     @AppStorage("autoLearnUUIDs") var autoLearnUUIDs: Bool = false
 

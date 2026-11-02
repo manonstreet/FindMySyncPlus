@@ -136,6 +136,15 @@ struct GeneralSettingsView: View {
                         AppSwitch(isOn: friendsAvailability.isSupported ? $settings.enableFriends : .constant(false))
                             .disabled(!friendsAvailability.isSupported || settings.localStorageKeyStatus == .notPresent)
                     }
+                    SettingRow(
+                        title: "Track family members as Friends",
+                        description: "Creates a stable person tracker even when the same person also appears under Devices.",
+                        qualifier: settings.enableFriends ? nil : "Friends off",
+                        disabled: !friendsAvailability.isSupported || !settings.enableFriends
+                    ) {
+                        AppSwitch(isOn: $settings.trackFamilyMembersAsFriends)
+                            .disabled(!friendsAvailability.isSupported || !settings.enableFriends)
+                    }
                 }
                 if sourcesNeedKeys {
                     Text("Import keys in Access settings to enable sources")
