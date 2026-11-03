@@ -10,7 +10,23 @@ enum KeychainKey: String {
 }
 
 enum Keychain {
-    private static var service: String { Bundle.main.bundleIdentifier ?? "com.manonstreet.findmysyncplus" }
+    private static var service: String {
+        serviceName(
+            bundleIdentifier: Bundle.main.bundleIdentifier,
+            environment: ProcessInfo.processInfo.environment,
+            processIdentifier: ProcessInfo.processInfo.processIdentifier)
+    }
+
+    /// App-hosted tests otherwise inherit the production bundle identifier and ask for access
+    /// to a developer's real credentials as soon as `SettingsStore` starts. A per-process test
+    /// namespace makes a test build incapable of finding those items and avoids carrying one
+    /// test build's code identity into the next build's Keychain ACL.
+    static func serviceName(bundleIdentifier: String?, environment: [String: String],
+                            processIdentifier: Int32) -> String {
+        let production = bundleIdentifier ?? "com.manonstreet.findmysyncplus"
+        guard environment["XCTestConfigurationFilePath"] != nil else { return production }
+        return "\(production).xctest.\(processIdentifier)"
+    }
 
     @discardableResult
     static func set(_ data: Data, for key: KeychainKey) -> Bool {
