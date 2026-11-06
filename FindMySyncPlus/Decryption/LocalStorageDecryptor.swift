@@ -171,7 +171,11 @@ actor LocalStorageDecryptor {
         return (error.localizedDescription, false)
     }
 
+    /// `diag/person-location` only: the last read's people and devices; nil short of the DB.
+    private(set) var personSnapshot: PersonLocationDiagnostics.Snapshot?
+
     func readFriendLocations(logger: LogStore) -> Result<[DevicePoint], LocalStorageDecryptorError> {
+        personSnapshot = nil
         guard let key else { return .failure(.keyNotLoaded) }
 
         let resolved = resolveDBURL(logger: logger)
@@ -236,6 +240,7 @@ actor LocalStorageDecryptor {
 
         // Decrypt all pages and build the SQLite file
         let decryptedDB = buildDecryptedDB(encPages: encPages, key: key)
+        personSnapshot = PersonLocationDiagnostics.snapshot(database: decryptedDB)
 
         return queryFriends(database: decryptedDB, logger: logger)
     }

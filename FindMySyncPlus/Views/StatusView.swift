@@ -1,6 +1,7 @@
 import SwiftUI
 import Combine
 import AppKit
+import UniformTypeIdentifiers
 
 private enum LogDisplayStyle: String, CaseIterable {
     case icons
@@ -148,6 +149,11 @@ struct StatusView: View {
                 .controlSize(.regular)
                 .help("Copy the whole log to the clipboard as text")
 
+            // `diag/person-location` only.
+            Button("Save Diagnostics…") { savePersonDiagnostics() }
+                .controlSize(.regular)
+                .help("Save the last \(PersonDiagnosticsLog.cap) syncs of person location diagnostics as a text file")
+
             Button("Clear") {
                 logger.clear()
                 logger.info("Status log cleared")
@@ -242,5 +248,30 @@ struct StatusView: View {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
         showToast("Copied \(entries.count) line\(entries.count == 1 ? "" : "s")")
+    }
+
+    /// `diag/person-location` only: the kept blocks as a text file, which carries no names,
+    /// coordinates or identifiers. A file, because an issue comment's length limit is about
+    /// an hour of syncs for a large family, and an attachment holds the whole window.
+    private func savePersonDiagnostics() {
+        let log = PersonDiagnosticsLog.shared
+        guard !log.blocks.isEmpty else {
+            showToast(settings.enableFriends ? "No sync has run yet" : "Turn on Friends, then sync")
+            return
+        }
+        let stamp = DateFormatter()
+        stamp.dateFormat = "yyyyMMdd-HHmm"
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = "FindMySyncPlus-person-diagnostics-\(stamp.string(from: Date())).txt"
+        panel.allowedContentTypes = [.plainText]
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            try log.plainText(syncIntervalSeconds: settings.updateIntervalSec)
+                .write(to: url, atomically: true, encoding: .utf8)
+            showToast("Saved \(log.blocks.count) sync\(log.blocks.count == 1 ? "" : "s")")
+        } catch {
+            logger.warn("Person diagnostics: could not save \(url.lastPathComponent): \(error.localizedDescription)")
+            showToast("Could not save the file")
+        }
     }
 }
