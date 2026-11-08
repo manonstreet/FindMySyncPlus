@@ -157,13 +157,13 @@ enum PersonLocationDiagnostics {
         let records = Dictionary(snapshot.people.map { ($0.dsid.normalized(), $0) },
                                  uniquingKeysWith: { first, _ in first })
 
-        // Numbered in DSID order, which stays put from sync to sync while the people do.
-        for (index, dsid) in family.keys.sorted().enumerated() {
+        // Family first, then people who share only their location; each in DSID order, which
+        // stays put from sync to sync while the people do. A person outside the family still
+        // gets their record line: its age and accuracy over a walk are the finding even with
+        // no devices to compare it with.
+        let outsideFamily = Set(records.keys).subtracting(family.keys).sorted()
+        for (index, dsid) in (family.keys.sorted() + outsideFamily).enumerated() {
             lines += personLines(number: index + 1, record: records[dsid], devices: family[dsid] ?? [], now: now)
-        }
-        let outsideFamily = Set(records.keys).subtracting(family.keys).count
-        if outsideFamily > 0 {
-            lines.append("\(outsideFamily) more person record(s) with no devices here — friends outside the family, not compared")
         }
         lines += ownerLines(snapshot, devices: devices)
         return lines
@@ -181,6 +181,10 @@ enum PersonLocationDiagnostics {
             lines.append("person \(number): \(parts.joined(separator: ", "))")
         } else {
             lines.append("person \(number): no person record — not sharing a location with this account")
+        }
+        if devices.isEmpty {
+            lines.append("    no devices on this Mac — shares a location, outside this account's family")
+            return lines
         }
 
         let recordPosition = record.flatMap { r in r.latitude.flatMap { lat in r.longitude.map { (lat, $0) } } }

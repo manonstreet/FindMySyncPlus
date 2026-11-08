@@ -150,7 +150,8 @@ struct PersonLocationDiagnosticsTests {
                        "37.33", "122.0"] {
             #expect(!text.contains(secret), "the block leaked \(secret)")
         }
-        #expect(text.contains("1 more person record(s) with no devices here"))
+        #expect(text.contains("person 2: record 75 s old"))
+        #expect(text.contains("    no devices on this Mac — shares a location, outside this account's family"))
     }
 
     @Test func twoDevicesOfOneClassAreNumberedAndTheUnlocatedShareALine() throws {
@@ -169,6 +170,18 @@ struct PersonLocationDiagnosticsTests {
         #expect(log.blocks.count == PersonDiagnosticsLog.cap)
         #expect(log.blocks.first?.lines == ["sync 5"])
         #expect(log.plainText(syncIntervalSeconds: 60).contains("\(PersonDiagnosticsLog.cap) sync(s), 5 older dropped"))
+    }
+
+    /// A Mac on an account that people share their location with, outside its Family Sharing
+    /// group: no devices to compare, and the records are still reported.
+    @Test func peopleOutsideTheFamilyStillGetTheirRecord() throws {
+        let snapshot = PersonLocationDiagnostics.snapshot(database: try database(
+            locations: ["AA11": Self.locationValue(), "BB22": Self.locationValue()]))
+        let lines = PersonLocationDiagnostics.block(snapshot: snapshot, devices: [], now: Self.now)
+        #expect(lines.filter { $0.hasPrefix("person ") }.count == 2)
+        #expect(lines.contains("person 2: record 75 s old, ±12 m, publishReason 6, motionActivityState 0, "
+                               + "timestamp stored as Date"))
+        #expect(lines.filter { $0 == "    no devices on this Mac — shares a location, outside this account's family" }.count == 2)
     }
 
     @Test func noSnapshotSaysSo() {
