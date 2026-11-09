@@ -26,8 +26,11 @@ struct PersonLocationDiagnosticsTests {
     private struct OwnerRow { let id: String, name: String, active: Int }
 
     /// A database with the three tables the diagnostic reads, as file bytes.
+    /// `elsewhere` adds a table `mystery` holding each plist as a BLOB: a location stored where
+    /// the diagnostic has no reason to look.
     private func database(locations: [String: [String: Any]],
-                          devicesRows: [OwnerRow]? = []) throws -> Data {
+                          devicesRows: [OwnerRow]? = [],
+                          elsewhere: [[String: Any]] = []) throws -> Data {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("person-diag-\(UUID().uuidString).db")
         defer { try? FileManager.default.removeItem(at: url) }
@@ -57,6 +60,17 @@ struct PersonLocationDiagnosticsTests {
         for row in devicesRows ?? [] {
             try #require(sqlite3_exec(db, "INSERT INTO devices VALUES ('\(row.id)', NULL, '\(row.name)', "
                                       + "\(row.active), 0, 0, 1, 1)", nil, nil, nil) == SQLITE_OK)
+        }
+        if !elsewhere.isEmpty {
+            try #require(sqlite3_exec(db, "CREATE TABLE mystery (payload BLOB);", nil, nil, nil) == SQLITE_OK)
+        }
+        for value in elsewhere {
+            let blob = try PropertyListSerialization.data(fromPropertyList: value, format: .binary, options: 0)
+            var stmt: OpaquePointer?
+            try #require(sqlite3_prepare_v2(db, "INSERT INTO mystery VALUES (?)", -1, &stmt, nil) == SQLITE_OK)
+            _ = blob.withUnsafeBytes { sqlite3_bind_blob(stmt, 1, $0.baseAddress, Int32(blob.count), transient) }
+            try #require(sqlite3_step(stmt) == SQLITE_DONE)
+            sqlite3_finalize(stmt)
         }
         sqlite3_close(db)
         return try Data(contentsOf: url)
@@ -182,6 +196,41 @@ struct PersonLocationDiagnosticsTests {
         #expect(lines.contains("person 2: record 75 s old, ±12 m, publishReason 6, motionActivityState 0, "
                                + "timestamp stored as Date"))
         #expect(lines.filter { $0 == "    no devices on this Mac — shares a location, outside this account's family" }.count == 2)
+    }
+
+    /// A Watch out on a walk, and a location stored in a table nothing reads, under a key
+    /// that is an identifier. The search finds it, names it by where it is stored, prints the
+    /// identifier as `*`, and leaves the Watch's own record out.
+    @Test func aLocationStoredAnywhereNearTheWatchIsFound() throws {
+        let away = AppleRecordFixture.latitude + 0.005   // about 556 m north of home
+        let hiddenID = "0F1E2D3C-4B5A-4697-8899-AABBCCDDEE99"
+        let snapshot = PersonLocationDiagnostics.snapshot(database: try database(
+            locations: [Self.dsid: Self.locationValue()],
+            elsewhere: [["byDevice": [hiddenID: ["latitude": away + 0.00001,
+                                                 "longitude": AppleRecordFixture.longitude,
+                                                 "timestamp": Self.now.addingTimeInterval(-30)]]]]))
+        let devices = [
+            Self.familyDevice("iPhone", id: Self.phoneID, location: AppleRecordFixture.location()),
+            Self.familyDevice("Watch", id: Self.watchID,
+                              location: AppleRecordFixture.location(latitude: away, positionType: "GPS"))
+        ]
+        let lines = PersonLocationDiagnostics.block(snapshot: snapshot, devices: devices, now: Self.now)
+        let near = try #require(lines.first { $0.hasPrefix("    near Watch: ") })
+
+        #expect(near.hasPrefix("    near Watch: 1 m mystery.payload.byDevice.*, 30 s old; 556 m "))
+        #expect(near.contains("person 1's record (secureLocations.value), 75 s old"))
+        #expect(near.contains("Devices.data iPhone, person 1"))
+        #expect(!near.contains("Devices.data Watch"), "the Watch's own record is not a match for itself")
+        #expect(!lines.joined().contains(hiddenID))
+        #expect(lines.last == "coordinates in LocalStorage.db: mystery.payload.byDevice.* ×1, secureLocations.value ×1")
+    }
+
+    @Test func aPlistKeyThatIsNotAFieldNamePrintsAsAStar() {
+        #expect(PersonLocationDiagnostics.safeKey("location") == "location")
+        #expect(PersonLocationDiagnostics.safeKey("$objects") == "$objects")
+        #expect(PersonLocationDiagnostics.safeKey("0F1E2D3C-4B5A-4697-8899-AABBCCDDEE99") == "*")
+        #expect(PersonLocationDiagnostics.safeKey("someone@example.com") == "*")
+        #expect(PersonLocationDiagnostics.safeKey("A2B3C4D5E6F7") == "*")
     }
 
     @Test func noSnapshotSaysSo() {

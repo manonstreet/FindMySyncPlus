@@ -183,7 +183,7 @@ final class SyncEngine {
         friendEntries = await enrichFriendNames(friendEntries, enabled: hasFriendSource,
                                                 settings: settings, logger: logger)
         if hasFriendSource {
-            await logPersonDiagnostics(devices: io?.rawBySource[.devices], logger: logger)
+            await logPersonDiagnostics(devices: io?.rawBySource[.devices], items: io?.rawBySource[.items], logger: logger)
         }
 
         let hadFMIPData = io?.hadSuccessfulDecrypt ?? false
@@ -323,10 +323,10 @@ final class SyncEngine {
 
     /// `diag/person-location` only. Reads what this run already decrypted and publishes
     /// nothing; the block goes to the log at Debug and to `PersonDiagnosticsLog`.
-    private func logPersonDiagnostics(devices: [[String: Any]]?, logger: LogStore) async {
+    private func logPersonDiagnostics(devices: [[String: Any]]?, items: [[String: Any]]?, logger: LogStore) async {
         let now = Date()
         let lines = PersonLocationDiagnostics.block(snapshot: await localStorageDecryptor.personSnapshot,
-                                                    devices: devices, now: now)
+                                                    devices: devices, items: items, now: now)
         PersonDiagnosticsLog.shared.append(lines, at: now)
         logger.debug("Person diagnostics:\n" + lines.joined(separator: "\n"))
     }

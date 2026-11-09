@@ -44,6 +44,8 @@ enum PersonLocationDiagnostics {
         /// Nil when the table is absent, so "no table" and "no rows" read differently.
         var ownerDevices: [OwnerDeviceRow]?
         var autoMeCapableWatches: Int?
+        /// Every coordinate in the database, for the search near each Watch.
+        var stored: [StoredLocation] = []
         /// Why the snapshot is incomplete, if it is.
         var problems: [String] = []
     }
@@ -83,6 +85,7 @@ enum PersonLocationDiagnostics {
         if snapshot.ownerDevices == nil { snapshot.problems.append("no devices table") }
         snapshot.autoMeCapableWatches = rows(db, "SELECT COUNT(*) AS n FROM autoMeCapableWatches")?
             .first?["n"] as? Int
+        snapshot.stored = storedLocations(db)
         return snapshot
     }
 
@@ -105,7 +108,7 @@ enum PersonLocationDiagnostics {
     }
 
     /// Every row as a dictionary, or nil when the statement does not prepare — a missing table.
-    nonisolated private static func rows(_ db: OpaquePointer, _ sql: String) -> [[String: Any]]? {
+    nonisolated static func rows(_ db: OpaquePointer, _ sql: String) -> [[String: Any]]? {
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return nil }
         defer { sqlite3_finalize(stmt) }
@@ -140,9 +143,11 @@ enum PersonLocationDiagnostics {
 
     // MARK: - The block
 
-    /// The lines for one sync. `devices` is Devices.data as decrypted, nil when that source
-    /// is off; `snapshot` is nil when LocalStorage.db was not read this sync.
-    nonisolated static func block(snapshot: Snapshot?, devices: [[String: Any]]?, now: Date) -> [String] {
+    /// The lines for one sync. `devices` and `items` are Devices.data and Items.data as
+    /// decrypted, nil when that source is off; `snapshot` is nil when LocalStorage.db was not
+    /// read this sync.
+    nonisolated static func block(snapshot: Snapshot?, devices: [[String: Any]]?,
+                                  items: [[String: Any]]? = nil, now: Date) -> [String] {
         guard let snapshot else {
             return ["no LocalStorage.db snapshot this sync — the Friends lines above say why"]
         }
@@ -162,15 +167,27 @@ enum PersonLocationDiagnostics {
         // gets their record line: its age and accuracy over a walk are the finding even with
         // no devices to compare it with.
         let outsideFamily = Set(records.keys).subtracting(family.keys).sorted()
-        for (index, dsid) in (family.keys.sorted() + outsideFamily).enumerated() {
-            lines += personLines(number: index + 1, record: records[dsid], devices: family[dsid] ?? [], now: now)
+        let order = family.keys.sorted() + outsideFamily
+        let person = Dictionary(uniqueKeysWithValues: order.enumerated().map { ($1, $0 + 1) })
+        for (index, dsid) in order.enumerated() {
+            lines += personLines(number: index + 1, record: records[dsid], devices: family[dsid] ?? [], now: now) { watch, label in
+                nearestLine(to: watch, label: label, stored: snapshot.stored, devices: devices,
+                            items: items ?? [], person: person, now: now)
+            }
         }
         lines += ownerLines(snapshot, devices: devices)
+        // Where the database holds coordinates at all — a Watch's location stored somewhere
+        // unexpected would show here even on a sync where no Watch has a fix.
+        let bySource = Dictionary(grouping: snapshot.stored, by: \.source)
+            .map { "\($0.key) ×\($0.value.count)" }.sorted()
+        lines.append("coordinates in LocalStorage.db: " + (bySource.isEmpty ? "none" : bySource.joined(separator: ", ")))
         return lines
     }
 
+    /// `near` gives the line of stored locations nearest a located Watch.
     nonisolated private static func personLines(number: Int, record: PersonRecord?,
-                                                devices: [[String: Any]], now: Date) -> [String] {
+                                                devices: [[String: Any]], now: Date,
+                                                near: ([String: Any], String) -> String?) -> [String] {
         var lines: [String] = []
         if let record {
             var parts = ["record \(age(record.timestamp, now: now))"]
@@ -203,6 +220,9 @@ enum PersonLocationDiagnostics {
             let label = count > 1 ? "\(cls) \(count)" : cls
             if let description = deviceDescription(device, recordPosition: recordPosition, now: now) {
                 lines.append("    \(label): \(description)")
+                if cls.localizedCaseInsensitiveContains("watch"), let line = near(device, label) {
+                    lines.append(line)
+                }
             } else {
                 unlocated.append(label)
             }
